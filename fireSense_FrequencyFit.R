@@ -53,6 +53,7 @@ defineModule(sim, list(
   ),
   inputObjects = data.frame(objectName = "dataFireSense_FrequencyFit",
                             objectClass = "data.frame",
+                            sourceURL = "",
                             other=NA_character_,
                             stringsAsFactors=FALSE),
   outputObjects = data.frame(objectName="fireSense_FrequencyFitted",
@@ -226,6 +227,7 @@ fireSense_FrequencyFitRun <- function(sim) {
     allx <- allxy[allxy != y] 
     objFun <- obj
     knotNames <- kLB <- kUB <- NULL
+    nknots <- 0L
     
   } else { ## Presence of at least one piecewise term
     
@@ -362,10 +364,10 @@ fireSense_FrequencyFitRun <- function(sim) {
     }
   
   ## If negative.binomial family add bounds for the theta parameter
-  nlminbLB <- if (exists("svTheta") && is.null(p(sim)$lb$t))
-    c(nlminbLB, 1e-30) ## Enforce non-negativity
+  if (exists("svTheta") && is.null(p(sim)$lb$t))
+    nlminbLB <- c(nlminbLB, 1e-30) ## Enforce non-negativity
   else if (exists("svTheta"))
-    c(nlminbLB, p(sim)$lb$t)
+    nlminbLB <- c(nlminbLB, p(sim)$lb$t)
 
   ## Define the log-likelihood function (objective function)
   nll <- switch(family$family,
