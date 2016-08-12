@@ -112,16 +112,16 @@ fireSense_FrequencyFitRun <- function(sim) {
   
   ## Toolbox: set of functions used internally by fireSense_FrequencyFitRun
     ## Handling piecewise terms in a formula
-      pw <- function(v, k) pmax(v - k)
+      pw <- function(variableName, knotName) pmax(variableName - knotName)
       
     ## Compute the order of magnitude
       oom <- function(x) 10^(ceiling(log10(abs(x))))
     
     ## Extract the components of the special terms, i.e. the variable and the knot value
-      extractSpecial <- function(variableName, knotName) {
+      extractSpecial <- function(v, k) {
         cl <- match.call()
 
-        if(missing(knotName))
+        if(missing(k))
           stop(paste0("fireSense_FrequencyFit> argument 'knotName' is missing (variable '", as.character(cl$v), "')"))
         else
           list(variable = as.character(cl$v), knot = as.character(cl$k))
@@ -229,7 +229,7 @@ fireSense_FrequencyFitRun <- function(sim) {
     
     allx <- allxy[allxy != y] 
     objFun <- obj
-    knotNames <- kLB <- kUB <- NULL
+    kNames <- kLB <- kUB <- NULL
     nknots <- 0L
     
   } else { ## Presence of at least one piecewise term
@@ -246,12 +246,12 @@ fireSense_FrequencyFitRun <- function(sim) {
       eval(specialsCall)
     })
     
-    knotNames <- sapply(specialsTerms, "[[", "knot")
+    kNames <- sapply(specialsTerms, "[[", "knot")
     
-    if (anyDuplicated(knotNames)) stop("fireSense_FrequencyFit> Knot's names are not unique.")
+    if (anyDuplicated(kNames)) stop("fireSense_FrequencyFit> Knot's names are not unique.")
     
-    nknots <- length(knotNames)
-    allx <- allxy[!allxy %in% c(y, knotNames)]
+    nknots <- length(kNames)
+    allx <- allxy[!allxy %in% c(y, kNames)]
     
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable")
@@ -267,10 +267,10 @@ fireSense_FrequencyFitRun <- function(sim) {
       rep_len(p(sim)$lb$k, nknots) ## User-defined bounds (recycled if necessary)
     }
     
-    invisible(mapply(knotNames, z = pwVarNames, FUN = function(w, z) envData[[w]] <- mean(envData[[z]]), SIMPLIFY = FALSE))
+    invisible(mapply(kNames, z = pwVarNames, FUN = function(w, z) envData[[w]] <- mean(envData[[z]]), SIMPLIFY = FALSE))
     
     
-    updateKnotExpr <- parse(text = paste0("envData[[\"", knotNames, "\"]] = params[", (nx + 1L):(nx + nknots), "]", collapse="; "))
+    updateKnotExpr <- parse(text = paste0("envData[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nknots), "]", collapse="; "))
   }
 
   mm <- model.matrix(terms, envData)
@@ -282,7 +282,6 @@ fireSense_FrequencyFitRun <- function(sim) {
     
     scalMx <- matrix(0, n, n)
     diag(scalMx) <- 1
-  
 
   ## Define parameter bounds automatically if they are not supplied by user
   ## First defined the bounds for DEoptim, the first optimizer    
@@ -397,7 +396,7 @@ fireSense_FrequencyFitRun <- function(sim) {
       diag(scalMx) <- oom(JDE$par)
       
       ## Update the bounds for the knots
-        if (!is.null(knotNames)) {
+        if (!is.null(kNames)) {
           
             kLB <- drop(DEoptimLB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
             nlminbLB[(nx + 1L):(nx + nknots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
@@ -449,9 +448,9 @@ fireSense_FrequencyFitRun <- function(sim) {
             coef = setNames(out$par[1:nx], colnames(mm)),
             se.coef = setNames(se[1:nx], colnames(mm)))
   
-  if (!is.null(knotNames)) {
-    l$knots <- setNames(out$par[(nx + 1L):(nx + nknots)], knotNames)
-    l$se.knots <- setNames(se[(nx + 1L):(nx + nknots)], knotNames)
+  if (!is.null(kNames)) {
+    l$knots <- setNames(out$par[(nx + 1L):(nx + nknots)], kNames)
+    l$se.knots <- setNames(se[(nx + 1L):(nx + nknots)], kNames)
   }
   
   if(exists("svTheta")){
