@@ -10,9 +10,11 @@ library(SpaDES)
         formula = formula(NB_FIRES_L ~ MDC_JUL * HW),
         family = "poisson",
         trace = 5,
-        data = "dataFireSense_FrequencyFit")
+        data = "dataFireSense_Frequency")
       ),
       inputs = data.frame(
+        files = "Z:/dataFireSense_Frequency.rds",
+        objectName = NA,
         functions = "readRDS",
         package = "base",
         stringsAsFactors = FALSE)
@@ -75,7 +77,5 @@ library(SpaDES)
     #     package = "base",
     #     stringsAsFactors = FALSE)
     # )
-        data = "dataFireSense_FrequencyFit")
-        objectName = "dataFireSense_FrequencyFit",
 
 spades(mySim)
