@@ -207,13 +207,13 @@ fireSense_FrequencyFitRun <- function(sim) {
   if (is.null(attr(terms, "specials")$pw)) {
     
     allx <- allxy[allxy != y] 
-    objFun <- obj
+    objfun <- obj
     kNames <- kLB <- kUB <- NULL
     nknots <- 0L
     
   } else { ## Presence of at least one piecewise term
     
-    objFun <- objPW
+    objfun <- objPW
     
     specialsInd <- which(unlist(lapply(attr(terms,"variables"), is.call)))
     specialsCalls <- attr(terms,"variables")[specialsInd]
@@ -377,8 +377,8 @@ fireSense_FrequencyFitRun <- function(sim) {
       i <- 0L
       while(JDE$iter == 0L && i < 30) {
         i <- i + 1L
-        JDE.call <- quote(JDEoptim(fn = objFun, lower = DEoptimLB, upper = DEoptimUB, trace = if(trace > 0) TRUE else FALSE, triter = trace))
-        JDE.call[names(formals(objFun)[-1])] <- parse(text = formalArgs(objFun)[-1])
+        JDE.call <- quote(JDEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB, trace = if(trace > 0) TRUE else FALSE, triter = trace))
+        JDE.call[names(formals(objfun)[-1])] <- parse(text = formalArgs(objfun)[-1])
         JDE <- suppressWarnings(eval(JDE.call))
       }
       
@@ -401,7 +401,7 @@ fireSense_FrequencyFitRun <- function(sim) {
         svList <- c(lapply(1:10,function(i)pmin(pmax(rnorm(length(JDE$par),0L,2L)/10 + unname(JDE$par/oom(JDE$par)), nlminbLB), nlminbUB)),
                     list(unname(JDE$par/oom(JDE$par))))
         
-        out <- lapply(svList, objNlminb, objective = objFun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
+        out <- lapply(svList, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
 
         ## Select best minimum amongst all trials
         out <- out[[which.min(sapply(out, "[[", "objective"))]]
@@ -410,20 +410,20 @@ fireSense_FrequencyFitRun <- function(sim) {
   } else if (is.list(p(sim)$start)) { ## If starting values are supplied as a list of vectors of starting values
     
     ## List of vectors of user-defined starting values
-    out <- lapply(p(sim)$start, objNlminb, objective = objFun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
+    out <- lapply(p(sim)$start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
     
     ## Select best minimum amongst all trials
     out <- out[[which.min(sapply(out, "[[", "objective"))]]
     
   } else if (is.vector(p(sim)$start)) { ## If starting values are supplied as a vector of starting values
     
-    out <- objNlminb(p(sim)$start, objFun, nlminbLB, nlminbUB, c(p(sim)$nlminb.control, list(trace = trace)))
+    out <- objNlminb(p(sim)$start, objfun, nlminbLB, nlminbUB, c(p(sim)$nlminb.control, list(trace = trace)))
     
   }
   
   ## Compute the standard errors around the estimates
-    hess.call <- quote(numDeriv::hessian(func = objFun, x = out$par))
-    hess.call[names(formals(objFun)[-1L])] <- parse(text = formalArgs(objFun)[-1L])
+    hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
+    hess.call[names(formals(objfun)[-1L])] <- parse(text = formalArgs(objfun)[-1L])
     hess <- eval(hess.call)
     se <- try(drop(sqrt(diag(solve(hess))) %*% scalMx), silent = TRUE)
   
