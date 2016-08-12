@@ -67,11 +67,9 @@ defineModule(sim, list(
 
 doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FALSE) {
   if (eventType == "init") {
-
     sim <- sim$fireSense_FrequencyFitInit(sim)
     
   } else if (eventType == "run") {
-    
     sim <- sim$fireSense_FrequencyFitRun(sim)
 
   } else if (eventType == "save") {
@@ -121,10 +119,8 @@ fireSense_FrequencyFitRun <- function(sim) {
       extractSpecial <- function(v, k) {
         cl <- match.call()
 
-        if(missing(k))
-          stop(paste0("fireSense_FrequencyFit> argument 'knotName' is missing (variable '", as.character(cl$v), "')"))
-        else
-          list(variable = as.character(cl$v), knot = as.character(cl$k))
+        if(missing(k)) stop(paste0("fireSense_FrequencyFit> argument 'knotName' is missing (variable '", as.character(cl$v), "')"))
+        else list(variable = as.character(cl$v), knot = as.character(cl$k))
       }
     
     ## Function to pass to the optimizer
@@ -138,11 +134,9 @@ fireSense_FrequencyFitRun <- function(sim) {
         ## link implementation
         mu <- family$linkinv(mu)
         
-        if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0){
-          return(1e20)
-        } else {
-          return(eval(nll, envir = as.list(environment()), enclos = envData))
-        }
+        if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
+        else return(eval(nll, envir = as.list(environment()), enclos = envData))
+
       }
       
     ## Function to pass to the optimizer (PW version)
@@ -158,11 +152,9 @@ fireSense_FrequencyFitRun <- function(sim) {
         ## link implementation
         mu <- family$linkinv(mu)
 
-        if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0){
-          return(1e20)
-        } else {
-          return(eval(nll, envir = as.list(environment()), enclos = envData))
-        }
+        if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
+        else return(eval(nll, envir = as.list(environment()), enclos = envData))
+
       }
       
     ## Nlminb wrapper
@@ -179,7 +171,8 @@ fireSense_FrequencyFitRun <- function(sim) {
         while(as.integer(gsub("[\\(\\)]", "", regmatches(o$message, gregexpr("\\(.*?\\)", o$message))[[1L]])) %in% 7:14 & i < 3L){
           i <- i + 1L
           o <- eval(nlminb.call)
-        }            
+        }
+        
         o
       }
 
@@ -196,10 +189,8 @@ fireSense_FrequencyFitRun <- function(sim) {
   
   terms <- terms.formula(formula <- p(sim)$formula, specials = "pw")
   
-  if (attr(terms, "response"))
-    y <- as.character(formula[[2L]])
-  else
-    stop("fireSense_FrequencyFit> Incomplete formula, the LHS is missing.")
+  if (attr(terms, "response")) y <- as.character(formula[[2L]])
+  else stop("fireSense_FrequencyFit> Incomplete formula, the LHS is missing.")
 
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
   allxy <- all.vars(terms)
@@ -235,21 +226,16 @@ fireSense_FrequencyFitRun <- function(sim) {
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable")
     
-    kUB <- if (is.null(p(sim)$ub$k))
-      lapply(pwVarNames, function(x) max(envData[[x]])) %>% unlist
-    else
-      rep_len(p(sim)$ub$k, nknots) ## User-defined bounds (recycled if necessary)
+    kUB <- if (is.null(p(sim)$ub$k)) lapply(pwVarNames, function(x) max(envData[[x]])) %>% unlist
+           else rep_len(p(sim)$ub$k, nknots) ## User-defined bounds (recycled if necessary)
     
-    kLB <- if (is.null(p(sim)$lb$k)) {
-      lapply(pwVarNames, function(x) min(envData[[x]])) %>% unlist
-    } else {
-      rep_len(p(sim)$lb$k, nknots) ## User-defined bounds (recycled if necessary)
-    }
+    kLB <- if (is.null(p(sim)$lb$k)) lapply(pwVarNames, function(x) min(envData[[x]])) %>% unlist
+           else rep_len(p(sim)$lb$k, nknots) ## User-defined bounds (recycled if necessary)
     
     invisible(mapply(kNames, z = pwVarNames, FUN = function(w, z) envData[[w]] <- mean(envData[[z]]), SIMPLIFY = FALSE))
     
-    
     updateKnotExpr <- parse(text = paste0("envData[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nknots), "]", collapse="; "))
+
   }
 
   
@@ -258,7 +244,6 @@ fireSense_FrequencyFitRun <- function(sim) {
   if (is.character(family)) {
     
     family <- get(family, mode = "function", envir = parent.frame())
-    
     family <- tryCatch(family(),
                        error = function(e) family(theta = glm.nb(formula = formula,
                                                                  y = FALSE,
@@ -296,16 +281,13 @@ fireSense_FrequencyFitRun <- function(sim) {
                    suppressWarnings %>%
                    coef %>%
                    oom(.)) * 10L
-               } else {
-                 rep_len(p(sim)$ub$b, nx) ## User-defined bounds (recycled if necessary)
-               }, kUB)
+               } else rep_len(p(sim)$ub$b, nx), ## User-defined bounds (recycled if necessary)
+             kUB)
              
              DEoptimLB <- c({
-               if (is.null(p(sim)$lb$b))
-                 -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter 
-               else 
-                 rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled)
-               }, kLB)
+               if (is.null(p(sim)$lb$b)) -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter 
+               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled)
+             }, kLB)
            }, identity = {
              DEoptimUB <- c(
                if (is.null(p(sim)$ub$b)) {
@@ -319,16 +301,13 @@ fireSense_FrequencyFitRun <- function(sim) {
                    suppressWarnings %>%
                    coef %>%
                    oom(.)) * 10L
-               } else {
-                 rep_len(p(sim)$ub$b) ## User-defined bounds (recycled if necessary)
-               }, kUB)
+               } else rep_len(p(sim)$ub$b), ## User-defined bounds (recycled if necessary)
+              kUB)
              
              DEoptimLB <- c({
-               if (is.null(p(sim)$lb$b))
-                 rep_len(1e-30, nx) ## Ensure non-negativity
-               else
-                 rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
-               }, kLB)
+               if (is.null(p(sim)$lb$b)) rep_len(1e-30, nx) ## Ensure non-negativity
+               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
+             }, kLB)
            }, stop(paste("fireSense_FrequencyFit> Link function", family$link, "is not supported.")))
 
     ## If negative.binomial family needs to add bounds for theta parameter
@@ -349,17 +328,14 @@ fireSense_FrequencyFitRun <- function(sim) {
                identity = rep_len(1e-30, nx)), ## identity link, default: enforce non-negativity
         kLB)
       
-    } else {
-      
-      DEoptimLB ## User-defined lower bounds for parameters to be estimated
-      
-    }
-  
+    } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
+
     ## If negative.binomial family add bounds for the theta parameter
-    if (exists("theta") && is.null(p(sim)$lb$t))
+    if (exists("theta") && is.null(p(sim)$lb$t)) {
       nlminbLB <- c(nlminbLB, 1e-30) ## Enforce non-negativity
-    else if (exists("theta"))
+    } else if (exists("theta")) {
       nlminbLB <- c(nlminbLB, p(sim)$lb$t)
+    }
 
   ## Define the log-likelihood function (objective function)
   nll <- switch(family$family,
@@ -388,11 +364,11 @@ fireSense_FrequencyFitRun <- function(sim) {
       ## Update the bounds for the knots
         if (!is.null(kNames)) {
           
-            kLB <- drop(DEoptimLB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
-            nlminbLB[(nx + 1L):(nx + nknots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
+          kLB <- drop(DEoptimLB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
+          nlminbLB[(nx + 1L):(nx + nknots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
           
-            kUB <- drop(DEoptimUB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
-            nlminbUB[(nx + 1L):(nx + nknots)] <- if(is.null(p(sim)$ub$k)) kUB else pmin(kUB, p(sim)$ub$k)
+          kUB <- drop(DEoptimUB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
+          nlminbUB[(nx + 1L):(nx + nknots)] <- if(is.null(p(sim)$ub$k)) kUB else pmin(kUB, p(sim)$ub$k)
   
         }
       
