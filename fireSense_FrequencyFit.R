@@ -409,7 +409,6 @@ fireSense_FrequencyFitRun <- function(sim) {
     
   } else if (is.list(p(sim)$start)) { ## If starting values are supplied as a list of vectors of starting values
     
-    ## List of vectors of user-defined starting values
     out <- lapply(p(sim)$start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
     
     ## Select best minimum amongst all trials
