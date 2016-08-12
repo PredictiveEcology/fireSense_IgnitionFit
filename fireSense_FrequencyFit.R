@@ -2,12 +2,12 @@
 # are put into the simList. To use objects and functions, use sim$xxx.
 defineModule(sim, list(
   name = "fireSense_FrequencyFit",
-  description = "Fit statistical models that can be used to parametrize 
-  the fire ignition component of simulation models (e.g. fireSense)",
-  keywords=c("fire frequency", "optimization", "poisson", "negative binomial", "fireSense"),
-  authors=c(person("Jean", "Marchal", email="jean.d.marchal@gmail.com", role=c("aut", "cre"))),
+  description = "Fit statistical models that can be used to parametrize (calibrate) 
+                 the fire ignition component of simulation models (e.g. fireSense).",
+  keywords = c("fire frequency", "optimization", "additive property", "poisson", "negative binomial", "fireSense"),
+  authors = c(person("Jean", "Marchal", email="jean.d.marchal@gmail.com", role=c("aut", "cre"))),
   childModules = character(),
-  version = numeric_version("0.0.0.9000"),
+  version = numeric_version("1.2.0.9000"),
   spatialExtent = raster::extent(rep(NA_real_, 4)),
   timeframe = as.POSIXlt(c(NA, NA)),
   timeunit = NA_character_, # e.g., "year",
@@ -49,7 +49,8 @@ defineModule(sim, list(
     defineParameter(name = "initialRunTime", class = "numeric", default = NA, 
       desc = "optional. Simulation time at which to start this module. If omitted, start at start(simList)."),
     defineParameter(name = "intervalRunModule", class = "numeric", default = NA, 
-      desc = "optional. Interval in simulation time units between two module runs.")),
+      desc = "optional. Interval in simulation time units between two module runs.")
+  ),
   inputObjects = data.frame(objectName = "dataFireSense_FrequencyFit",
                             objectClass = "data.frame",
                             other=NA_character_,
@@ -90,7 +91,7 @@ doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FAL
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
   }
-  return(invisible(sim))
+  invisible(sim)
 }
 
 ## event functions
@@ -126,12 +127,12 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
     
     ## Function to pass to the optimizer
-      obj <- function(params, family, nll, scalMx, nX, mm, envData) {
+      obj <- function(params, family, nll, scalMx, nx, mm, envData) {
         
         ## Parameters scaling
         params <- drop(params %*% scalMx)
         
-        mu <- drop(mm %*% params[1L:nX])
+        mu <- drop(mm %*% params[1L:nx])
         
         ## link implementation
         mu <- family$linkinv(mu)
@@ -144,14 +145,14 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
       
     ## Function to pass to the optimizer (PW version)
-      objPW <- function(params, formula, family, nll, scalMx, updateKnotExpr, nX, envData){
+      objPW <- function(params, formula, family, nll, scalMx, updateKnotExpr, nx, envData){
 
         ## Parameters scaling
         params <- drop(params %*% scalMx)
         
         eval(updateKnotExpr, envir = environment(), enclos = envData) ## update knot's values
 
-        mu <- drop(model.matrix(formula, envData) %*% params[1:nX])
+        mu <- drop(model.matrix(formula, envData) %*% params[1:nx])
         
         ## link implementation
         mu <- family$linkinv(mu)
@@ -217,12 +218,12 @@ fireSense_FrequencyFitRun <- function(sim) {
   }
     
   
-  nX <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
-  allXY <- all.vars(terms)
+  nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
+  allxy <- all.vars(terms)
   
   if (is.null(attr(terms, "specials")$pw)) {
     
-    allX <- allXY[allXY != y] 
+    allx <- allxy[allxy != y] 
     objFun <- obj
     knotNames <- kLB <- kUB <- NULL
     
@@ -244,8 +245,8 @@ fireSense_FrequencyFitRun <- function(sim) {
     
     if (anyDuplicated(knotNames)) stop("fireSense_FrequencyFit> Knot's names are not unique.")
     
-    nKnots <- length(knotNames)
-    allX <- allXY[!allXY %in% c(y, knotNames)]
+    nknots <- length(knotNames)
+    allx <- allxy[!allxy %in% c(y, knotNames)]
     
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable")
@@ -253,25 +254,25 @@ fireSense_FrequencyFitRun <- function(sim) {
     kUB <- if (is.null(p(sim)$ub$k))
       lapply(pwVarNames, function(x) max(envData[[x]])) %>% unlist
     else
-      rep_len(p(sim)$ub$k, nKnots) ## User-defined bounds (recycled if necessary)
+      rep_len(p(sim)$ub$k, nknots) ## User-defined bounds (recycled if necessary)
     
     kLB <- if (is.null(p(sim)$lb$k)) {
       lapply(pwVarNames, function(x) min(envData[[x]])) %>% unlist
     } else {
-      rep_len(p(sim)$lb$k, nKnots) ## User-defined bounds (recycled if necessary)
+      rep_len(p(sim)$lb$k, nknots) ## User-defined bounds (recycled if necessary)
     }
     
     invisible(mapply(knotNames, z = pwVarNames, FUN = function(w, z) envData[[w]] <- mean(envData[[z]]), SIMPLIFY = FALSE))
     
     
-    updateKnotExpr <- parse(text = paste0("envData[[\"", knotNames, "\"]] = params[", (nX + 1L):(nX + nKnots), "]", collapse="; "))
+    updateKnotExpr <- parse(text = paste0("envData[[\"", knotNames, "\"]] = params[", (nx + 1L):(nx + nknots), "]", collapse="; "))
   }
 
   mm <- model.matrix(terms, envData)
   
   ## Define the scaling matrix. This is used later in the optimization process
   ##to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
-    n <- nX + nKnots
+    n <- nx + nknots
     if (exists("svTheta")) n <- n + 1L
     
     scalMx <- matrix(0, n, n)
@@ -293,14 +294,14 @@ fireSense_FrequencyFitRun <- function(sim) {
                     coef %>%
                     oom(.)) * 10L
                } else {
-                 rep_len(p(sim)$ub$b, nX) ## User-defined bounds (recycled if necessary)
+                 rep_len(p(sim)$ub$b, nx) ## User-defined bounds (recycled if necessary)
                }, kUB)
              
              DEoptimLB <- c({
                if (is.null(p(sim)$lb$b))
-                 -DEoptimUB[1L:nX] ## Automatically estimate a lower boundary for each parameter 
+                 -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter 
                else 
-                 rep_len(p(sim)$lb$b, nX) ## User-defined bounds (recycled)
+                 rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled)
                }, kLB)
            }, identity = {
              DEoptimUB <- c(
@@ -327,9 +328,9 @@ fireSense_FrequencyFitRun <- function(sim) {
              
              DEoptimLB <- c({
                if (is.null(p(sim)$lb$b))
-                 rep_len(1e-30, nX) ## Ensure non-negativity
+                 rep_len(1e-30, nx) ## Ensure non-negativity
                else
-                 rep_len(p(sim)$lb$b, nX) ## User-defined bounds (recycled if necessary)
+                 rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
                }, kLB)
            }, stop(paste("fireSense_FrequencyFit> Link function", p(sim)$link, "is not supported.")))
     
@@ -350,11 +351,11 @@ fireSense_FrequencyFitRun <- function(sim) {
     
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
     nlminbUB <- if (is.null(p(sim)$ub$b)) rep_len(Inf, length(DEoptimUB)) else DEoptimUB
-    
+
     nlminbLB <- if (is.null(p(sim)$lb$b)) {
       c(switch(family$link,
-               log = rep_len(-Inf, nX),        ## log-link, default: -Inf for terms and 0 for breakpoints/knots
-               identity = rep_len(1e-30, nX)), ## identity link, default: enforce non-negativity
+               log = rep_len(-Inf, nx),        ## log-link, default: -Inf for terms and 0 for breakpoints/knots
+               identity = rep_len(1e-30, nx)), ## identity link, default: enforce non-negativity
         kLB)
     } else {
       DEoptimLB ## User-defined lower bounds for parameters to be estimated
@@ -372,7 +373,7 @@ fireSense_FrequencyFitRun <- function(sim) {
                 parse(text=paste0("-sum(dnbinom(x=", y,", mu = mu, size = params[length(params)], log = TRUE))")))
   
   trace <- if (p(sim)$trace < 0) 0 else p(sim)$trace ## No tracing if trace < 0
-  
+
   ## If starting values are not supplied
     if (is.null(p(sim)$start)) {
       ## First optimizer, get rough estimates of the parameter values
@@ -393,11 +394,11 @@ fireSense_FrequencyFitRun <- function(sim) {
       ## Update the bounds for the knots
         if (!is.null(knotNames)) {
           
-            kLB <- drop(DEoptimLB %*% solve(scalMx))[(nX + 1L):(nX + nKnots)]
-            nlminbLB[(nX + 1L):(nX + nKnots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
+            kLB <- drop(DEoptimLB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
+            nlminbLB[(nx + 1L):(nx + nknots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
           
-            kUB <- drop(DEoptimUB %*% solve(scalMx))[(nX + 1L):(nX + nKnots)]
-            nlminbUB[(nX + 1L):(nX + nKnots)] <- if(is.null(p(sim)$ub$k)) kUB else pmin(kUB, p(sim)$ub$k)
+            kUB <- drop(DEoptimUB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
+            nlminbUB[(nx + 1L):(nx + nknots)] <- if(is.null(p(sim)$ub$k)) kUB else pmin(kUB, p(sim)$ub$k)
   
         }
       
@@ -440,10 +441,10 @@ fireSense_FrequencyFitRun <- function(sim) {
 
   sim$fireSense_FrequencyFitted <- list(formula = formula,
                                         family = family,
-                                        coef = setNames(out$par[1:nX], colnames(mm)),
-                                        knots = setNames(out$par[(nX + 1L):(nX + nKnots)], knotNames),
-                                        se.coef = setNames(se[1:nX], colnames(mm)),
-                                        se.knots = setNames(se[(nX + 1L):(nX + nKnots)], knotNames))
+                                        coef = setNames(out$par[1:nx], colnames(mm)),
+                                        knots = setNames(out$par[(nx + 1L):(nx + nknots)], knotNames),
+                                        se.coef = setNames(se[1:nx], colnames(mm)),
+                                        se.knots = setNames(se[(nx + 1L):(nx + nknots)], knotNames))
   
   if(exists("svTheta")){
     ## Update the NB family template with the estimated theta
