@@ -200,28 +200,7 @@ fireSense_FrequencyFitRun <- function(sim) {
     y <- as.character(formula[[2L]])
   else
     stop("fireSense_FrequencyFit> Incomplete formula, the LHS is missing.")
-    
 
-  family <- p(sim)$family
-  
-  if (is.character(family)) {
-    
-    family <- get(family, mode = "function", envir = parent.frame())
-    
-    if(is.null(formals(family)$theta)) { ## Check if family is a negative.binomial
-      
-      family <- family()
-      
-    } else {
-      
-      family <- family(theta = NA)
-      svTheta <- if (is.null(p(sim)$svTheta)) length(envData[[y]]) / sum((envData[[y]] / mean(envData[[y]]) - 1) ^ 2)
-                 else p(sim)$svTheta
-
-    }
-    
-  }
-    
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
   allxy <- all.vars(terms)
   
@@ -273,12 +252,30 @@ fireSense_FrequencyFitRun <- function(sim) {
     updateKnotExpr <- parse(text = paste0("envData[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nknots), "]", collapse="; "))
   }
 
+  
+  family <- p(sim)$family
+  
+  if (is.character(family)) {
+    
+    family <- get(family, mode = "function", envir = parent.frame())
+    
+    family <- tryCatch(family(),
+                       error = function(e) family(theta = glm.nb(formula = formula,
+                                                                 y = FALSE,
+                                                                 model = FALSE,
+                                                                 data = envData)[["theta"]]))
+  }
+  
+  ## If family is negative.binomial extract starting value for theta
+  if (grepl(x = family$family, pattern = "Negative Binomial"))
+    theta <- as.numeric(gsub(x = regmatches(family$family, gregexpr("\\(.*?\\)", family$family))[[1L]], pattern = "[\\(\\)]", replacement = ""))
+  
   mm <- model.matrix(terms, envData)
   
   ## Define the scaling matrix. This is used later in the optimization process
   ##to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
     n <- nx + nknots
-    if (exists("svTheta")) n <- n + 1L
+    if (exists("theta")) n <- n + 1L
     
     scalMx <- matrix(0, n, n)
     diag(scalMx) <- 1
@@ -290,13 +287,15 @@ fireSense_FrequencyFitRun <- function(sim) {
              DEoptimUB <- c(
                if (is.null(p(sim)$ub$b)) {
                  ## Automatically estimate an upper boundary for each parameter       
-                 (glm(formula = formula,
+                 (tryCatch(glm(formula = formula,
                       y = FALSE,
                       model = FALSE,
                       data = envData,
-                      family = poisson) %>%
-                    coef %>%
-                    oom(.)) * 10L
+                      family = poisson),
+                      error = function(e) stop("fireSense_FrequencyFit> Automated estimation of upper bounds failed, please set the 'ub' parameter.")) %>%
+                   suppressWarnings %>%
+                   coef %>%
+                   oom(.)) * 10L
                } else {
                  rep_len(p(sim)$ub$b, nx) ## User-defined bounds (recycled if necessary)
                }, kUB)
@@ -311,21 +310,15 @@ fireSense_FrequencyFitRun <- function(sim) {
              DEoptimUB <- c(
                if (is.null(p(sim)$ub$b)) {
                  ## Automatically estimate an upper boundary for each parameter
-                 (glm(formula = formula, 
-                      y = FALSE,
-                      model = FALSE,
-                      data = envData,
-                      family = poisson(link = "identity")) %>%
-                    suppressWarnings %>%
-                    tryCatch(error = function(e) lm(formula,
-                                                    model = FALSE,
-                                                    qr = FALSE,
-                                                    data = envData %>%
-                                                      unlist %>% 
-                                                      setNames(knotNames) %>%
-                                                      as.list)) %>%
-                    coef %>%
-                    oom(.)) * 10L
+                 (tryCatch(glm(formula = formula, 
+                              y = FALSE,
+                              model = FALSE,
+                              data = envData,
+                              family = poisson(link = "identity")),
+                          error = function(e) stop("fireSense_FrequencyFit> Automated estimation of upper bounds failed, please set the 'ub' parameter.")) %>%
+                   suppressWarnings %>%
+                   coef %>%
+                   oom(.)) * 10L
                } else {
                  rep_len(p(sim)$ub$b) ## User-defined bounds (recycled if necessary)
                }, kUB)
@@ -337,39 +330,36 @@ fireSense_FrequencyFitRun <- function(sim) {
                  rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
                }, kLB)
            }, stop(paste("fireSense_FrequencyFit> Link function", p(sim)$link, "is not supported.")))
-    
+
     ## If negative.binomial family needs to add bounds for theta parameter
-      if (exists("svTheta")) {
-        thetaEstimate <- glm.nb(formula = formula,
-                                y = FALSE,
-                                model = FALSE,
-                                data = envData) %>%
-          suppressWarnings %>%
-          `[[` ("theta") %>%
-          tryCatch(error = function(e)stop("fireSense_FrequencyFit> Starting value for theta cannot be estimated, please supply a starting value."))
+      if (exists("theta")) {
+          
+        DEoptimUB <- c(DEoptimUB, if (is.null(p(sim)$ub$t)) 2L * theta else p(sim)$ub$t)
+        DEoptimLB <- c(DEoptimLB, if (is.null(p(sim)$lb$t)) 1e-30 else p(sim)$lb$t) ## Enfore non-negativity
         
-        ## Add upper and lower bounds for theta
-        DEoptimUB <- c(DEoptimUB, if (is.null(p(sim)$ub$t)) 2L * thetaEstimate else p(sim)$ub$t)
-        DEoptimLB <- c(DEoptimLB, if (is.null(p(sim)$lb$t)) 1e-30 else p(sim)$lb$t)
       }
     
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
     nlminbUB <- if (is.null(p(sim)$ub$b)) rep_len(Inf, length(DEoptimUB)) else DEoptimUB
 
     nlminbLB <- if (is.null(p(sim)$lb$b)) {
+      
       c(switch(family$link,
                log = rep_len(-Inf, nx),        ## log-link, default: -Inf for terms and 0 for breakpoints/knots
                identity = rep_len(1e-30, nx)), ## identity link, default: enforce non-negativity
         kLB)
+      
     } else {
+      
       DEoptimLB ## User-defined lower bounds for parameters to be estimated
+      
     }
   
-  ## If negative.binomial family add bounds for the theta parameter
-  if (exists("svTheta") && is.null(p(sim)$lb$t))
-    nlminbLB <- c(nlminbLB, 1e-30) ## Enforce non-negativity
-  else if (exists("svTheta"))
-    nlminbLB <- c(nlminbLB, p(sim)$lb$t)
+    ## If negative.binomial family add bounds for the theta parameter
+    if (exists("theta") && is.null(p(sim)$lb$t))
+      nlminbLB <- c(nlminbLB, 1e-30) ## Enforce non-negativity
+    else if (exists("theta"))
+      nlminbLB <- c(nlminbLB, p(sim)$lb$t)
 
   ## Define the log-likelihood function (objective function)
   nll <- switch(family$family,
@@ -453,7 +443,7 @@ fireSense_FrequencyFitRun <- function(sim) {
     l$se.knots <- setNames(se[(nx + 1L):(nx + nknots)], kNames)
   }
   
-  if(exists("svTheta")){
+  if(exists("theta")){
     ## Update the NB family template with the estimated theta
     l$family <- MASS::negative.binomial(theta = out$par[length(out$par)], link = family$link)
     l$theta <- out$par[length(out$par)]
