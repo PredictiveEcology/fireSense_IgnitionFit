@@ -20,7 +20,7 @@ defineModule(sim, list(
       desc = 'an object of class "formula" : a symbolic description of the model to be fitted.
               Piecewised terms can be specifed using pw(variableName, knotName).'),
     defineParameter(name = "family", class = "function, character", default = "negative.binomial",
-      desc = "see ?family, can be a function or a character string"),
+      desc = "a character string naming a family function or a family function. For more info see ?family"),
     defineParameter(name = "start", class = "numeric, list", default = NULL, 
       desc = "optional starting values for the parameters to be estimated. Those are passed to nlminb
               and can be a numeric vector, or a list of numeric vectors. In the latter case, only the
@@ -204,21 +204,24 @@ fireSense_FrequencyFitRun <- function(sim) {
 
   family <- p(sim)$family
   
-  if (is.character(family))
+  if (is.character(family)) {
+    
     family <- get(family, mode = "function", envir = parent.frame())
-  
-  if(is.null(formals(family)$theta)) { ## Check if family is a negative.binomial
     
-    family <- family()
-  
-  } else {
+    if(is.null(formals(family)$theta)) { ## Check if family is a negative.binomial
+      
+      family <- family()
+      
+    } else {
+      
+      family <- family(theta = NA)
+      svTheta <- if (is.null(p(sim)$svTheta)) length(envData[[y]]) / sum((envData[[y]] / mean(envData[[y]]) - 1) ^ 2)
+                 else p(sim)$svTheta
+
+    }
     
-    family <- family(theta = NA)
-    svTheta <- if (is.null(p(sim)$svTheta)) length(envData[[y]]) / sum((envData[[y]] / mean(envData[[y]]) - 1) ^ 2)
-               else p(sim)$svTheta
   }
     
-  
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
   allxy <- all.vars(terms)
   
@@ -441,19 +444,24 @@ fireSense_FrequencyFitRun <- function(sim) {
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   out$par <- drop(out$par %*% scalMx)
 
-  sim$fireSense_FrequencyFitted <- list(formula = formula,
-                                        family = family,
-                                        coef = setNames(out$par[1:nx], colnames(mm)),
-                                        knots = setNames(out$par[(nx + 1L):(nx + nknots)], knotNames),
-                                        se.coef = setNames(se[1:nx], colnames(mm)),
-                                        se.knots = setNames(se[(nx + 1L):(nx + nknots)], knotNames))
+  l <- list(formula = formula,
+            family = family,
+            coef = setNames(out$par[1:nx], colnames(mm)),
+            se.coef = setNames(se[1:nx], colnames(mm)))
+  
+  if (!is.null(knotNames)) {
+    l$knots <- setNames(out$par[(nx + 1L):(nx + nknots)], knotNames)
+    l$se.knots <- setNames(se[(nx + 1L):(nx + nknots)], knotNames)
+  }
   
   if(exists("svTheta")){
     ## Update the NB family template with the estimated theta
-    sim$fireSense_FrequencyFitted$family <- MASS::negative.binomial(theta = out$par[length(out$par)], link = family$link)
-    sim$fireSense_FrequencyFitted$theta <- out$par[length(out$par)]
-    sim$fireSense_FrequencyFitted$theta.se <- se[length(se)]
+    l$family <- MASS::negative.binomial(theta = out$par[length(out$par)], link = family$link)
+    l$theta <- out$par[length(out$par)]
+    l$theta.se <- se[length(se)]
   }
+  
+  sim$fireSense_FrequencyFitted <- l
   
   if (!is.na(p(sim)$intervalRunModule))
     sim <- scheduleEvent(sim, time(sim) + p(sim)$intervalRunModule, "fireSense_FrequencyFit", "run")
