@@ -451,9 +451,11 @@ fireSense_FrequencyFitRun <- function(sim) {
   }
   
   sim$fireSense_FrequencyFitted <- l
+  class(sim$fireSense_FrequencyFitted) <- "fireSense_FrequencyFit"
   
   if (!is.na(p(sim)$intervalRunModule))
     sim <- scheduleEvent(sim, time(sim) + p(sim)$intervalRunModule, "fireSense_FrequencyFit", "run")
   
   sim  
+
 }
