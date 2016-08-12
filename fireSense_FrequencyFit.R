@@ -182,7 +182,7 @@ fireSense_FrequencyFitRun <- function(sim) {
         }            
         o
       }
-      
+
   envData <- new.env(parent = envir(sim))
   on.exit(rm(envData))
   list2env(as.list(envir(sim)), envir = envData)

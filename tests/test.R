@@ -71,7 +71,7 @@ library(SpaDES)
         data = "dataFireSense_FrequencyFit")
       ),
       inputs = data.frame(
-        files = "Z:/dataFireSense_FrequencyFit.rds",
+        files = "Z:/dataFireSense_Frequency.rds",
         objectName = "dataFireSense_FrequencyFit",
         functions = "readRDS",
         package = "base",
