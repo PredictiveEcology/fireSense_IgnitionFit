@@ -5,7 +5,7 @@ defineModule(sim, list(
   description = "Fit statistical models that can be used to parametrize (calibrate) 
                  the fire ignition component of simulation models (e.g. fireSense).",
   keywords = c("fire frequency", "optimization", "additive property", "poisson", "negative binomial", "fireSense"),
-  authors = c(person("Jean", "Marchal", email="jean.d.marchal@gmail.com", role=c("aut", "cre"))),
+  authors = c(person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre"))),
   childModules = character(),
   version = numeric_version("1.2.0.9000"),
   spatialExtent = raster::extent(rep(NA_real_, 4)),
@@ -39,17 +39,17 @@ defineModule(sim, list(
       desc = "optional list of control parameters to be passed to the nlminb optmizer. See ?nlminb"),
     defineParameter(name = "trace", class = "numeric", default = 0,
       desc = "non-negative integer. If > 0, tracing information on the progress of the optimization is
-              produced every trace iteration. Defaults to 0 which indicates no trace information is to
+              produced every trace iteration. Defaults to 0 which indicates no trace information should
               be printed."),
     defineParameter(name = "data", class = "character", default = NULL,
       desc = "optional. A character vector indicating the names of objects present in the simList 
-              environment, in which to look for variables with which to predict. Objects can be
+              environment, in which to look for variables with which to predict. Objects should be
               data.frames. If omitted, or if variables are not found in data objects, variables are
               searched in the simList environment."),
     defineParameter(name = "initialRunTime", class = "numeric", default = NA, 
       desc = "optional. Simulation time at which to start this module. If omitted, start at start(simList)."),
     defineParameter(name = "intervalRunModule", class = "numeric", default = NA, 
-      desc = "optional. Interval in simulation time units between two module runs.")
+      desc = "optional. Interval in simulation time units between two runs of this module.")
   ),
   inputObjects = data.frame(objectName = "dataFireSense_FrequencyFit",
                             objectClass = "data.frame",
@@ -329,7 +329,7 @@ fireSense_FrequencyFitRun <- function(sim) {
                else
                  rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
                }, kLB)
-           }, stop(paste("fireSense_FrequencyFit> Link function", p(sim)$link, "is not supported.")))
+           }, stop(paste("fireSense_FrequencyFit> Link function", family$link, "is not supported.")))
 
     ## If negative.binomial family needs to add bounds for theta parameter
       if (exists("theta")) {
