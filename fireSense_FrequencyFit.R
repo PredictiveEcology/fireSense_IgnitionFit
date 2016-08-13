@@ -110,7 +110,7 @@ fireSense_FrequencyFitRun <- function(sim) {
   
   ## Toolbox: set of functions used internally by fireSense_FrequencyFitRun
     ## Handling piecewise terms in a formula
-      pw <- function(variableName, knotName) pmax(variableName - knotName)
+      pw <- function(variableName, knotName) pmax(variableName - knotName, 0)
       
     ## Compute the order of magnitude
       oom <- function(x) 10^(ceiling(log10(abs(x))))
