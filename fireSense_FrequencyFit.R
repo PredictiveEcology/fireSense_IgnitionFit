@@ -285,28 +285,30 @@ fireSense_FrequencyFitRun <- function(sim) {
            oom(.)) * 10L
       } else rep_len(p(sim)$ub$b, nx), ## User-defined bounds (recycled if necessary)
     kUB)
-    
-    switch(family$link,
-           log = {
-             DEoptimLB <- c({
-               if (is.null(p(sim)$lb$b)) -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter 
-               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
-             }, kLB)
-           }, identity = {
-             DEoptimLB <- c({
-               if (is.null(p(sim)$lb$b)) rep_len(1e-30, nx) ## Ensure non-negativity
-               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
-             }, kLB)
-           }, stop(paste("fireSense_FrequencyFit> Link function", family$link, "is not supported.")))
 
+    DEoptimLB <- c({
+      switch(family$link,
+             log = {
+               
+               if (is.null(p(sim)$lb$b)) ifelse(sign(DEoptimUB[1L:nx]) == 1, -DEoptimUB[1L:nx], DEoptimUB[1L:nx] * 3) ## Automatically estimate a lower boundary for each parameter
+               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
+               
+             }, identity = {
+               
+               if (is.null(p(sim)$lb$b)) rep_len(1e-16, nx) * sign(DEoptimUB[1:nx]) ## Ensure non-negativity
+               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
+               
+             }, stop(paste("fireSense_FrequencyFit> Link function", family$link, "is not supported.")))
+    }, kLB)
+    
     ## If negative.binomial family needs to add bounds for theta parameter
       if (exists("theta")) {
           
         DEoptimUB <- c(DEoptimUB, if (is.null(p(sim)$ub$t)) 2L * theta else p(sim)$ub$t)
-        DEoptimLB <- c(DEoptimLB, if (is.null(p(sim)$lb$t)) 1e-30 else p(sim)$lb$t) ## Enfore non-negativity
+        DEoptimLB <- c(DEoptimLB, if (is.null(p(sim)$lb$t)) 1e-16 else p(sim)$lb$t) ## Enfore non-negativity
         
       }
-    
+
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
     nlminbUB <- if (is.null(p(sim)$ub$b)) c(rep_len(Inf, nx), kUB) else DEoptimUB
 
@@ -314,14 +316,14 @@ fireSense_FrequencyFitRun <- function(sim) {
       
       c(switch(family$link,
                log = rep_len(-Inf, nx),        ## log-link, default: -Inf for terms and 0 for breakpoints/knots
-               identity = rep_len(1e-30, nx)), ## identity link, default: enforce non-negativity
+               identity = rep_len(1e-16, nx)), ## identity link, default: enforce non-negativity
         kLB)
       
     } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
 
     ## If negative.binomial family add bounds for the theta parameter
     if (exists("theta") && is.null(p(sim)$lb$t)) {
-      nlminbLB <- c(nlminbLB, 1e-30) ## Enforce non-negativity
+      nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
     } else if (exists("theta")) {
       nlminbLB <- c(nlminbLB, p(sim)$lb$t)
     }
@@ -351,10 +353,10 @@ fireSense_FrequencyFitRun <- function(sim) {
       
       ## Update scaling matrix
       diag(scalMx) <- oom(JDE$par)
-      
+
       ## Update the bounds for the knots
         if (!is.null(kNames)) {
-          
+
           kLB <- drop(DEoptimLB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
           nlminbLB[(nx + 1L):(nx + nknots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
           
