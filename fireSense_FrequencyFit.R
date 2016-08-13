@@ -124,15 +124,15 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
     
     ## Function to pass to the optimizer
-      obj <- function(params, family, nll, scalMx, nx, mm, envData) {
+      obj <- function(params, linkfun, nll, scalMx, nx, mm, envData) {
         
         ## Parameters scaling
         params <- drop(params %*% scalMx)
         
         mu <- drop(mm %*% params[1L:nx])
-        
+
         ## link implementation
-        mu <- family$linkinv(mu)
+        mu <- linkfun(mu)
         
         if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
         else return(eval(nll, envir = as.list(environment()), enclos = envData))
@@ -140,7 +140,7 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
       
     ## Function to pass to the optimizer (PW version)
-      objPW <- function(params, formula, family, nll, scalMx, updateKnotExpr, nx, envData){
+      objPW <- function(params, formula, linkfun, nll, scalMx, updateKnotExpr, nx, envData) {
 
         ## Parameters scaling
         params <- drop(params %*% scalMx)
@@ -150,7 +150,7 @@ fireSense_FrequencyFitRun <- function(sim) {
         mu <- drop(model.matrix(formula, envData) %*% params[1:nx])
         
         ## link implementation
-        mu <- family$linkinv(mu)
+        mu <- linkfun(mu)
 
         if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
         else return(eval(nll, envir = as.list(environment()), enclos = envData))
@@ -163,6 +163,7 @@ fireSense_FrequencyFitRun <- function(sim) {
         nlminb.call <- quote(nlminb(start = start, objective = objective, lower = lower, upper = upper, control = control))
         nlminb.call[names(formals(objective)[-1L])] <- parse(text = formalArgs(objective)[-1L])
 
+        op <- options(warn = -1)
         o <- eval(nlminb.call)
         
         i <- 1L
@@ -173,6 +174,7 @@ fireSense_FrequencyFitRun <- function(sim) {
           o <- eval(nlminb.call)
         }
         
+        options(op)
         o
       }
 
@@ -238,22 +240,23 @@ fireSense_FrequencyFitRun <- function(sim) {
 
   }
 
-  
   family <- p(sim)$family
   
   if (is.character(family)) {
     
     family <- get(family, mode = "function", envir = parent.frame())
     family <- tryCatch(family(),
-                       error = function(e) family(theta = glm.nb(formula = formula,
-                                                                 y = FALSE,
-                                                                 model = FALSE,
-                                                                 data = envData)[["theta"]]))
+                       error = function(e) family(theta = suppressWarnings(glm.nb(formula = formula,
+                                                                                  y = FALSE,
+                                                                                  model = FALSE,
+                                                                                  data = envData)[["theta"]])))
   }
   
   ## If family is negative.binomial extract starting value for theta
   if (grepl(x = family$family, pattern = "Negative Binomial"))
     theta <- as.numeric(gsub(x = regmatches(family$family, gregexpr("\\(.*?\\)", family$family))[[1L]], pattern = "[\\(\\)]", replacement = ""))
+  
+  linkfun <- family$linkfun
   
   mm <- model.matrix(terms, envData)
   
@@ -267,43 +270,29 @@ fireSense_FrequencyFitRun <- function(sim) {
 
   ## Define parameter bounds automatically if they are not supplied by user
   ## First defined the bounds for DEoptim, the first optimizer    
-    switch(family$link,
-           log = {
-             DEoptimUB <- c(
-               if (is.null(p(sim)$ub$b)) {
-                 ## Automatically estimate an upper boundary for each parameter       
-                 (tryCatch(glm(formula = formula,
+
+    DEoptimUB <- c(
+      if (is.null(p(sim)$ub$b)) {
+        ## Automatically estimate an upper boundary for each parameter       
+        (tryCatch(glm(formula = formula,
                       y = FALSE,
                       model = FALSE,
                       data = envData,
-                      family = poisson),
-                      error = function(e) stop("fireSense_FrequencyFit> Automated estimation of upper bounds failed, please set the 'ub' parameter.")) %>%
-                   suppressWarnings %>%
-                   coef %>%
-                   oom(.)) * 10L
-               } else rep_len(p(sim)$ub$b, nx), ## User-defined bounds (recycled if necessary)
-             kUB)
-             
+                      family = poisson(link = family$link)),
+                  error = function(e) stop("fireSense_FrequencyFit> Automated estimation of upper bounds (betas) failed, please set the beta component of the 'ub' parameter.")) %>%
+           suppressWarnings %>%
+           coef %>%
+           oom(.)) * 10L
+      } else rep_len(p(sim)$ub$b, nx), ## User-defined bounds (recycled if necessary)
+    kUB)
+    
+    switch(family$link,
+           log = {
              DEoptimLB <- c({
                if (is.null(p(sim)$lb$b)) -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter 
-               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled)
+               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
              }, kLB)
            }, identity = {
-             DEoptimUB <- c(
-               if (is.null(p(sim)$ub$b)) {
-                 ## Automatically estimate an upper boundary for each parameter
-                 (tryCatch(glm(formula = formula, 
-                              y = FALSE,
-                              model = FALSE,
-                              data = envData,
-                              family = poisson(link = "identity")),
-                          error = function(e) stop("fireSense_FrequencyFit> Automated estimation of upper bounds failed, please set the 'ub' parameter.")) %>%
-                   suppressWarnings %>%
-                   coef %>%
-                   oom(.)) * 10L
-               } else rep_len(p(sim)$ub$b), ## User-defined bounds (recycled if necessary)
-              kUB)
-             
              DEoptimLB <- c({
                if (is.null(p(sim)$lb$b)) rep_len(1e-30, nx) ## Ensure non-negativity
                else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
@@ -355,7 +344,9 @@ fireSense_FrequencyFitRun <- function(sim) {
         i <- i + 1L
         JDE.call <- quote(JDEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB, trace = if(trace > 0) TRUE else FALSE, triter = trace))
         JDE.call[names(formals(objfun)[-1])] <- parse(text = formalArgs(objfun)[-1])
-        JDE <- suppressWarnings(eval(JDE.call))
+        op <- options(warn = -1)
+        JDE <- eval(JDE.call)
+        options(op)
       }
       
       ## Update scaling matrix
@@ -395,7 +386,7 @@ fireSense_FrequencyFitRun <- function(sim) {
     out <- objNlminb(p(sim)$start, objfun, nlminbLB, nlminbUB, c(p(sim)$nlminb.control, list(trace = trace)))
     
   }
-  
+
   ## Compute the standard errors around the estimates
     hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
     hess.call[names(formals(objfun)[-1L])] <- parse(text = formalArgs(objfun)[-1L])
@@ -403,7 +394,7 @@ fireSense_FrequencyFitRun <- function(sim) {
     se <- try(drop(sqrt(diag(solve(hess))) %*% scalMx), silent = TRUE)
   
   ## Negative values in the Hessian matrix suggest that the algorithm did not converge
-  if(anyNA(se)) warning("fireSense_FrequencyFit> nlminb: algorithm did not converge", noBreaks. = TRUE)
+  if(anyNA(se) || out$convergence) warning("fireSense_FrequencyFit> nlminb: algorithm did not converge", immediate. = TRUE)
   
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   out$par <- drop(out$par %*% scalMx)
@@ -418,7 +409,7 @@ fireSense_FrequencyFitRun <- function(sim) {
     l$se.knots <- setNames(se[(nx + 1L):(nx + nknots)], kNames)
   }
   
-  if(exists("theta")){
+  if(exists("theta")) {
     ## Update the NB family template with the estimated theta
     l$family <- MASS::negative.binomial(theta = out$par[length(out$par)], link = family$link)
     l$theta <- out$par[length(out$par)]
