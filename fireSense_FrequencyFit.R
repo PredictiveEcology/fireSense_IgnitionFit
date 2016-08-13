@@ -365,7 +365,7 @@ fireSense_FrequencyFitRun <- function(sim) {
       
       ## Second optimization with nlminb()
       ## Brute-force to make models converge & select the best fit (according to AICc criterion)
-        svList <- c(lapply(1:10,function(i)pmin(pmax(rnorm(length(JDE$par),0L,2L)/10 + unname(JDE$par/oom(JDE$par)), nlminbLB), nlminbUB)),
+        svList <- c(lapply(1:500,function(i)pmin(pmax(rnorm(length(JDE$par),0L,2L)/10 + unname(JDE$par/oom(JDE$par)), nlminbLB), nlminbUB)),
                     list(unname(JDE$par/oom(JDE$par))))
         
         out <- lapply(svList, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
