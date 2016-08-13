@@ -308,7 +308,7 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
     
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
-    nlminbUB <- if (is.null(p(sim)$ub$b)) rep_len(Inf, length(DEoptimUB)) else DEoptimUB
+    nlminbUB <- if (is.null(p(sim)$ub$b)) c(rep_len(Inf, nx), kUB) else DEoptimUB
 
     nlminbLB <- if (is.null(p(sim)$lb$b)) {
       
