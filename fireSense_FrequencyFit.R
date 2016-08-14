@@ -2,7 +2,7 @@
 # are put into the simList. To use objects and functions, use sim$xxx.
 defineModule(sim, list(
   name = "fireSense_FrequencyFit",
-  description = "Fit statistical models that can be used to parametrize (calibrate) 
+  description = "Fit statistical models that can be used to parameterize (calibrate) 
                  the fire ignition component of simulation models (e.g. fireSense).",
   keywords = c("fire frequency", "optimization", "additive property", "poisson", "negative binomial", "fireSense"),
   authors = c(person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre"))),
@@ -22,21 +22,21 @@ defineModule(sim, list(
     defineParameter(name = "family", class = "function, character", default = "negative.binomial",
       desc = "a character string naming a family function or a family function. For more info see ?family"),
     defineParameter(name = "start", class = "numeric, list", default = NULL, 
-      desc = "optional starting values for the parameters to be estimated. Those are passed to nlminb
+      desc = "optional. Starting values for the parameters to be estimated. Those are passed to nlminb
               and can be a numeric vector, or a list of numeric vectors. In the latter case, only the
               best solution, i.e. which minimized the objective function the most, will be kept."),
     defineParameter(name = "lb", class = "list", default = NULL, 
-      desc = "optional list of numeric values describing lower bounds for the parameters to be 
+      desc = "optional. List of numeric values describing lower bounds for the parameters to be 
               estimated. List elements are all optional but should be named (if supplied) as 'beta',
               'theta' (ignored if family is not set to negative.binomial) and 'knots'. Partial 
               matching is allowed. Values are recycled if necessary."),
     defineParameter(name = "ub", class = "numeric", default = NULL, 
-      desc = "optional list of numeric values describing lower bounds for the parameters to be 
+      desc = "optional. List of numeric values describing lower bounds for the parameters to be 
               estimated. List elements are all optional but should be named (if supplied) as 'beta',
               'theta' (ignored if family is not set to negative.binomial) and 'knots'. Partial 
               matching is allowed. Values are recycled if necessary."),
     defineParameter(name = "nlminb.control", class = "numeric", default = list(iter.max = 5e3L, eval.max=5e3L),
-      desc = "optional list of control parameters to be passed to the nlminb optmizer. See ?nlminb"),
+      desc = "optional. List of control parameters to be passed to the nlminb optmizer. See ?nlminb"),
     defineParameter(name = "trace", class = "numeric", default = 0,
       desc = "non-negative integer. If > 0, tracing information on the progress of the optimization is
               produced every trace iteration. Defaults to 0 which indicates no trace information should
@@ -82,7 +82,7 @@ doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FAL
     # schedule future event(s)
     
     # e.g.,
-    # sim <- scheduleEvent(sim, time(sim) + increment, "fireSense_SizeFit", "save")
+    # sim <- scheduleEvent(sim, time(sim) + increment, "fireSense_FrequencyFit", "save")
     
     # ! ----- STOP EDITING ----- ! #
     
@@ -119,7 +119,7 @@ fireSense_FrequencyFitRun <- function(sim) {
       extractSpecial <- function(v, k) {
         cl <- match.call()
 
-        if(missing(k)) stop(paste0("fireSense_FrequencyFit> argument 'knotName' is missing (variable '", as.character(cl$v), "')"))
+        if(missing(k)) stop(paste0("fireSense_FrequencyFit> Argument 'knotName' is missing (variable '", as.character(cl$v), "')"))
         else list(variable = as.character(cl$v), knot = as.character(cl$k))
       }
     
