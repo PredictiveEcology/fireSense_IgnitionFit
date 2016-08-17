@@ -369,29 +369,19 @@ fireSense_FrequencyFitRun <- function(sim) {
   
         }
       
-      ## Second optimization with nlminb()
-      ## Brute-force to make models converge & select the best fit (according to AICc criterion)
-        svList <- c(lapply(1:500,function(i)pmin(pmax(rnorm(length(JDE$par),0L,2L)/10 + unname(JDE$par/oom(JDE$par)), nlminbLB), nlminbUB)),
-                    list(unname(JDE$par/oom(JDE$par))))
-        
-        out <- lapply(svList, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
-
-        ## Select best minimum amongst all trials
-        out <- out[[which.min(sapply(out, "[[", "objective"))]]
+      start <- c(lapply(1:500,function(i)pmin(pmax(rnorm(length(JDE$par),0L,2L)/10 + unname(JDE$par/oom(JDE$par)), nlminbLB), nlminbUB)),
+                 list(unname(JDE$par/oom(JDE$par))))
+      
+    } else start <- p(sim)$start
+  
+  out <- if (is.list(start)) {
     
-    
-  } else if (is.list(p(sim)$start)) { ## If starting values are supplied as a list of vectors of starting values
-    
-    out <- lapply(p(sim)$start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
+    out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
     
     ## Select best minimum amongst all trials
-    out <- out[[which.min(sapply(out, "[[", "objective"))]]
+    out[[which.min(sapply(out, "[[", "objective"))]]
     
-  } else if (is.vector(p(sim)$start)) { ## If starting values are supplied as a vector of starting values
-    
-    out <- objNlminb(p(sim)$start, objfun, nlminbLB, nlminbUB, c(p(sim)$nlminb.control, list(trace = trace)))
-    
-  }
+  } else objNlminb(start, objfun, nlminbLB, nlminbUB, c(p(sim)$nlminb.control, list(trace = trace)))
 
   ## Compute the standard errors around the estimates
     hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
