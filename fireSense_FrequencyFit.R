@@ -3,7 +3,7 @@
 defineModule(sim, list(
   name = "fireSense_FrequencyFit",
   description = "Fit statistical models that can be used to parameterize (calibrate) 
-                 the fire ignition component of fire landscape models (e.g. fireSense).",
+                 the fire ignition component of landscape fire models (e.g. fireSense).",
   keywords = c("fire frequency", "optimization", "additive property", "poisson", "negative binomial", "fireSense"),
   authors = c(person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre"))),
   childModules = character(),
