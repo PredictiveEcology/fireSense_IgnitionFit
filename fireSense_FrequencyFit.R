@@ -43,8 +43,8 @@ defineModule(sim, list(
               be printed."),
     defineParameter(name = "data", class = "character", default = NULL,
       desc = "optional. A character vector indicating the names of objects present in the simList 
-              environment, in which to look for variables with which to predict. Objects should be
-              data.frames. If omitted, or if variables are not found in data objects, variables are
+              environment, in which to look for variables present in the model formula. Objects should
+              be data.frames. If omitted, or if variables are not found in data objects, variables are
               searched in the simList environment."),
     defineParameter(name = "initialRunTime", class = "numeric", default = start(sim), 
       desc = "optional. Simulation time at which to start this module. Defaults to simulation start time."),
