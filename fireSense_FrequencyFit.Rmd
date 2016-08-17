@@ -43,7 +43,8 @@ parameters <- list(
     formula = formula(fireFrequency ~ weather),
     family = poisson,
     start = c(1, 1),
-    data = "df" ## TODO: where the data lives
+    data = "df", ## TODO: where the data lives
+    trace = 5 # Print progress every trace iteration
   )
 )
 
