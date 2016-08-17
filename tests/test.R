@@ -8,7 +8,7 @@ library(SpaDES)
       paths = list(modulePath = " # replace with empty string instead"),
       params = list(fireSense_FrequencyFit = list(
         formula = formula(NB_FIRES_L ~ MDC_JUL - 1),
-        family = "poisson",
+        family = poisson,
         trace = 5,
         data = "dataFireSense_Frequency")
       ),

@@ -20,7 +20,7 @@ defineModule(sim, list(
       desc = 'an object of class "formula" : a symbolic description of the model to be fitted.
               Piecewised terms can be specifed using pw(variableName, knotName).'),
     defineParameter(name = "family", class = "function, character", default = "negative.binomial",
-      desc = "a character string naming a family function or a family function. For more info see ?family"),
+      desc = 'an object of class "family", a family function or a character string naming a family function. For additional details see ?family'),
     defineParameter(name = "start", class = "numeric, list", default = NULL, 
       desc = "optional. Starting values for the parameters to be estimated. Those are passed to nlminb
               and can be a numeric vector, or a list of numeric vectors. In the latter case, only the
@@ -250,6 +250,10 @@ fireSense_FrequencyFitRun <- function(sim) {
                                                                                   y = FALSE,
                                                                                   model = FALSE,
                                                                                   data = envData)[["theta"]])))
+  } else if (is.function(family)) {
+    
+    family <- family()
+    
   }
   
   ## If family is negative.binomial extract starting value for theta
