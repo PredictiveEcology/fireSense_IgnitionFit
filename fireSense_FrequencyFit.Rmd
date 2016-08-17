@@ -71,7 +71,10 @@ Events are scheduled as follows:
 - Model fitting
 
 ## Saving
-TODO: Write what is saved. (there is currently no save, but this may change in the future)
+TODO: Write what is saved. (there is currently nothing saved, but this may change in the future)
+
+## Input data
+An or several objects of class data.frame in which to look for variables present in the model formula.
 
 ## Output data
 An object of class "fireSense_FrequencyFit", i.e. a list containing the following components:
