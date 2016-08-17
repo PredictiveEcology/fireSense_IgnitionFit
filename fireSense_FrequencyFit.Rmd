@@ -43,7 +43,7 @@ parameters <- list(
     formula = formula(fireFrequency ~ weather),
     family = poisson,
     start = c(1, 1),
-    data = "df"
+    data = "df" ## TODO: where the data lives
   )
 )
 
@@ -71,10 +71,25 @@ Events are scheduled as follows:
 - Model fitting
 
 ## Saving
-TODO: Write what is saved. (there is currently no save, but I am thinking of add a way to do so)
+TODO: Write what is saved. (there is currently no save, but this may change in the future)
 
 ## Output data
-TODO: Description of the module outputs.
+An object of class "fireSense_FrequencyFit", i.e. a list containing the following components:
+
+- formula
+- family
+- coef
+- se.coef
+
+and optionally:
+
+- if the formula contains piecewise terms:
+    - knots
+    - se.knots
+
+- if the family is negative.binomial:
+    - theta
+    - theta.se
 
 # Links to other modules
 This model can be used to calibrate the fire ignition component of landscape fire models such as fireSense.
