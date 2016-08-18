@@ -58,7 +58,7 @@ library(SpaDES)
         package = "base",
         stringsAsFactors = FALSE)
     )
-    
+   # params(mySim)$fireSense_FrequencyFit$start <- lapply(1:50, function(x) rnorm(n = 12, mean = 10, sd = 2))
   ## Negative binomial
     # mySim <- simInit(
     #   times = list(start = 1, end = 1, timeunit = "year"),

@@ -373,14 +373,14 @@ fireSense_FrequencyFitRun <- function(sim) {
                  list(unname(JDE$par/oom(JDE$par))))
 
     } else {
-      
+
       start <- if (is.list(p(sim)$start)) {
-        
+
         diag(sm) <- lapply(p(sim)$start, oom) %>%
           do.call("rbind", .) %>%
           apply(2, function(x) as.numeric(names(which.max(table(x)))))
         
-         lapply(p(sim)$start, function(x) x / diag(sim))
+         lapply(p(sim)$start, function(x) x / diag(sm))
         
       } else {
         
@@ -389,7 +389,7 @@ fireSense_FrequencyFitRun <- function(sim) {
         
       }
     }
-  
+
   out <- if (is.list(start)) {
     
     out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(p(sim)$nlminb.control, list(trace = trace)))
