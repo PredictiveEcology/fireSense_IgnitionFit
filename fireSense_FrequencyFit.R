@@ -202,7 +202,7 @@ fireSense_FrequencyFitRun <- function(sim) {
     allx <- allxy[allxy != y] 
     objfun <- obj
     kNames <- kLB <- kUB <- NULL
-    nknots <- 0L
+    nk <- 0L
     
   } else { ## Presence of at least one piecewise term
     
@@ -222,21 +222,21 @@ fireSense_FrequencyFitRun <- function(sim) {
     
     if (anyDuplicated(kNames)) stop("fireSense_FrequencyFit> Knot's names are not unique.")
     
-    nknots <- length(kNames)
+    nk <- length(kNames)
     allx <- allxy[!allxy %in% c(y, kNames)]
     
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable")
     
     kUB <- if (is.null(p(sim)$ub$k)) lapply(pwVarNames, function(x) max(envData[[x]])) %>% unlist
-           else rep_len(p(sim)$ub$k, nknots) ## User-defined bounds (recycled if necessary)
+           else rep_len(p(sim)$ub$k, nk) ## User-defined bounds (recycled if necessary)
     
     kLB <- if (is.null(p(sim)$lb$k)) lapply(pwVarNames, function(x) min(envData[[x]])) %>% unlist
-           else rep_len(p(sim)$lb$k, nknots) ## User-defined bounds (recycled if necessary)
+           else rep_len(p(sim)$lb$k, nk) ## User-defined bounds (recycled if necessary)
     
     invisible(mapply(kNames, z = pwVarNames, FUN = function(w, z) envData[[w]] <- mean(envData[[z]]), SIMPLIFY = FALSE))
     
-    updateKnotExpr <- parse(text = paste0("envData[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nknots), "]", collapse="; "))
+    updateKnotExpr <- parse(text = paste0("envData[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse="; "))
 
   }
 
@@ -266,7 +266,7 @@ fireSense_FrequencyFitRun <- function(sim) {
   
   ## Define the scaling matrix. This is used later in the optimization process
   ##to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
-    n <- nx + nknots
+    n <- nx + nk
     if (exists("theta")) n <- n + 1L
     
     sm <- matrix(0, n, n)
@@ -361,11 +361,11 @@ fireSense_FrequencyFitRun <- function(sim) {
       ## Update the bounds for the knots
         if (!is.null(kNames)) {
 
-          kLB <- DEoptimLB[(nx + 1L):(nx + nknots)] / diag(sm)[(nx + 1L):(nx + nknots)]
-          nlminbLB[(nx + 1L):(nx + nknots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
+          kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
+          nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
           
-          kUB <- DEoptimUB[(nx + 1L):(nx + nknots)] / diag(sm)[(nx + 1L):(nx + nknots)]
-          nlminbUB[(nx + 1L):(nx + nknots)] <- if(is.null(p(sim)$ub$k)) kUB else pmin(kUB, p(sim)$ub$k)
+          kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
+          nlminbUB[(nx + 1L):(nx + nk)] <- if(is.null(p(sim)$ub$k)) kUB else pmin(kUB, p(sim)$ub$k)
   
         }
       
@@ -401,8 +401,8 @@ fireSense_FrequencyFitRun <- function(sim) {
             se.coef = setNames(se[1:nx], colnames(mm)))
   
   if (!is.null(kNames)) {
-    l$knots <- setNames(out$par[(nx + 1L):(nx + nknots)], kNames)
-    l$se.knots <- setNames(se[(nx + 1L):(nx + nknots)], kNames)
+    l$knots <- setNames(out$par[(nx + 1L):(nx + nk)], kNames)
+    l$se.knots <- setNames(se[(nx + 1L):(nx + nk)], kNames)
   }
   
   if(exists("theta")) {
