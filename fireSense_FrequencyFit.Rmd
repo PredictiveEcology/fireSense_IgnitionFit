@@ -40,7 +40,7 @@ df <- data.frame(
 times <- list(start = 1, end = 1)
 parameters <- list(
   fireSense_FrequencyFit = list(
-    formula = formula(fireFrequency ~ weather),
+    formula = fireFrequency ~ weather,
     family = poisson,
     start = c(1, 1),
     data = "df", ## TODO: where the data lives
@@ -49,7 +49,7 @@ parameters <- list(
 )
 
 modules <- list("fireSense_FrequencyFit")
-objects <- "df"
+objects <- "df" # Pass objects found in the global environment to the simList environment.
 paths <- list(
   # cachePath = file.path(outputDir, "cache"),
   modulePath = file.path("~/Documents/GitHub/McIntire-lab/modulesPrivate/") ## TODO: change this to tempdir()
@@ -74,26 +74,28 @@ Events are scheduled as follows:
 ## Saving
 TODO: Write what is saved. (there is currently nothing saved, but this may change in the future)
 
+# Data dependencies
+
 ## Input data
 An or several objects of class data.frame in which to look for variables present in the model formula.
 
 ## Output data
 An object of class "fireSense_FrequencyFit", i.e. a list containing the following components:
 
-- formula
-- family
-- coef
-- coef.se
+- formula (model formula)
+- family (model family)
+- coef (fitted coefficients)
+- coef.se (standard errors of fitted coefficients)
 
 and optionally:
 
-- if the formula contains piecewise terms:
-    - knots
-    - knots.se
+- if formula contains piecewise terms:
+    - knots (knots values)
+    - knots.se (standard errors of knots)
 
-- if the family is negative.binomial:
-    - theta
-    - theta.se
+- if family is negative.binomial:
+    - theta (dispersion parameter)
+    - theta.se (standard error of theta)
 
 # Links to other modules
 This model can be used to calibrate the fire ignition component of landscape fire models such as fireSense.
