@@ -83,13 +83,13 @@ An object of class "fireSense_FrequencyFit", i.e. a list containing the followin
 - formula
 - family
 - coef
-- se.coef
+- coef.se
 
 and optionally:
 
 - if the formula contains piecewise terms:
     - knots
-    - se.knots
+    - knots.se
 
 - if the family is negative.binomial:
     - theta

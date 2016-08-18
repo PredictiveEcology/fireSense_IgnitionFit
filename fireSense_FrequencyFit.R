@@ -414,11 +414,11 @@ fireSense_FrequencyFitRun <- function(sim) {
   l <- list(formula = formula,
             family = family,
             coef = setNames(out$par[1:nx], colnames(mm)),
-            se.coef = setNames(se[1:nx], colnames(mm)))
+            coef.se = setNames(se[1:nx], colnames(mm)))
   
   if (!is.null(kNames)) {
     l$knots <- setNames(out$par[(nx + 1L):(nx + nk)], kNames)
-    l$se.knots <- setNames(se[(nx + 1L):(nx + nk)], kNames)
+    l$knots.se <- setNames(se[(nx + 1L):(nx + nk)], kNames)
   }
   
   if(exists("theta")) {
