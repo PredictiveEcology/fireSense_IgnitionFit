@@ -16,12 +16,28 @@ library(SpaDES)
 
 moduleName <- "fireSense_FrequencyFit"
 
-workingDirectory <- tempdir() # Change this to a place you would like to put the model, if desired
+workingDirectory <- tempdir() # Change this to a place you would like to put the model, if desired.
 
 downloadModule(moduleName, path = workingDirectory)
 ```
 
 # Usage
+## Module parameters
+Name|Default|Description
+----|--------------|---------------------------------------------------------------------
+formula|NULL|an object of class "formula": a symbolic description of the model to be fitted. Piecewised terms can be specifed using pw(variableName, knotName).
+family|negative.binomial|an object of class "family", a family function or a character string naming a family function. For additional details see ?family.
+start|NULL|optional. Starting values for the parameters to be estimated. Those are passed to nlminb and can be a numeric vector, or a list of numeric vectors. In the latter case, only the best solution, i.e. which minimized the most the objective function is kept.
+lb|NULL|optional. Named list of three optional components called "coef", "theta" and "knots" specifying numeric vectors of lower bounds forcoefficients to be optimized over. These must be finite and will be recycled if necessary to match length(coefficients).
+ub|NULL|optional. Named list of three optional components called "coef", "theta" and "knots" specifying numeric vectors of upper bounds for coefficients to be optimized over. These must be finite and will be recycled if necessary to match length(coefficients).
+nlminb.control|list(iter.max = 5e3L, eval.max=5e3L)|optional. List of control parameters to be passed to the nlminb optimizer. See ?nlminb.
+trace|0|non-negative integer. If > 0, tracing information on the progress of the optimization is produced every trace iteration. Defaults to 0 which indicates no trace information should be printed.
+data|NULL|optional. A character vector indicating the names of objects in the simList environment in which to look for variables in the model. Data objects should be data.frames. If omitted, or if variables are not found in data objects, variables are searched in the simList environment.
+initialRunTime|start(sim)|optional. Simulation time at which to start this module. Defaults to simulation start time.
+intervalRunModule|NA|optional. Interval in simulation time units between two runs of this module.
+|||
+
+## Usage example
 ```{r module_usage, eval = FALSE}
 library(SpaDES)
 library(DEoptimR)
