@@ -59,8 +59,8 @@ parameters <- list(
     formula = fireFrequency ~ weather,
     family = poisson,
     start = c(1, 1),
-    data = "df", ## TODO: where the data lives
-    trace = 5 # Print progress every trace iteration
+    data = "df",
+    trace = 5 # Print progress every 5 iterations
   )
 )
 
@@ -75,7 +75,7 @@ paths <- list(
  
 mySim <- simInit(times = times, params = parameters, modules = modules, objects = objects, paths = paths)
 
-# If piecewise
+# TODO: If piecewise
  params(mySim)$fireSense_FrequencyFit$formula <- formula(fireFrequency ~ pw(weather, k))
 
 spades(mySim)
@@ -91,7 +91,6 @@ Events are scheduled as follows:
 TODO: Write what is saved. (there is currently nothing saved, but this may change in the future)
 
 # Data dependencies
-
 ## Input data
 An or several objects of class data.frame in which to look for variables present in the model formula.
 
