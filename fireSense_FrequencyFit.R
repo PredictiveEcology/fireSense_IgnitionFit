@@ -360,10 +360,11 @@ fireSense_FrequencyFitRun <- function(sim) {
 
       ## Update the bounds for the knots
         if (!is.null(kNames)) {
-          kLB <- drop(DEoptimLB %*% solve(sm))[(nx + 1L):(nx + nknots)]
+
+          kLB <- DEoptimLB[(nx + 1L):(nx + nknots)] / diag(sm)[(nx + 1L):(nx + nknots)]
           nlminbLB[(nx + 1L):(nx + nknots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
           
-          kUB <- drop(DEoptimUB %*% solve(sm))[(nx + 1L):(nx + nknots)]
+          kUB <- DEoptimUB[(nx + 1L):(nx + nknots)] / diag(sm)[(nx + 1L):(nx + nknots)]
           nlminbUB[(nx + 1L):(nx + nknots)] <- if(is.null(p(sim)$ub$k)) kUB else pmin(kUB, p(sim)$ub$k)
   
         }
