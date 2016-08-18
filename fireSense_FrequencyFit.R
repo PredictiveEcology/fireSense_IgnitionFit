@@ -276,31 +276,31 @@ fireSense_FrequencyFitRun <- function(sim) {
   ## First defined the bounds for DEoptim, the first optimizer    
 
     DEoptimUB <- c(
-      if (is.null(p(sim)$ub$b)) {
+      if (is.null(p(sim)$ub$c)) {
         ## Automatically estimate an upper boundary for each parameter       
         (tryCatch(glm(formula = formula,
                       y = FALSE,
                       model = FALSE,
                       data = envData,
                       family = poisson(link = family$link)),
-                  error = function(e) stop("fireSense_FrequencyFit> Automated estimation of upper bounds (betas) failed, please set the beta component of the 'ub' parameter.")) %>%
+                  error = function(e) stop("fireSense_FrequencyFit> Automated estimation of upper bounds (coefs) failed, please set the 'coef' component of the 'ub' parameter.")) %>%
            suppressWarnings %>%
            coef %>%
            oom(.)) * 10L
-      } else rep_len(p(sim)$ub$b, nx), ## User-defined bounds (recycled if necessary)
+      } else rep_len(p(sim)$ub$c, nx), ## User-defined bounds (recycled if necessary)
     kUB)
 
     DEoptimLB <- c({
       switch(family$link,
              log = {
                
-               if (is.null(p(sim)$lb$b)) ifelse(sign(DEoptimUB[1L:nx]) == 1, -DEoptimUB[1L:nx], DEoptimUB[1L:nx] * 3) ## Automatically estimate a lower boundary for each parameter
-               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
+               if (is.null(p(sim)$lb$c)) ifelse(sign(DEoptimUB[1L:nx]) == 1, -DEoptimUB[1L:nx], DEoptimUB[1L:nx] * 3) ## Automatically estimate a lower boundary for each parameter
+               else rep_len(p(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
                
              }, identity = {
                
-               if (is.null(p(sim)$lb$b)) rep_len(1e-16, nx) * sign(DEoptimUB[1:nx]) ## Ensure non-negativity
-               else rep_len(p(sim)$lb$b, nx) ## User-defined bounds (recycled if necessary)
+               if (is.null(p(sim)$lb$c)) rep_len(1e-16, nx) * sign(DEoptimUB[1:nx]) ## Ensure non-negativity
+               else rep_len(p(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
                
              }, stop(paste("fireSense_FrequencyFit> Link function", family$link, "is not supported.")))
     }, kLB)
@@ -314,9 +314,9 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
 
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
-    nlminbUB <- if (is.null(p(sim)$ub$b)) c(rep_len(Inf, nx), kUB) else DEoptimUB
+    nlminbUB <- if (is.null(p(sim)$ub$c)) c(rep_len(Inf, nx), kUB) else DEoptimUB
 
-    nlminbLB <- if (is.null(p(sim)$lb$b)) {
+    nlminbLB <- if (is.null(p(sim)$lb$c)) {
       
       c(switch(family$link,
                log = rep_len(-Inf, nx),        ## log-link, default: -Inf for terms and 0 for breakpoints/knots
