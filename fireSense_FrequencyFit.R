@@ -124,10 +124,10 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
     
     ## Function to pass to the optimizer
-      obj <- function(params, linkfun, nll, scalMx, nx, mm, envData) {
+      obj <- function(params, linkfun, nll, sm, nx, mm, envData) {
         
         ## Parameters scaling
-        params <- drop(params %*% scalMx)
+        params <- drop(params %*% sm)
         
         mu <- drop(mm %*% params[1L:nx])
 
@@ -140,10 +140,10 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
       
     ## Function to pass to the optimizer (PW version)
-      objPW <- function(params, formula, linkfun, nll, scalMx, updateKnotExpr, nx, envData) {
+      objPW <- function(params, formula, linkfun, nll, sm, updateKnotExpr, nx, envData) {
 
         ## Parameters scaling
-        params <- drop(params %*% scalMx)
+        params <- drop(params %*% sm)
         
         eval(updateKnotExpr, envir = environment(), enclos = envData) ## update knot's values
 
@@ -269,8 +269,8 @@ fireSense_FrequencyFitRun <- function(sim) {
     n <- nx + nknots
     if (exists("theta")) n <- n + 1L
     
-    scalMx <- matrix(0, n, n)
-    diag(scalMx) <- 1
+    sm <- matrix(0, n, n)
+    diag(sm) <- 1
 
   ## Define parameter bounds automatically if they are not supplied by user
   ## First defined the bounds for DEoptim, the first optimizer    
@@ -356,15 +356,14 @@ fireSense_FrequencyFitRun <- function(sim) {
       }
       
       ## Update scaling matrix
-      diag(scalMx) <- oom(JDE$par)
+      diag(sm) <- oom(JDE$par)
 
       ## Update the bounds for the knots
         if (!is.null(kNames)) {
-
-          kLB <- drop(DEoptimLB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
+          kLB <- drop(DEoptimLB %*% solve(sm))[(nx + 1L):(nx + nknots)]
           nlminbLB[(nx + 1L):(nx + nknots)] <- if (is.null(p(sim)$lb$k)) kLB else pmax(kLB, p(sim)$lb$k)
           
-          kUB <- drop(DEoptimUB %*% solve(scalMx))[(nx + 1L):(nx + nknots)]
+          kUB <- drop(DEoptimUB %*% solve(sm))[(nx + 1L):(nx + nknots)]
           nlminbUB[(nx + 1L):(nx + nknots)] <- if(is.null(p(sim)$ub$k)) kUB else pmin(kUB, p(sim)$ub$k)
   
         }
@@ -387,13 +386,13 @@ fireSense_FrequencyFitRun <- function(sim) {
     hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
     hess.call[names(formals(objfun)[-1L])] <- parse(text = formalArgs(objfun)[-1L])
     hess <- eval(hess.call)
-    se <- try(drop(sqrt(diag(solve(hess))) %*% scalMx), silent = TRUE)
+    se <- try(drop(sqrt(diag(solve(hess))) %*% sm), silent = TRUE)
   
   ## Negative values in the Hessian matrix suggest that the algorithm did not converge
   if(anyNA(se) || out$convergence) warning("fireSense_FrequencyFit> nlminb: algorithm did not converge", immediate. = TRUE)
   
   ## Parameters scaling: Revert back estimated coefficients to their original scale
-  out$par <- drop(out$par %*% scalMx)
+  out$par <- drop(out$par %*% sm)
 
   l <- list(formula = formula,
             family = family,
