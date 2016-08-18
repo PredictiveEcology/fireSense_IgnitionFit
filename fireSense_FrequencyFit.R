@@ -17,39 +17,47 @@ defineModule(sim, list(
   parameters = rbind(
     #defineParameter("paramName", "paramClass", default, min, max, "parameter description")),
     defineParameter(name = "formula", class = "formula", default = NULL,
-      desc = 'an object of class "formula" : a symbolic description of the model to be fitted.
-              Piecewised terms can be specifed using pw(variableName, knotName).'),
+      desc = 'an object of class "formula": a symbolic description of the model 
+              to be fitted. Piecewised terms can be specifed using 
+              pw(variableName, knotName).'),
     defineParameter(name = "family", class = "function, character", default = "negative.binomial",
-      desc = 'an object of class "family", a family function or a character string naming a family function. For additional details see ?family'),
+      desc = 'an object of class "family", a family function or a character 
+              string naming a family function. For additional details see ?family.'),
     defineParameter(name = "start", class = "numeric, list", default = NULL, 
-      desc = "optional. Starting values for the parameters to be estimated. Those are passed to nlminb
-              and can be a numeric vector, or a list of numeric vectors. In the latter case, only the
-              best solution, i.e. which minimized the objective function the most, will be kept."),
+      desc = "optional. Starting values for the parameters to be estimated. Those 
+              are passed to nlminb and can be a numeric vector, or a list of
+              numeric vectors. In the latter case, only the best solution, i.e. 
+              which minimized the most the objective function is kept."),
     defineParameter(name = "lb", class = "list", default = NULL, 
-      desc = "optional. List of numeric values describing lower bounds for the parameters to be 
-              estimated. List elements are all optional but should be named (if supplied) as 'beta',
-              'theta' (ignored if family is not set to negative.binomial) and 'knots'. Partial 
-              matching is allowed. Values are recycled if necessary."),
+      desc = 'optional. Named list of three optional components called "coef", 
+              "theta" and "knots" specifying numeric vectors of lower bounds for
+              coefficients to be optimized over. These must be finite and will be
+              recycled if necessary to match length(coefficients).'),
     defineParameter(name = "ub", class = "numeric", default = NULL, 
-      desc = "optional. List of numeric values describing lower bounds for the parameters to be 
-              estimated. List elements are all optional but should be named (if supplied) as 'beta',
-              'theta' (ignored if family is not set to negative.binomial) and 'knots'. Partial 
-              matching is allowed. Values are recycled if necessary."),
-    defineParameter(name = "nlminb.control", class = "numeric", default = list(iter.max = 5e3L, eval.max=5e3L),
-      desc = "optional. List of control parameters to be passed to the nlminb optmizer. See ?nlminb"),
+      desc = 'optional. Named list of three optional components called "coef", 
+              "theta" and "knots" specifying numeric vectors of upper bounds for
+              coefficients to be optimized over. These must be finite and will be
+              recycled if necessary to match length(coefficients).'),
+    defineParameter(name = "nlminb.control", class = "numeric",
+      default = list(iter.max = 5e3L, eval.max=5e3L),
+      desc = "optional. List of control parameters to be passed to the nlminb
+              optimizer. See ?nlminb."),
     defineParameter(name = "trace", class = "numeric", default = 0,
-      desc = "non-negative integer. If > 0, tracing information on the progress of the optimization is
-              produced every trace iteration. Defaults to 0 which indicates no trace information should
-              be printed."),
+      desc = "non-negative integer. If > 0, tracing information on the progress 
+              of the optimization is produced every trace iteration. Defaults to
+              0 which indicates no trace information should be printed."),
     defineParameter(name = "data", class = "character", default = NULL,
-      desc = "optional. A character vector indicating the names of objects present in the simList 
-              environment, in which to look for variables present in the model formula. Objects should
-              be data.frames. If omitted, or if variables are not found in data objects, variables are
-              searched in the simList environment."),
+      desc = "optional. A character vector indicating the names of objects in the
+              simList environment in which to look for variables in the model. 
+              Data objects should be data.frames. If omitted, or if variables are
+              not found in data objects, variables are searched in the simList 
+              environment."),
     defineParameter(name = "initialRunTime", class = "numeric", default = start(sim), 
-      desc = "optional. Simulation time at which to start this module. Defaults to simulation start time."),
+      desc = "optional. Simulation time at which to start this module. Defaults
+              to simulation start time."),
     defineParameter(name = "intervalRunModule", class = "numeric", default = NA, 
-      desc = "optional. Interval in simulation time units between two runs of this module.")
+      desc = "optional. Interval in simulation time units between two runs of
+              this module.")
   ),
   inputObjects = data.frame(objectName = "dataFireSense_FrequencyFit",
                             objectClass = "data.frame",
