@@ -24,7 +24,7 @@ downloadModule(moduleName, path = workingDirectory)
 # Usage
 ## Module parameters
 Name|Default|Description
-----|--------------|---------------------------------------------------------------------
+----|:--------------:|---------------------------------------------------------------------
 formula|NULL|an object of class "formula": a symbolic description of the model to be fitted. Piecewised terms can be specifed using pw(variableName, knotName).
 family|negative.binomial|an object of class "family", a family function or a character string naming a family function. For additional details see ?family.
 start|NULL|optional. Starting values for the parameters to be estimated. Those are passed to nlminb and can be a numeric vector, or a list of numeric vectors. In the latter case, only the best solution, i.e. which minimized the most the objective function is kept.
@@ -40,6 +40,8 @@ intervalRunModule|NA|optional. Interval in simulation time units between two run
 ## Usage example
 ```{r module_usage, eval = FALSE}
 library(SpaDES)
+
+# Packages required by the module
 library(DEoptimR)
 library(MASS)
 library(magrittr)
