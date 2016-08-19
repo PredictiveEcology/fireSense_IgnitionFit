@@ -49,7 +49,8 @@ library(numDeriv)
 
 set.seed(1)
 
-df <- data.frame(
+# Create random weather and fire frequency data
+dataObject <- data.frame(
   weather = rnorm(1000, 150, 30),
   fireFrequency = rpois(1000, .5)
 )
@@ -61,13 +62,13 @@ parameters <- list(
     formula = fireFrequency ~ weather,
     family = poisson,
     start = c(1, 1),
-    data = "df",
+    data = "dataObject",
     trace = 5 # Print progress every 5 iterations
   )
 )
 
 modules <- list("fireSense_FrequencyFit")
-objects <- "df" # Pass objects found in the global environment to the simList environment.
+objects <- "dataObject" # Pass objects found in the global environment to the simList environment
 paths <- list(
   # cachePath = file.path(outputDir, "cache"),
   modulePath = file.path("~/Documents/GitHub/McIntire-lab/modulesPrivate/") ## TODO: change this to tempdir()
@@ -78,7 +79,7 @@ paths <- list(
 mySim <- simInit(times = times, params = parameters, modules = modules, objects = objects, paths = paths)
 
 # TODO: If piecewise
- params(mySim)$fireSense_FrequencyFit$formula <- formula(fireFrequency ~ pw(weather, k))
+ params(mySim)$fireSense_FrequencyFit$formula <- fireFrequency ~ pw(weather, k)
 
 spades(mySim)
 ```
