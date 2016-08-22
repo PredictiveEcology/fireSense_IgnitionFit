@@ -26,13 +26,13 @@ downloadModule(moduleName, path = workingDirectory)
 Name|Default|Description
 ----|:--------------:|---------------------------------------------------------------------
 `formula`|`NULL`|an object of class `formula`: a symbolic description of the model to be fitted. Piece-wised terms can be specifed using `pw(variableName, knotName)`.
-`family`|`negative.binomial`|an object of class `family`, a family function or a character string naming a family function. For additional details see `?family`.
-`start`|`NULL`|optional. Starting values for the parameters to be estimated. Those are passed to `nlminb` and can be a numeric vector, or a `list` of numeric vectors. In the latter case, only the best solution, i.e. which minimized the most the objective function is kept.
-`lb`|`NULL`|optional. Named `list` of three optional components called "coef", "theta" and "knots" specifying numeric vectors of lower bounds for coefficients to be optimized over. These must be finite and will be recycled if necessary to match `length(coefficients)`.
-`ub`|`NULL`|optional. Named `list` of three optional components called "coef", "theta" and "knots" specifying numeric vectors of upper bounds for coefficients to be optimized over. These must be finite and will be recycled if necessary to match `length(coefficients)`.
+`family`|`negative.binomial`|an object of class `family`, a family function or a `character string` naming a family function. For additional details see `?family`.
+`start`|`NULL`|optional. Starting values for the parameters to be estimated. Those are passed to `nlminb` and can be a `numeric vector`, or a `list` of `numeric vectors`. In the latter case, only the best solution, i.e. which minimized the most the objective function is kept.
+`lb`|`NULL`|optional. Named `list` of three optional components called **coef**, **theta** and **knots** specifying `numeric vectors` of lower bounds for coefficients to be optimized over. These must be finite and will be recycled if necessary to match `length(coefficients)`.
+`ub`|`NULL`|optional. Named `list` of three optional components called **coef**, **theta** and **knots** specifying `numeric vectors` of upper bounds for coefficients to be optimized over. These must be finite and will be recycled if necessary to match `length(coefficients)`.
 `nlminb.control`|`list(iter.max = 5e3L,`<br>`eval.max=5e3L`)|optional. `List` of control parameters to be passed to the `nlminb` optimizer. See `?nlminb`.
-`trace`|`0`|non-negative integer. If > 0, tracing information on the progress of the optimization is produced every trace iteration. Defaults to 0 which indicates no trace information should be printed.
-`data`|`NULL`|optional. A character vector indicating the names of objects in the `simList` environment in which to look for variables in the model. Data objects should be `data.frame`. If omitted, or if variables are not found in data objects, variables are searched in the `simList` environment.
+`trace`|`0`|non-negative integer. If > 0, tracing information on the progress of the optimization is produced every trace iteration. Defaults to 0 which indicates no tracing information should be printed.
+`data`|`NULL`|optional. A `character vector` indicating the names of objects in the `simList` environment in which to look for variables in the model. Data objects should be `data.frame`. If omitted, or if variables are not found in data objects, variables are searched in the `simList` environment.
 `initialRunTime`|`start(sim)`|optional. Simulation time at which to start this module. Defaults to simulation start time.
 `intervalRunModule`|`NA`|optional. Interval in simulation time units between two runs of this module.
 |||
@@ -95,25 +95,25 @@ TODO: Write what is saved. (there is currently nothing saved, but this may chang
 
 # Data dependencies
 ## Input data
-An or several objects of class `data.frame` in which to look for variables present in the model formula.
+An or several objects of class `data.frame` in which to look for variables present in the model `formula`.
 
 ## Output data
-An object of class `fireSense_FrequencyFit`, i.e. a list containing the following components:
+An object of class `fireSense_FrequencyFit`, i.e. a `list` containing the following components:
 
-- `formula` (model formula)
-- `family` (model family)
-- `coef` (fitted coefficients)
-- `coef.se` (standard errors of fitted coefficients)
+- **formula** (model formula)
+- **family** (model family)
+- **coef** (fitted coefficients)
+- **coef.se** (standard errors of fitted coefficients)
 
 and optionally:
 
-- if formula contains piecewise terms:
-    - `knots` (knots values)
-    - `knots.se` (standard errors of knots)
+- if `formula` contains piecewise terms:
+    - **knots** (knots values)
+    - **knots.se** (standard errors of knots)
 
-- if family is negative.binomial:
-    - `theta` (dispersion parameter)
-    - `theta.se` (standard error of theta)
+- if `family` is `negative.binomial`:
+    - **theta** (dispersion parameter)
+    - **theta.se** (standard error of theta)
 
 # Links to other modules
 This model can be used to calibrate the fire ignition component of landscape fire models such as fireSense.
