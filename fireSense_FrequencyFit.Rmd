@@ -57,11 +57,16 @@ dataObject <- data.frame(
 
 #outputDir <- file.path(tempdir(), "outputs")
 times <- list(start = 1, end = 1, timeunit = "year")
+
+# Examples of model formula
+formula <- fireFrequency ~ weather        # Without piecewise terms
+formula <- fireFrequency ~ pw(weather, k) # With a piecewise term
+
 parameters <- list(
   fireSense_FrequencyFit = list(
-    formula = fireFrequency ~ weather,
+    formula = formula,
     family = poisson,
-    start = c(1, 1),
+    # start = c(1, 1),
     data = "dataObject",
     trace = 5 # Print progress every 5 iterations
   )
@@ -77,9 +82,6 @@ paths <- list(
 )
  
 mySim <- simInit(times = times, params = parameters, modules = modules, objects = objects, paths = paths)
-
-# TODO: If piecewise
- params(mySim)$fireSense_FrequencyFit$formula <- fireFrequency ~ pw(weather, k)
 
 spades(mySim)
 ```
