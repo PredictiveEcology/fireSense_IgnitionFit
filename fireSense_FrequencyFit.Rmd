@@ -1,7 +1,7 @@
 ---
 title: "fireSense_FrequencyFit"
 author: "Jean Marchal"
-date: "July 2017"
+date: "August 2017"
 output:
   html_document: default
   pdf_document: default
@@ -16,23 +16,26 @@ library(SpaDES)
 
 moduleName <- "fireSense_FrequencyFit"
 
-workingDirectory <- tempdir() # Location where the module will be downloaded
+spadesModulesDirectory <- tempdir() # Location where the module will be downloaded
 
-downloadModule(moduleName, path = workingDirectory)
+downloadModule(moduleName, path = spadesModulesDirectory)
 ```
 
 # Usage
 ## Module parameters
 Name|Default|Description
 ----|:--------------|---------------------------------------------------------------------
-`formula`||a formula describing the model to be fitted. Piece-wised terms can be specifed using `pw(variableName, knotName)`.
+`formula`|`~1`|a formula describing the model to be fitted. Piece-wised terms can be specifed using `pw(variableName, knotName)`.
 `family`|`negative.binomial`|a family function (must be wrapped with `quote()`) or a character string naming a family function. For additional details see `?family`.
+`data`|`"dataFireSense_FrequencyFit"`|a character vector indicating the names of objects in the `simList` environment in which to look for variables present in the model formula. `data` objects should be data.frames. If variables are not found in `data` objects, they are searched in the `simList` environment.
 `start`|`NULL`|optional starting values for the parameters to be estimated. Those are passed to `nlminb` and can be a single vector, or a list of vectors. In the latter case, only the best solution, that is, the one which minimizes the most the objective function, is kept.
-`lb`|`NULL`|optional named list with up to three elements called coef, theta and knots specifying lower bounds for coefficients to be optimized over. These must be finite and will be recycled if necessary to match `length(coefficients)`.
-`ub`|`NULL`|optional named list with up to three elements called coef, theta and knots specifying upper bounds for coefficients to be optimized over. These must be finite and will be recycled if necessary to match `length(coefficients)`.
-`nlminb.control`|`list(iter.max = 5e3L,`<br>`eval.max=5e3L`)|optional list of control parameters to be passed to the `nlminb` optimizer. See `?nlminb`.
-`trace`|`0`|non-negative integer. If > 0, tracing information on the progress of the optimization are printed every `trace` iteration. Default is 0, which turns off tracing.
-`data`|`"dataFireSense_FrequencyFit"`|a character vector indicating the names of objects in the `simList` environment in which to look for variables in the model. `data` objects should be data.frames. If omitted, or if variables are not found in `data` objects, variables are searched in the `simList` environment.
+`lb`|`NULL`|optional named list with up to three elements, 'coef', 'theta' and 'knots', specifying lower bounds for coefficients to be estimated. These must be finite and will be recycled if necessary to match `length(coefficients)`.
+`ub`|`NULL`|optional named list with up to three elements, 'coef', 'theta' and 'knots', specifying upper bounds for coefficients to be estimated. These must be finite and will be recycled if necessary to match `length(coefficients)`.
+`itermax`|`500`|integer defining the maximum number of iterations allowed (DEoptim optimizer).
+`nTrials`|`500`|if start is not supplied, `nTrials` defines the number of trials, or searches, to be performed by the nlminb optimizer in order to find the best solution.
+`nCores`|`1`|non-negative integer. Defines the number of logical cores to be used for parallel computation. The default value is 1, which disables parallel computing.
+`trace`|`0`|non-negative integer. If > 0, tracing information on the progress of the optimization are printed every `trace` iteration. If parallel computing is enable, nlminb trace logs are written to disk. Log files are prefixed with 'fireSense_FrequencyFit_trace' followed by the subprocess pid. Default is 0, which turns off tracing.
+`nlminb.control`|`list(iter.max = 5e3L,`<br>&emsp;&emsp;&emsp;`eval.max=5e3L`)|optional list of control parameters to be passed to the `nlminb` optimizer. See `?nlminb`.
 `initialRunTime`|`start(simList)`|when to start this module? By default, the start time of the simulation.
 `intervalRunModule`|`NA`|optional. Interval between two runs of this module, expressed in units of simulation time.
 |||
@@ -41,49 +44,51 @@ Name|Default|Description
 ```{r module usage example, eval = FALSE}
 library(SpaDES)
 
-# Packages required by the module
-library(DEoptimR)
-library(MASS)
-library(magrittr)
-library(numDeriv)
-
-set.seed(1)
-
-# Create random weather and fire frequency data
-dataObject <- data.frame(
-  weather = rnorm(1000, 150, 30),
-  fireFrequency = rpois(1000, .5)
+# Define simulation parameters
+times <- list(start = 1, end = 1, timeunit = "year")
+modules <- list("fireSense_FrequencyFit")
+paths <- list(
+  modulePath = spadesModulesDirectory
 )
 
-#outputDir <- file.path(tempdir(), "outputs")
-times <- list(start = 1, end = 1, timeunit = "year")
+# Example of model formula with piecewise terms
+model <- n_fires ~ -1 + # Remove the intercept
+                   PcHardwood:MonthlyDroughtCode_July + PcConifer:MonthlyDroughtCode_July +
+                   PcDisturbed:MonthlyDroughtCode_July + PC_OTHER:MonthlyDroughtCode_July +
+                   PcHardwood:pw(MonthlyDroughtCode_July, knotPcHardwood) +
+                   PcConifer:pw(MonthlyDroughtCode_July, knotPcConifer) +
+                   PcDisturbed:pw(MonthlyDroughtCode_July, knotPcDisturbed) +
+                   PcOther:pw(MonthlyDroughtCode_July, knotPcOther)
 
-# Examples of model formula
-formula <- fireFrequency ~ weather        # Without piecewise terms
-formula <- fireFrequency ~ pw(weather, k) # With a piecewise term
-
+# Define module parameters
 parameters <- list(
   fireSense_FrequencyFit = list(
     formula = formula,
-    family = quote(poisson),
-    # start = c(1, 1),
-    data = "dataObject",
-    trace = 5 # Print progress every 5 iterations
+    family = quote(MASS::negative.binomial(theta = 1, link = "identity")),
+    data = "dataFireSense_FrequencyFit"
   )
 )
 
-modules <- list("fireSense_FrequencyFit")
-objects <- "dataObject" # Pass objects found in the global environment to the simList environment
-paths <- list(
-  # cachePath = file.path(outputDir, "cache"),
-  modulePath = file.path("~/Documents/GitHub/McIntire-lab/modulesPrivate/") ## TODO: change this to tempdir()
-  # inputPath = inputDir,
-  # outputPath = outputDir
+# Define from where and how data will be loaded in the simList environment
+inputs <- data.frame(
+  objectName = "dataFireSense_FrequencyFit",
+  file = "/path/to/data/input/",
+  fun = "readRDS",
+  package = "base",
+  loadTime = 1
 )
- 
-mySim <- simInit(times = times, params = parameters, modules = modules, objects = objects, paths = paths)
 
-spades(mySim)
+# Create the simList
+sim <- simInit(
+  times = times,
+  modules = modules,
+  params = parameters,
+  paths = paths,
+  inputs = inputs
+)
+
+sim <- spades(sim)
+sim$fireSense_FrequencyFitted
 ```
 
 # Events
@@ -106,6 +111,8 @@ TODO: Write what is saved. (there is currently nothing saved, but this may chang
     - family (model family)
     - coef (fitted coefficients)
     - coef.se (standard errors of fitted coefficients)
+    - LL (log-likelihood)
+    - AIC (Akaike Information Criterion)
 
   and optionally:
 
