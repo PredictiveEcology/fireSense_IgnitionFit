@@ -98,30 +98,29 @@ defineModule(sim, list(
 #   - type `init` is required for initialiazation
 
 doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FALSE) {
-  if (eventType == "init") {
-    sim <- sim$fireSense_FrequencyFitInit(sim)
-    
-  } else if (eventType == "run") {
-    sim <- sim$fireSense_FrequencyFitRun(sim)
 
-  } else if (eventType == "save") {
-    # ! ----- EDIT BELOW ----- ! #
-    # do stuff for this event
+  switch(
+	eventType,
+	init = { sim <- sim$fireSense_FrequencyFitInit(sim) },
+	run = { sim <- sim$fireSense_FrequencyFitRun(sim) },
+	save = {
+      # ! ----- EDIT BELOW ----- ! #
+      # do stuff for this event
     
-    # e.g., call your custom functions/methods here
-    # you can define your own methods below this `doEvent` function
+      # e.g., call your custom functions/methods here
+      # you can define your own methods below this `doEvent` function
     
-    # schedule future event(s)
+      # schedule future event(s)
     
-    # e.g.,
-    # sim <- scheduleEvent(sim, time(sim) + increment, "fireSense_FrequencyFit", "save")
+      # e.g.,
+      # sim <- scheduleEvent(sim, time(sim) + increment, "fireSense_FrequencyFit", "save")
     
-    # ! ----- STOP EDITING ----- ! #
-    
-  } else {
+      # ! ----- STOP EDITING ----- ! #
+    },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
-  }
+  )
+  
   invisible(sim)
 }
 
@@ -140,7 +139,7 @@ fireSense_FrequencyFitInit <- function(sim) {
   stopifnot(P(sim)$nTrials >= 1)
   
   sim <- scheduleEvent(sim, eventTime = P(sim)$initialRunTime, current(sim)$moduleName, "run")
-  sim
+  invisible(sim)
 
 }
 
@@ -251,20 +250,10 @@ fireSense_FrequencyFitRun <- function(sim) {
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
   allxy <- all.vars(terms)
   
-  if (is.null(attr(terms, "specials")$pw)) {
-    
-    missing <- !allxy %in% ls(envData, all.names = TRUE)
-    
-    if (s <- sum(missing))
-      stop(paste0(moduleName, "> '", allxy[missing][1L], "'",
-                  if (s > 1) paste0(" (and ", s-1L, " other", if (s>2) "s", ")"),
-                  " not found in data objects nor in the simList environment."))
-    
-    allx <- allxy[allxy != y] 
-    objfun <- obj
-    nk <- 0L
-    
-  } else { ## Presence of at least one piecewise term
+  # Check the presence of at least one piecewise term
+  isPW <- !is.null(attr(terms, "specials")$pw)
+  
+  if (isPW) {
     
     objfun <- objPW
     
@@ -305,6 +294,19 @@ fireSense_FrequencyFitRun <- function(sim) {
     
     updateKnotExpr <- parse(text = paste0("envData[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse="; "))
 
+  } else {
+    
+    missing <- !allxy %in% ls(envData, all.names = TRUE)
+    
+    if (s <- sum(missing))
+      stop(paste0(moduleName, "> '", allxy[missing][1L], "'",
+                  if (s > 1) paste0(" (and ", s-1L, " other", if (s>2) "s", ")"),
+                  " not found in data objects nor in the simList environment."))
+    
+    allx <- allxy[allxy != y] 
+    objfun <- obj
+    nk <- 0L
+    
   }
   
   family <- P(sim)$family
@@ -325,8 +327,11 @@ fireSense_FrequencyFitRun <- function(sim) {
     
   }
   
-  ## If family is negative.binomial extract starting value for theta
-  if (grepl(x = family$family, pattern = "Negative Binomial"))
+  # Check ff family is negative.binomial
+  isFamilyNB <- grepl(x = family$family, pattern = "Negative Binomial")
+  
+  # Extract starting value for theta
+  if (isFamilyNB)
     theta <- as.numeric(gsub(x = regmatches(family$family, gregexpr("\\(.*?\\)", family$family))[[1L]], pattern = "[\\(\\)]", replacement = ""))
   
   linkfun <- family$linkfun
@@ -336,14 +341,14 @@ fireSense_FrequencyFitRun <- function(sim) {
   ## Define the scaling matrix. This is used later in the optimization process
   ##to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
     n <- nx + nk
-    if (exists("theta")) n <- n + 1L
+    if (isFamilyNB) n <- n + 1L
     
     sm <- matrix(0, n, n)
     diag(sm) <- 1
 
   ## Define parameter bounds automatically if they are not supplied by user
   ## First defined the bounds for DEoptim, the first optimizer    
-
+    
     DEoptimUB <- c(
       if (is.null(P(sim)$ub$c)) {
         ## Automatically estimate an upper boundary for each parameter       
@@ -362,7 +367,7 @@ fireSense_FrequencyFitRun <- function(sim) {
           coef %>%
           oom(.)) * 10L
       } else rep_len(P(sim)$ub$c, nx), ## User-defined bounds (recycled if necessary)
-    if (exists(knames)) kUB)
+    if (isPW) kUB)
 
     DEoptimLB <- c({
       switch(family$link,
@@ -377,10 +382,10 @@ fireSense_FrequencyFitRun <- function(sim) {
                else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
                
              }, stop(paste0(moduleName, "> Link function ", family$link, " is not supported.")))
-    }, if (exists(knames)) kLB)
+    }, if (isPW) kLB)
     
     ## If negative.binomial family needs to add bounds for theta parameter
-      if (exists("theta")) {
+      if (isFamilyNB) {
           
         DEoptimUB <- c(DEoptimUB, if (is.null(P(sim)$ub$t)) 2L * theta else P(sim)$ub$t)
         DEoptimLB <- c(DEoptimLB, if (is.null(P(sim)$lb$t)) 1e-16 else P(sim)$lb$t) ## Enfore non-negativity
@@ -400,9 +405,9 @@ fireSense_FrequencyFitRun <- function(sim) {
     } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
 
     ## If negative.binomial family add bounds for the theta parameter
-    if (exists("theta") && is.null(P(sim)$lb$t)) {
+    if (isFamilyNB && is.null(P(sim)$lb$t)) {
       nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
-    } else if (exists("theta")) {
+    } else if (isFamilyNB) {
       nlminbLB <- c(nlminbLB, P(sim)$lb$t)
     }
 
@@ -437,7 +442,7 @@ fireSense_FrequencyFitRun <- function(sim) {
       diag(sm) <- oom(DEoptimBestMem)
 
       ## Update the bounds for the knots
-        if (exists(kNames)) {
+        if (isPW) {
 
           kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
           nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
@@ -491,10 +496,23 @@ fireSense_FrequencyFitRun <- function(sim) {
     hess <- eval(hess.call)
     se <- suppressWarnings(tryCatch(drop(sqrt(diag(solve(hess))) %*% sm), error = function(e) NA))
     
-  if (out$convergence) warning(paste0(moduleName, "> nlminb optimizer did not converge (", out$message, ")"), immediate. = TRUE)
-  
-  ## Negative values in the Hessian matrix suggest that the algorithm did not converge
-  if(anyNA(se)) warning(paste0(moduleName, "> nlminb optimizer reached relative convergence, saddle point?"), immediate. = TRUE)
+  convergence <- TRUE
+
+  if (out$convergence) {
+    
+    convergence <- FALSE
+    convergDiagnostic <- paste0("nlminb optimizer did not converge (", out$message, ")")
+    
+    warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
+    
+  } else if(anyNA(se)) {
+    
+    ## Negative values in the Hessian matrix suggest that the algorithm did not converge
+    convergence <- FALSE
+    convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
+    warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
+    
+  }
   
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   out$par <- drop(out$par %*% sm)
@@ -504,14 +522,16 @@ fireSense_FrequencyFitRun <- function(sim) {
             coef = setNames(out$par[1:nx], colnames(mm)),
             coef.se = setNames(se[1:nx], colnames(mm)),
             LL = -out$objective,
-            AIC = 2 * length(out$par) + 2 * out$objective)
+            AIC = 2 * length(out$par) + 2 * out$objective,
+            convergence = convergence,
+            convergenceDiagnostic = convergDiagnostic)
   
-  if (exists(kNames)) {
+  if (isPW) {
     l$knots <- setNames(out$par[(nx + 1L):(nx + nk)], kNames)
     l$knots.se <- setNames(se[(nx + 1L):(nx + nk)], kNames)
   }
   
-  if(exists("theta")) {
+  if(isFamilyNB) {
     ## Update the NB family template with the estimated theta
     l$family <- MASS::negative.binomial(theta = out$par[length(out$par)], link = family$link)
     l$theta <- out$par[length(out$par)]
@@ -524,6 +544,6 @@ fireSense_FrequencyFitRun <- function(sim) {
   if (!is.na(P(sim)$intervalRunModule))
     sim <- scheduleEvent(sim, time(sim) + P(sim)$intervalRunModule, moduleName, "run")
   
-  sim  
+  invisible(sim)
 
 }

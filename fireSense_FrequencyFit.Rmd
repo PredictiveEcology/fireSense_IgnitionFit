@@ -54,7 +54,7 @@ paths <- list(
 # Example of model formula with piecewise terms
 model <- n_fires ~ -1 + # Remove the intercept
                    PcHardwood:MonthlyDroughtCode_July + PcConifer:MonthlyDroughtCode_July +
-                   PcDisturbed:MonthlyDroughtCode_July + PC_OTHER:MonthlyDroughtCode_July +
+                   PcDisturbed:MonthlyDroughtCode_July + PcOther:MonthlyDroughtCode_July +
                    PcHardwood:pw(MonthlyDroughtCode_July, knotPcHardwood) +
                    PcConifer:pw(MonthlyDroughtCode_July, knotPcConifer) +
                    PcDisturbed:pw(MonthlyDroughtCode_July, knotPcDisturbed) +
@@ -113,6 +113,7 @@ TODO: Write what is saved. (there is currently nothing saved, but this may chang
     - coef.se (standard errors of fitted coefficients)
     - LL (log-likelihood)
     - AIC (Akaike Information Criterion)
+    - convergence
 
   and optionally:
 
