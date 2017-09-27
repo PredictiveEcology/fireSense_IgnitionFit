@@ -7,7 +7,7 @@ defineModule(sim, list(
   keywords = c("fire frequency", "optimization", "additive property", "poisson", "negative binomial", "fireSense"),
   authors = c(person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre"))),
   childModules = character(),
-  version = numeric_version("0.1.0"),
+  version = list(SpaDES.core = "0.1.0", fireSense_FrequencyFit = "0.0.1"),
   spatialExtent = raster::extent(rep(NA_real_, 4)),
   timeframe = as.POSIXlt(c(NA, NA)),
   timeunit = NA_character_, # e.g., "year",
@@ -16,7 +16,7 @@ defineModule(sim, list(
   reqdPkgs = list("DEoptim", "MASS", "magrittr", "numDeriv", "parallel"),
   parameters = rbind(
     #defineParameter("paramName", "paramClass", default, min, max, "parameter description")),
-    defineParameter(name = "formula", class = "formula", default = ~1,
+    defineParameter(name = "formula", class = "formula", default = NA,
                     desc = "a formula describing the model to be fitted. 
                             Piece-wised terms can be specifed using 
                             `pw(variableName, knotName)`."),
@@ -79,7 +79,8 @@ defineModule(sim, list(
                             time of the simulation."),
     defineParameter(name = "intervalRunModule", class = "numeric", default = NA, 
                     desc = "optional. Interval between two runs of this module,
-                            expressed in units of simulation time.")
+                            expressed in units of simulation time."),
+    defineParameter(".useCache", "numeric", FALSE, NA, NA, "Should this entire module be run with caching activated? This is generally intended for data-type modules, where stochasticity and time are not relevant")
   ),
   inputObjects = expectsInput(
     objectName = "dataFireSense_FrequencyFit",
@@ -132,13 +133,16 @@ doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FAL
 ### template initialization
 fireSense_FrequencyFitInit <- function(sim) {
 
+  moduleName <- current(sim)$moduleName
+  
   # Checking parameters
   stopifnot(P(sim)$trace >= 0)
   stopifnot(P(sim)$nCores >= 1)
   stopifnot(P(sim)$itermax >= 1)
   stopifnot(P(sim)$nTrials >= 1)
+  if (!is(P(sim)$formula, "formula")) stop(paste0(moduleName, "> The supplied object for the 'formula' parameter is not of class formula."))
   
-  sim <- scheduleEvent(sim, eventTime = P(sim)$initialRunTime, current(sim)$moduleName, "run")
+  sim <- scheduleEvent(sim, eventTime = P(sim)$initialRunTime, moduleName, "run")
   invisible(sim)
 
 }
@@ -146,6 +150,8 @@ fireSense_FrequencyFitInit <- function(sim) {
 fireSense_FrequencyFitRun <- function(sim) {
 
   moduleName <- current(sim)$moduleName
+  currentTime <- time(sim, timeunit(sim))
+  endTime <- end(sim, timeunit(sim))
   
   ## Toolbox: set of functions used internally by fireSense_FrequencyFitRun
     ## Handling piecewise terms in a formula
@@ -541,8 +547,8 @@ fireSense_FrequencyFitRun <- function(sim) {
   sim$fireSense_FrequencyFitted <- l
   class(sim$fireSense_FrequencyFitted) <- "fireSense_FrequencyFit"
   
-  if (!is.na(P(sim)$intervalRunModule))
-    sim <- scheduleEvent(sim, time(sim) + P(sim)$intervalRunModule, moduleName, "run")
+  if (!is.na(P(sim)$intervalRunModule) && (currentTime + P(sim)$intervalRunModule) <= endTime) # Assumes time only moves forward
+    sim <- scheduleEvent(sim, currentTime + P(sim)$intervalRunModule, moduleName, "run")
   
   invisible(sim)
 

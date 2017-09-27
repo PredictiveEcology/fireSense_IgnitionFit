@@ -1,6 +1,6 @@
 ---
 title: "fireSense_FrequencyFit"
-author: "Jean Marchal"
+author: "Jean Marchal (jean.d.marchal@gmail.com)"
 date: "August 2017"
 output:
   html_document: default
@@ -25,7 +25,7 @@ downloadModule(moduleName, path = spadesModulesDirectory)
 ## Module parameters
 Name|Default|Description
 ----|:--------------|---------------------------------------------------------------------
-`formula`|`~1`|a formula describing the model to be fitted. Piece-wised terms can be specifed using `pw(variableName, knotName)`.
+`formula`|`NA`|a formula describing the model to be fitted. Piece-wised terms can be specifed using `pw(variableName, knotName)`.
 `family`|`negative.binomial`|a family function (must be wrapped with `quote()`) or a character string naming a family function. For additional details see `?family`.
 `data`|`"dataFireSense_FrequencyFit"`|a character vector indicating the names of objects in the `simList` environment in which to look for variables present in the model formula. `data` objects should be data.frames. If variables are not found in `data` objects, they are searched in the `simList` environment.
 `start`|`NULL`|optional starting values for the parameters to be estimated. Those are passed to `nlminb` and can be a single vector, or a list of vectors. In the latter case, only the best solution, that is, the one which minimizes the most the objective function, is kept.
@@ -96,9 +96,6 @@ Events are scheduled as follows:
 
 - Module initiation
 - Model fitting
-
-## Saving
-TODO: Write what is saved. (there is currently nothing saved, but this may change in the future)
 
 # Data dependencies
 ## Input data

@@ -6,7 +6,7 @@ library(SpaDES)
 times <- list(start = 1, end = 1, timeunit = "year")
 modules <- list("fireSense_FrequencyFit")
 paths <- list(
-  modulePath = file.path("~/Documents/GitHub/McIntire-lab/modulesPrivate/") ## TODO: change this to /path/to/modules/
+  modulePath = "~/Documents/GitHub/McIntire-lab/modulesPrivate/"
 )
 
 
@@ -23,7 +23,7 @@ parameters <- list(
     # start = c(1, 1),
     data = "dataFireSense_FrequencyFit",
     trace = 10, # Print progress every 10 iterations
-    itermax=10,
+    itermax = 10,
     nTrials = 2,
     nCores = 2
   )
@@ -32,7 +32,7 @@ parameters <- list(
 # Define from where and how data will be loaded in the simList environment
 inputs <- data.frame(
   objectName = "dataFireSense_FrequencyFit",
-  file = "Z:/Contrats/Pessiere/DataInputs/dataFireSense_FrequencyFit_foudre.rds",
+  file = "C:/Z/Contrats/Pessiere/DataInputs/dataFireSense_FrequencyFit_foudre.rds",
   fun = "readRDS",
   package = "base",
   loadTime = 1
