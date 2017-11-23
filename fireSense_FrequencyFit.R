@@ -411,7 +411,7 @@ fireSense_FrequencyFitRun <- function(sim)
       c(switch(family$link,
                log = rep_len(-Inf, nx),        ## log-link, default: -Inf for terms and 0 for breakpoints/knots
                identity = rep_len(1e-16, nx)), ## identity link, default: enforce non-negativity
-        kLB)
+       if(isPW) kLB)
       
     } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
 
@@ -510,8 +510,8 @@ fireSense_FrequencyFitRun <- function(sim)
     
   convergence <- TRUE
 
-  if (out$convergence) {
-    
+  if (out$convergence)
+  {
     convergence <- FALSE
     convergDiagnostic <- paste0("nlminb optimizer did not converge (", out$message, ")")
     
@@ -524,6 +524,10 @@ fireSense_FrequencyFitRun <- function(sim)
     convergence <- FALSE
     convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
     warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
+  }
+  else
+  {
+    convergDiagnostic <- out$message
   }
   
   ## Parameters scaling: Revert back estimated coefficients to their original scale
