@@ -13,7 +13,7 @@ defineModule(sim, list(
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_FrequencyFit.Rmd"),
-  reqdPkgs = list("DEoptim", "MASS", "magrittr", "numDeriv", "parallel"),
+  reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel"),
   parameters = rbind(
     #defineParameter("paramName", "paramClass", default, min, max, "parameter description")),
     defineParameter(name = "formula", class = "formula", default = NA,
@@ -31,6 +31,8 @@ defineModule(sim, list(
                             objects should be data.frames. If variables are not
                             found in `data` objects, they are searched in the
                             `simList` environment."),
+    defineParameter(name = "plot", class = "logical", default = TRUE,
+                    desc = "logical. Plot model fit against the data. Prediction interval"),
     defineParameter(name = "start", class = "numeric, list", default = NULL, 
                     desc = "optional starting values for the parameters to be 
                             estimated. Those are passed to `nlminb` and can be a
@@ -98,8 +100,8 @@ defineModule(sim, list(
 ## event types
 #   - type `init` is required for initialiazation
 
-doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FALSE) {
-
+doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FALSE) 
+{
   switch(
 	eventType,
 	init = { sim <- sim$fireSense_FrequencyFitInit(sim) },
@@ -131,8 +133,8 @@ doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FAL
 #   - keep event functions short and clean, modularize by calling subroutines from section below.
 
 ### template initialization
-fireSense_FrequencyFitInit <- function(sim) {
-
+fireSense_FrequencyFitInit <- function(sim) 
+{
   moduleName <- current(sim)$moduleName
   
   # Checking parameters
@@ -141,14 +143,20 @@ fireSense_FrequencyFitInit <- function(sim) {
   stopifnot(P(sim)$itermax >= 1)
   stopifnot(P(sim)$nTrials >= 1)
   if (!is(P(sim)$formula, "formula")) stop(paste0(moduleName, "> The supplied object for the 'formula' parameter is not of class formula."))
+
+  ## Toolbox: set of functions used internally by the module
+    ## Handling piecewise terms in a formula
+    pw <- function(variableName, knotName) pmax(variableName - knotName, 0)
+  
+
   
   sim <- scheduleEvent(sim, eventTime = P(sim)$initialRunTime, moduleName, "run")
   invisible(sim)
 
 }
 
-fireSense_FrequencyFitRun <- function(sim) {
-
+fireSense_FrequencyFitRun <- function(sim)
+{
   moduleName <- current(sim)$moduleName
   currentTime <- time(sim, timeunit(sim))
   endTime <- end(sim, timeunit(sim))
@@ -161,7 +169,8 @@ fireSense_FrequencyFitRun <- function(sim) {
     oom <- function(x) 10^(ceiling(log10(abs(x))))
     
     ## Extract the elements of the special terms, i.e. the variable and the knot value
-    extractSpecial <- function(v, k) {
+    extractSpecial <- function(v, k)
+    {
       cl <- match.call()
 
       if(missing(k)) stop(paste0(moduleName, "> Argument 'knotName' is missing (variable '", as.character(cl$v), "')"))
@@ -169,8 +178,8 @@ fireSense_FrequencyFitRun <- function(sim) {
     }
     
     ## Function to pass to the optimizer
-    obj <- function(params, linkfun, nll, sm, nx, mm, envData) {
-      
+    obj <- function(params, linkfun, nll, sm, nx, mm, envData)
+    {
       ## Parameters scaling
       params <- drop(params %*% sm)
       
@@ -181,12 +190,11 @@ fireSense_FrequencyFitRun <- function(sim) {
       
       if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
       else return(eval(nll, envir = as.list(environment()), enclos = envData))
-
     }
       
     ## Function to pass to the optimizer (PW version)
-    objPW <- function(params, formula, linkfun, nll, sm, updateKnotExpr, nx, envData) {
-      
+    objPW <- function(params, formula, linkfun, nll, sm, updateKnotExpr, nx, envData)
+    {
       ## Parameters scaling
       params <- drop(params %*% sm)
       
@@ -199,12 +207,11 @@ fireSense_FrequencyFitRun <- function(sim) {
       
       if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
       else return(eval(nll, envir = as.list(environment()), enclos = envData))
-
     }
       
     ## Nlminb wrapper
-    objNlminb <- function(start, objective, lower, upper, control) {
-      
+    objNlminb <- function(start, objective, lower, upper, control) 
+    {
       nlminb.call <- quote(nlminb(start = start, objective = objective, lower = lower, upper = upper, control = control))
       nlminb.call[names(formals(objective)[-1L])] <- parse(text = formalArgs(objective)[-1L])
 
@@ -217,14 +224,12 @@ fireSense_FrequencyFitRun <- function(sim) {
         i <- i + 1L
         o <- eval(nlminb.call)
       }
-      
       o
     }
-
+  
   # Create a container to hold the data	
   envData <- new.env(parent = envir(sim))
-  on.exit(rm(envData))
-  
+    
   # Load inputs in the data container
   list2env(as.list(envir(sim)), envir = envData)
   
@@ -241,10 +246,10 @@ fireSense_FrequencyFitRun <- function(sim) {
     }
     
   }
-  
+    
   # Define pw() within the data container
   envData$pw <- pw
-    
+      
   if (is.empty.model(P(sim)$formula))
     stop(paste0(moduleName, "> The formula describes an empty model."))
   
@@ -259,8 +264,8 @@ fireSense_FrequencyFitRun <- function(sim) {
   # Check the presence of at least one piecewise term
   isPW <- !is.null(attr(terms, "specials")$pw)
   
-  if (isPW) {
-    
+  if (isPW) 
+  {
     objfun <- objPW
     
     specialsInd <- which(unlist(lapply(attr(terms,"variables"), is.call)))
@@ -275,7 +280,8 @@ fireSense_FrequencyFitRun <- function(sim) {
     
     kNames <- sapply(specialsTerms, "[[", "knot")
     
-    if (anyDuplicated(kNames)) stop(paste0(moduleName, "> Knot's names are not unique."))
+    if (anyDuplicated(kNames)) 
+      stop(paste0(moduleName, "> Knot's names are not unique."))
     
     nk <- length(kNames)
     allx <- allxy[!allxy %in% c(y, kNames)]
@@ -299,9 +305,9 @@ fireSense_FrequencyFitRun <- function(sim) {
     invisible(mapply(kNames, z = pwVarNames, FUN = function(w, z) envData[[w]] <- mean(envData[[z]]), SIMPLIFY = FALSE))
     
     updateKnotExpr <- parse(text = paste0("envData[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse="; "))
-
-  } else {
-    
+  } 
+  else
+  {
     missing <- !allxy %in% ls(envData, all.names = TRUE)
     
     if (s <- sum(missing))
@@ -312,25 +318,24 @@ fireSense_FrequencyFitRun <- function(sim) {
     allx <- allxy[allxy != y] 
     objfun <- obj
     nk <- 0L
-    
   }
   
   family <- P(sim)$family
   
   if (is.language(family)) family <- eval(family)
   
-  if (is.character(family)) {
-    
+  if (is.character(family))
+  {
     family <- get(family, mode = "function", envir = parent.frame())
     family <- tryCatch(family(),
                        error = function(e) family(theta = suppressWarnings(glm.nb(formula = formula,
                                                                                   y = FALSE,
                                                                                   model = FALSE,
                                                                                   data = envData)[["theta"]])))
-  } else if (is.function(family)) {
-    
+  } 
+  else if (is.function(family))
+  {
     family <- family()
-    
   }
   
   # Check ff family is negative.binomial
@@ -401,8 +406,8 @@ fireSense_FrequencyFitRun <- function(sim) {
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
     nlminbUB <- if (is.null(P(sim)$ub$c)) c(rep_len(Inf, nx), kUB) else DEoptimUB
 
-    nlminbLB <- if (is.null(P(sim)$lb$c)) {
-      
+    nlminbLB <- if (is.null(P(sim)$lb$c))
+    {
       c(switch(family$link,
                log = rep_len(-Inf, nx),        ## log-link, default: -Inf for terms and 0 for breakpoints/knots
                identity = rep_len(1e-16, nx)), ## identity link, default: enforce non-negativity
@@ -411,9 +416,12 @@ fireSense_FrequencyFitRun <- function(sim) {
     } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
 
     ## If negative.binomial family add bounds for the theta parameter
-    if (isFamilyNB && is.null(P(sim)$lb$t)) {
+    if (isFamilyNB && is.null(P(sim)$lb$t)) 
+    {
       nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
-    } else if (isFamilyNB) {
+    } 
+    else if (isFamilyNB)
+    {
       nlminbLB <- c(nlminbLB, P(sim)$lb$t)
     }
 
@@ -424,16 +432,16 @@ fireSense_FrequencyFitRun <- function(sim) {
   
   trace <- P(sim)$trace
   
-  if (P(sim)$nCores > 1) {
-       
+  if (P(sim)$nCores > 1) 
+  {
     cl <- parallel::makePSOCKcluster(names = P(sim)$nCores)
     on.exit(stopCluster(cl))
     clusterEvalQ(cl, library("MASS"))
-    
   }
   
   ## If starting values are not supplied
-    if (is.null(P(sim)$start)) {
+    if (is.null(P(sim)$start)) 
+    {
       ## First optimizer, get rough estimates of the parameter values
       ## Use these estimates to compute the order of magnitude of these parameters
   
@@ -448,34 +456,32 @@ fireSense_FrequencyFitRun <- function(sim) {
       diag(sm) <- oom(DEoptimBestMem)
 
       ## Update the bounds for the knots
-        if (isPW) {
-
+        if (isPW) 
+        {
           kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
           nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
           
           kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
           nlminbUB[(nx + 1L):(nx + nk)] <- if(is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
-  
         }
       
       getRandomStarts <- function(.) pmin(pmax(rnorm(length(DEoptimBestMem),0L,2L)/10 + unname(DEoptimBestMem/oom(DEoptimBestMem)), nlminbLB), nlminbUB)
       start <- c(lapply(1:P(sim)$nTrials, getRandomStarts), list(unname(DEoptimBestMem/oom(DEoptimBestMem))))
-
-    } else {
-
-      start <- if (is.list(P(sim)$start)) {
-
+    } 
+    else 
+    {
+      start <- if (is.list(P(sim)$start))
+      {
         diag(sm) <- lapply(P(sim)$start, oom) %>%
           do.call("rbind", .) %>%
           apply(2, function(x) as.numeric(names(which.max(table(x)))))
         
          lapply(P(sim)$start, function(x) x / diag(sm))
-        
-      } else {
-        
+      } 
+      else 
+      {
         diag(sm) <- oom(P(sim)$start)
         P(sim)$start / diag(sm)
-        
       }
     }
 
@@ -511,13 +517,13 @@ fireSense_FrequencyFitRun <- function(sim) {
     
     warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
     
-  } else if(anyNA(se)) {
-    
+  } 
+  else if(anyNA(se)) 
+  {
     ## Negative values in the Hessian matrix suggest that the algorithm did not converge
     convergence <- FALSE
     convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
     warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
-    
   }
   
   ## Parameters scaling: Revert back estimated coefficients to their original scale
@@ -532,12 +538,14 @@ fireSense_FrequencyFitRun <- function(sim) {
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic)
   
-  if (isPW) {
+  if (isPW) 
+  {
     l$knots <- setNames(out$par[(nx + 1L):(nx + nk)], kNames)
     l$knots.se <- setNames(se[(nx + 1L):(nx + nk)], kNames)
   }
   
-  if(isFamilyNB) {
+  if(isFamilyNB)
+  {
     ## Update the NB family template with the estimated theta
     l$family <- MASS::negative.binomial(theta = out$par[length(out$par)], link = family$link)
     l$theta <- out$par[length(out$par)]
