@@ -264,6 +264,8 @@ fireSense_FrequencyFitRun <- function(sim)
   # Check the presence of at least one piecewise term
   isPW <- !is.null(attr(terms, "specials")$pw)
   
+  kLB <- kUB <- NULL
+  
   if (isPW) 
   {
     objfun <- objPW
@@ -377,8 +379,8 @@ fireSense_FrequencyFitRun <- function(sim)
           suppressWarnings %>%
           coef %>%
           oom(.)) * 10L
-      } else rep_len(P(sim)$ub$c, nx), ## User-defined bounds (recycled if necessary)
-    if (isPW) kUB)
+      } else rep_len(P(sim)$ub$c, nx) ## User-defined bounds (recycled if necessary)
+      , kUB)
 
     DEoptimLB <- c({
       switch(family$link,
@@ -393,7 +395,7 @@ fireSense_FrequencyFitRun <- function(sim)
                else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
                
              }, stop(paste0(moduleName, "> Link function ", family$link, " is not supported.")))
-    }, if (isPW) kLB)
+    }, kLB)
     
     ## If negative.binomial family needs to add bounds for theta parameter
       if (isFamilyNB) {
@@ -409,9 +411,9 @@ fireSense_FrequencyFitRun <- function(sim)
     nlminbLB <- if (is.null(P(sim)$lb$c))
     {
       c(switch(family$link,
-               log = rep_len(-Inf, nx),        ## log-link, default: -Inf for terms and 0 for breakpoints/knots
-               identity = rep_len(1e-16, nx)), ## identity link, default: enforce non-negativity
-       if(isPW) kLB)
+               log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
+               identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
+        , kLB)
       
     } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
 
