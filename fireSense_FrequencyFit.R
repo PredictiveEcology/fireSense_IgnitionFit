@@ -178,7 +178,7 @@ fireSense_FrequencyFitRun <- function(sim)
     }
     
     ## Function to pass to the optimizer
-    obj <- function(params, linkfun, nll, sm, nx, mm, envData)
+    obj <- function(params, linkinv, nll, sm, nx, mm, envData)
     {
       ## Parameters scaling
       params <- drop(params %*% sm)
@@ -186,14 +186,14 @@ fireSense_FrequencyFitRun <- function(sim)
       mu <- drop(mm %*% params[1L:nx])
 
       ## link implementation
-      mu <- linkfun(mu)
+      mu <- linkinv(mu)
       
       if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
       else return(eval(nll, envir = as.list(environment()), enclos = envData))
     }
       
     ## Function to pass to the optimizer (PW version)
-    objPW <- function(params, formula, linkfun, nll, sm, updateKnotExpr, nx, envData)
+    objPW <- function(params, formula, linkinv, nll, sm, updateKnotExpr, nx, envData)
     {
       ## Parameters scaling
       params <- drop(params %*% sm)
@@ -203,7 +203,7 @@ fireSense_FrequencyFitRun <- function(sim)
       mu <- drop(model.matrix(formula, envData) %*% params[1:nx])
       
       ## link implementation
-      mu <- linkfun(mu)
+      mu <- linkinv(mu)
       
       if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
       else return(eval(nll, envir = as.list(environment()), enclos = envData))
@@ -347,8 +347,8 @@ fireSense_FrequencyFitRun <- function(sim)
   if (isFamilyNB)
     theta <- as.numeric(gsub(x = regmatches(family$family, gregexpr("\\(.*?\\)", family$family))[[1L]], pattern = "[\\(\\)]", replacement = ""))
   
-  linkfun <- family$linkfun
-  
+  linkinv <- family$linkinv
+
   mm <- model.matrix(terms, envData)
   
   ## Define the scaling matrix. This is used later in the optimization process
@@ -361,7 +361,7 @@ fireSense_FrequencyFitRun <- function(sim)
 
   ## Define parameter bounds automatically if they are not supplied by user
   ## First defined the bounds for DEoptim, the first optimizer    
-    
+
     DEoptimUB <- c(
       if (is.null(P(sim)$ub$c)) {
         ## Automatically estimate an upper boundary for each parameter       
@@ -386,7 +386,7 @@ fireSense_FrequencyFitRun <- function(sim)
       switch(family$link,
              log = {
                
-               if (is.null(P(sim)$lb$c)) DEoptimUB[1L:nx] * 3 ## Automatically estimate a lower boundary for each parameter
+               if (is.null(P(sim)$lb$c)) -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
                else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
                
              }, identity = {
@@ -398,11 +398,10 @@ fireSense_FrequencyFitRun <- function(sim)
     }, kLB)
     
     ## If negative.binomial family needs to add bounds for theta parameter
-      if (isFamilyNB) {
-          
+      if (isFamilyNB) 
+      {
         DEoptimUB <- c(DEoptimUB, if (is.null(P(sim)$ub$t)) 2L * theta else P(sim)$ub$t)
         DEoptimLB <- c(DEoptimLB, if (is.null(P(sim)$lb$t)) 1e-16 else P(sim)$lb$t) ## Enfore non-negativity
-        
       }
 
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
@@ -449,7 +448,7 @@ fireSense_FrequencyFitRun <- function(sim)
   
       control <- list(itermax = P(sim)$itermax, trace = P(sim)$trace)
       if(P(sim)$nCores > 1) control$cluster <- cl
-      
+
       DEoptimCall <- quote(DEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB, control = do.call("DEoptim.control", control)))
       DEoptimCall[names(formals(objfun)[-1])] <- parse(text = formalArgs(objfun)[-1])
       DEoptimBestMem <- eval(DEoptimCall) %>% `[[` ("optim") %>% `[[` ("bestmem")
@@ -466,7 +465,7 @@ fireSense_FrequencyFitRun <- function(sim)
           kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
           nlminbUB[(nx + 1L):(nx + nk)] <- if(is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
         }
-      
+
       getRandomStarts <- function(.) pmin(pmax(rnorm(length(DEoptimBestMem),0L,2L)/10 + unname(DEoptimBestMem/oom(DEoptimBestMem)), nlminbLB), nlminbUB)
       start <- c(lapply(1:P(sim)$nTrials, getRandomStarts), list(unname(DEoptimBestMem/oom(DEoptimBestMem))))
     } 
@@ -487,10 +486,10 @@ fireSense_FrequencyFitRun <- function(sim)
       }
     }
 
-  out <- if (is.list(start)) {
-    
-    if (P(sim)$nCores > 1) {
-      
+  out <- if (is.list(start)) 
+  {
+    if (P(sim)$nCores > 1) 
+    {
       if (trace) clusterEvalQ(cl, sink(paste0("fireSense_FrequencyFit_trace.", Sys.getpid())))
       
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
@@ -518,7 +517,6 @@ fireSense_FrequencyFitRun <- function(sim)
     convergDiagnostic <- paste0("nlminb optimizer did not converge (", out$message, ")")
     
     warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
-    
   } 
   else if(anyNA(se)) 
   {
@@ -560,6 +558,45 @@ fireSense_FrequencyFitRun <- function(sim)
   
   sim$fireSense_FrequencyFitted <- l
   class(sim$fireSense_FrequencyFitted) <- "fireSense_FrequencyFit"
+
+  # if (P(sim)$plot)
+  # {
+  #   plotData <- new.env(parent = envData)
+  #   list2env(as.list(envData), envir = plotData)
+  #   
+  #   for (v in allx)
+  #   {
+  #     for (x in allx[allx != v])
+  #     {
+  #       plotData[[x]] <- rep_len(mean(envData[[x]]), 200)
+  #     }
+  #     plotData[[v]] <- seq(min(envData[[v]]), max(envData[[v]]), length.out = 200)
+  #     mu <- drop(model.matrix(delete.response(terms), plotData) %*% l$coef)
+  #     lq <- qnbinom(.025, mu = l$family$linkinv(mu), size = l$theta)
+  #     uq <- qnbinom(.975, mu = l$family$linkinv(mu), size = l$theta)
+  #     
+  #     
+  #     browser()
+  #     plot(mu ~ plotData[[v]], type = "n", main = expression(atop(bold(Predicted~number~of~fires~occurrences),
+  #                                                                 bold(plotted~against~the~observations))),
+  #          ylab = v, xlab = expression(Year), axes = FALSE)
+  #     polygon(x = c(rev(plotData[[v]]), plotData[[v]]),
+  #             y = c(rev(lq), uq),
+  #             col = rgb(t(col2rgb("red")), maxColorValue = 255, alpha = 95),
+  #             border=NA, 
+  #             xpd=NA)
+  #     
+  #     obs <- tapply(envData[[y]], cut(envData[[v]], breaks = plotData[[v]], include.lowest = TRUE), mean)
+  #     plotData[[v]] <- plotData[[v]][-1] - (plotData[[v]][2] - plotData[[v]][1]) / 2
+  #     
+  #     mu <- drop(model.matrix(delete.response(terms), plotData) %*% l$coef)
+  #     mu <- l$family$linkinv(mu)
+  #     
+  #     plot(obs ~ plotData[[v]], xlab = v, ylab = "Mean number of fires")
+  #     lines(mu ~ plotData[[v]], col = "red")
+  #     
+  #   }
+  # }
   
   if (!is.na(P(sim)$intervalRunModule) && (currentTime + P(sim)$intervalRunModule) <= endTime) # Assumes time only moves forward
     sim <- scheduleEvent(sim, currentTime + P(sim)$intervalRunModule, moduleName, "run")
