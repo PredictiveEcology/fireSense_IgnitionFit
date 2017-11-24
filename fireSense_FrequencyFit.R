@@ -233,18 +233,15 @@ fireSense_FrequencyFitRun <- function(sim)
   # Load inputs in the data container
   list2env(as.list(envir(sim)), envir = envData)
   
-  for (x in P(sim)$data) {
-    
-    if (!is.null(sim[[x]])) {
-      
-      if (is.data.frame(sim[[x]])) {
-        
+  for (x in P(sim)$data)
+  {
+    if (!is.null(sim[[x]])) 
+    {
+      if (is.data.frame(sim[[x]])) 
+      {
         list2env(sim[[x]], envir = envData)
-        
       } else stop(paste0(moduleName, "> '", x, "' is not a data.frame."))
-      
     }
-    
   }
     
   # Define pw() within the data container
@@ -396,7 +393,7 @@ fireSense_FrequencyFitRun <- function(sim)
                
              }, stop(paste0(moduleName, "> Link function ", family$link, " is not supported.")))
     }, kLB)
-    
+
     ## If negative.binomial family needs to add bounds for theta parameter
       if (isFamilyNB) 
       {
@@ -515,7 +512,6 @@ fireSense_FrequencyFitRun <- function(sim)
   {
     convergence <- FALSE
     convergDiagnostic <- paste0("nlminb optimizer did not converge (", out$message, ")")
-    
     warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
   } 
   else if(anyNA(se)) 
