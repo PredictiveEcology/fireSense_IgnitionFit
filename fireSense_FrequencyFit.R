@@ -487,13 +487,14 @@ fireSense_FrequencyFitRun <- function(sim)
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
       
       if (trace) clusterEvalQ(cl, sink())
-      
-    } else out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
+    } 
+    else out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
     
     ## Select best minimum amongst all trials
     out[[which.min(sapply(out, "[[", "objective"))]]
     
-  } else objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace)))
+  } 
+  else objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace)))
 
   ## Compute the standard errors around the estimates
     hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
