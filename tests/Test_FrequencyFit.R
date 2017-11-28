@@ -2,11 +2,13 @@ library(SpaDES)
 
 ## TODO: Expliquer que les coefficients du trace sont scalés et également que les bounds doivent être scalées (ou modif code).
 
+modulePath <- "~/Documents/GitHub/McIntire-lab/modulesPrivate/"
+
 # Define simulation parameters
 times <- list(start = 1, end = 1, timeunit = "year")
 modules <- list("fireSense_FrequencyFit")
 paths <- list(
-  modulePath = "~/Documents/GitHub/McIntire-lab/modulesPrivate/"
+  modulePath = modulePath
 )
 
 

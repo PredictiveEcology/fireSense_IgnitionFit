@@ -143,12 +143,6 @@ fireSense_FrequencyFitInit <- function(sim)
   stopifnot(P(sim)$itermax >= 1)
   stopifnot(P(sim)$nTrials >= 1)
   if (!is(P(sim)$formula, "formula")) stop(paste0(moduleName, "> The supplied object for the 'formula' parameter is not of class formula."))
-
-  ## Toolbox: set of functions used internally by the module
-    ## Handling piecewise terms in a formula
-    pw <- function(variableName, knotName) pmax(variableName - knotName, 0)
-  
-
   
   sim <- scheduleEvent(sim, eventTime = P(sim)$initialRunTime, moduleName, "run")
   invisible(sim)
@@ -240,7 +234,8 @@ fireSense_FrequencyFitRun <- function(sim)
       if (is.data.frame(sim[[x]])) 
       {
         list2env(sim[[x]], envir = envData)
-      } else stop(paste0(moduleName, "> '", x, "' is not a data.frame."))
+      } 
+      else stop(paste0(moduleName, "> '", x, "' is not a data.frame."))
     }
   }
     
