@@ -5,9 +5,10 @@ library(SpaDES)
 set.seed(1)
 
 modulePath <- "~/Documents/GitHub/McIntire-lab/modulesPrivate/"
+start <- end <- 1
 
 # Define simulation parameters
-times <- list(start = 1, end = 1, timeunit = "year")
+times <- list(start = start, end = end, timeunit = "year")
 modules <- list("fireSense_FrequencyFit", "fireSense_FrequencyPredict")
 paths <- list(
   modulePath = modulePath
@@ -16,7 +17,7 @@ paths <- list(
 # Create random weather and fire frequency dataset
 dummyData <- data.frame(
   weather = rep(1:100, each = 10),
-  fireFrequency = rpois(1000, lambda=rep(10:1, each = 100)),
+  n_fires = rpois(1000, lambda=rep(10:1, each = 100)),
   year = rep(1:10, each = 100)
 )
 
@@ -24,7 +25,7 @@ dummyData <- data.frame(
 # Define module parameters
 parameters <- list(
   fireSense_FrequencyFit = list(
-    formula = fireFrequency ~ weather,
+    formula = n_fires ~ weather,
     family = poisson(),
     data = "dummyData"
   ),
@@ -49,16 +50,16 @@ sim <- simInit(
 sim <- spades(sim)
 
 # Prepare data
-data <- bind_cols(dummyData, list(predicted_ff = sim$fireSense_FrequencyPredicted[[1]])) 
+data <- bind_cols(dummyData, list(predict = sim$fireSense_FrequencyPredicted[[as.character(start)]])) 
 
 # Plot predictions versus observations
 data %>%
   group_by(year) %>%
-  summarise(observed = sum(fireFrequency), predicted = sum(predicted_ff)) %>%
+  summarise(observed = sum(fireFrequency), predicted = sum(predict)) %>%
   with(., plot(predicted ~ .$observed, xlim = c(150, 1200), ylim = c(150, 1200)))
 
 # Predictions function as a covariate
-with(data, plot(sim$fireSense_FrequencyPredicted[[1]] ~ weather, ylab = expression(Predicted~number~of~fires~occurrences), type = "l"))
+with(data, plot(sim$fireSense_FrequencyPredicted[[as.character(start)]] ~ weather, ylab = expression(Predicted~number~of~fires~occurrences), type = "l"))
 
 
 
