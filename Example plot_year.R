@@ -55,11 +55,13 @@ data <- bind_cols(dummyData, list(predict = sim$fireSense_FrequencyPredicted[[as
 # Plot predictions versus observations
 data %>%
   group_by(year) %>%
-  summarise(observed = sum(fireFrequency), predicted = sum(predict)) %>%
-  with(., plot(predicted ~ .$observed, xlim = c(150, 1200), ylim = c(150, 1200)))
+  summarise(observed = sum(n_fires), predicted = sum(predict)) %>%
+  with(., plot(predicted ~ .$observed, xlim = c(150, 1200), ylim = c(150, 1200), pch = 16))
+abline(0,1, col = "red", lwd = 2)
 
-# Predictions function as a covariate
-with(data, plot(sim$fireSense_FrequencyPredicted[[as.character(start)]] ~ weather, ylab = expression(Predicted~number~of~fires~occurrences), type = "l"))
+# Predicted number of fires as a function of a covariate, here weather
+with(data, plot(sim$fireSense_FrequencyPredicted[[as.character(start)]] ~ weather, 
+                ylab = expression(Predicted~number~of~fires~occurrences), type = "l", lwd = 2))
 
 
 
