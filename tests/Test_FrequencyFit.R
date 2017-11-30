@@ -13,7 +13,7 @@ paths <- list(
 
 
 # Examples of model formula
-formula <- n_fires ~ hw:MDC_07 + cn:MDC_07 + ot:MDC_07 + dt:MDC_07 +
+formula <- nFires ~ hw:MDC_07 + cn:MDC_07 + ot:MDC_07 + dt:MDC_07 +
   hw:pw(MDC_07, k_HW) + cn:pw(MDC_07, k_CN) + ot:pw(MDC_07, k_OT) + dt:pw(MDC_07, k_DT) - 1
 
 # Define module parameters

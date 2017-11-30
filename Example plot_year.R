@@ -17,7 +17,7 @@ paths <- list(
 # Create random weather and fire frequency dataset
 dummyData <- data.frame(
   weather = rep(1:100, each = 10),
-  n_fires = rpois(1000, lambda=rep(10:1, each = 100)),
+  nFires = rpois(1000, lambda=rep(10:1, each = 100)),
   year = rep(1:10, each = 100)
 )
 
@@ -25,7 +25,7 @@ dummyData <- data.frame(
 # Define module parameters
 parameters <- list(
   fireSense_FrequencyFit = list(
-    formula = n_fires ~ weather,
+    formula = nFires ~ weather,
     family = poisson(),
     data = "dummyData"
   ),
@@ -55,7 +55,7 @@ data <- bind_cols(dummyData, list(predict = sim$fireSense_FrequencyPredicted[[as
 # Plot predictions versus observations
 data %>%
   group_by(year) %>%
-  summarise(observed = sum(n_fires), predicted = sum(predict)) %>%
+  summarise(observed = sum(nFires), predicted = sum(predict)) %>%
   with(., plot(predicted ~ .$observed, xlim = c(150, 1200), ylim = c(150, 1200), pch = 16))
 abline(0,1, col = "red", lwd = 2)
 
