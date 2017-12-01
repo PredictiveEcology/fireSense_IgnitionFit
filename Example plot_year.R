@@ -1,5 +1,4 @@
 library(dplyr)
-library(magrittr)
 library(SpaDES)
 
 set.seed(1)
