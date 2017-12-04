@@ -136,7 +136,7 @@ doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FAL
 fireSense_FrequencyFitInit <- function(sim) 
 {
   moduleName <- current(sim)$moduleName
-  
+
   # Checking parameters
   stopifnot(P(sim)$trace >= 0)
   stopifnot(P(sim)$nCores >= 1)
