@@ -59,5 +59,5 @@ plotData <- bind_cols(plotData, list(predict = sim$fireSense_FrequencyPredicted[
 
 # Predicted number of fires as a function of two covariates
 p <- ggplot(data = plotData) + theme_bw()
-p <- p + geom_line(aes(x = weather, y = predict, group = group, color = group))
+p <- p + geom_line(aes(x = weather, y = predict, group = group, color = group), size = 2)
 p
