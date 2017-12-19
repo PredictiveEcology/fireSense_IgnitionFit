@@ -193,7 +193,7 @@ fireSense_FrequencyFitRun <- function(sim)
       params <- drop(params %*% sm)
       
       eval(updateKnotExpr, envir = environment(), enclos = envData) ## update knot's values
-
+  
       mu <- drop(model.matrix(formula, envData) %*% params[1:nx])
       
       ## link implementation
