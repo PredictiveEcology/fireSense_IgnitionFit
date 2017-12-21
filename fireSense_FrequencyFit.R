@@ -101,23 +101,10 @@ defineModule(sim, list(
 doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FALSE) 
 {
   switch(
-	eventType,
-	init = { sim <- sim$fireSense_FrequencyFitInit(sim) },
-	run = { sim <- sim$fireSense_FrequencyFitRun(sim) },
-	save = {
-      # ! ----- EDIT BELOW ----- ! #
-      # do stuff for this event
-    
-      # e.g., call your custom functions/methods here
-      # you can define your own methods below this `doEvent` function
-    
-      # schedule future event(s)
-    
-      # e.g.,
-      # sim <- scheduleEvent(sim, time(sim) + increment, "fireSense_FrequencyFit", "save")
-    
-      # ! ----- STOP EDITING ----- ! #
-    },
+    eventType,
+    init = { sim <- sim$fireSense_FrequencyFitInit(sim) },
+    run = { sim <- sim$fireSense_FrequencyFitRun(sim) },
+    save = {  },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
   )
