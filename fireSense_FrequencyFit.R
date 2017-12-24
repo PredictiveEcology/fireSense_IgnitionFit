@@ -538,46 +538,6 @@ fireSense_FrequencyFitRun <- function(sim)
   
   sim$fireSense_FrequencyFitted <- l
   class(sim$fireSense_FrequencyFitted) <- "fireSense_FrequencyFit"
-
-  # if (P(sim)$plot)
-  # {
-  #   plotData <- new.env(parent = envData)
-  #   list2env(as.list(envData), envir = plotData)
-  #   
-  #   for (v in allx)
-  #   {
-  #     for (x in allx[allx != v])
-  #     {
-  #       plotData[[x]] <- rep_len(mean(envData[[x]]), 200)
-  #     }
-  #     plotData[[v]] <- seq(min(envData[[v]]), max(envData[[v]]), length.out = 200)
-  #     mu <- drop(model.matrix(delete.response(terms), plotData) %*% l$coef)
-  #     lq <- qnbinom(.025, mu = l$family$linkinv(mu), size = l$theta)
-  #     uq <- qnbinom(.975, mu = l$family$linkinv(mu), size = l$theta)
-  #     
-  #     
-  #     browser()
-  #     plot(mu ~ plotData[[v]], type = "n", main = expression(atop(bold(Predicted~number~of~fires~occurrences),
-  #                                                                 bold(plotted~against~the~observations))),
-  #          ylab = v, xlab = expression(Year), axes = FALSE)
-  #     polygon(x = c(rev(plotData[[v]]), plotData[[v]]),
-  #             y = c(rev(lq), uq),
-  #             col = rgb(t(col2rgb("red")), maxColorValue = 255, alpha = 95),
-  #             border=NA, 
-  #             xpd=NA)
-  #     
-  #     obs <- tapply(envData[[y]], cut(envData[[v]], breaks = plotData[[v]], include.lowest = TRUE), mean)
-  #     plotData[[v]] <- plotData[[v]][-1] - (plotData[[v]][2] - plotData[[v]][1]) / 2
-  #     
-  #     mu <- drop(model.matrix(delete.response(terms), plotData) %*% l$coef)
-  #     mu <- l$family$linkinv(mu)
-  #     
-  #     plot(obs ~ plotData[[v]], xlab = v, ylab = "Mean number of fires")
-  #     lines(mu ~ plotData[[v]], col = "red")
-  #     
-  #   }
-  # }
-  
   
   if (!is.na(P(sim)$.runInterval))
     sim <- scheduleEvent(sim, currentTime + P(sim)$.runInterval, moduleName, "run")
