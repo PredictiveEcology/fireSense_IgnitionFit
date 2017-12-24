@@ -28,7 +28,9 @@ defineModule(sim, list(
                     desc = "a character vector indicating the names of objects 
                             in the `simList` environment in which to look for 
                             variables present in the model formula. `data` 
-                            objects should be data.frames."),
+                            objects should be data.frames. If variables are not
+                            found in `data` objects, they are searched in the
+                            `simList` environment."),
     defineParameter(name = "plot", class = "logical", default = TRUE,
                     desc = "logical. Plot model fit against the data. Prediction interval"),
     defineParameter(name = "start", class = "numeric, list", default = NULL, 
@@ -209,6 +211,9 @@ fireSense_FrequencyFitRun <- function(sim)
   
   # Create a container to hold the data	
   envData <- new.env(parent = envir(sim))
+    
+  # Load inputs in the data container
+  list2env(as.list(envir(sim)), envir = envData)
   
   for (x in P(sim)$data)
   {
