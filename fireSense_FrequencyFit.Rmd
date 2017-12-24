@@ -38,6 +38,8 @@ Name|Default|Description
 `nlminb.control`|`list(iter.max = 5e3L,`<br>&emsp;&emsp;&emsp;`eval.max=5e3L`)|optional list of control parameters to be passed to the `nlminb` optimizer. See `?nlminb`.
 `.runInitialTime`|`start(simList)`|when to start this module? By default, the start time of the simulation.
 `.runInterval`|`NA`|optional. Interval between two runs of this module, expressed in units of simulation time.
+`.saveInitialTime`|`NA`|optional. When to start saving output to a file.
+`.saveInterval`|`NA`|optional. Interval between save events.
 |||
 
 ## Usage example

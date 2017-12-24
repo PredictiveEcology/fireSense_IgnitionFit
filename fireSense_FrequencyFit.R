@@ -82,6 +82,10 @@ defineModule(sim, list(
     defineParameter(name = ".runInterval", class = "numeric", default = NA, 
                     desc = "optional. Interval between two runs of this module,
                             expressed in units of simulation time."),
+    defineParameter(name = ".saveInitialTime", class = "numeric", default = NA, 
+                    desc = "optional. When to start saving output to a file."),
+    defineParameter(name = ".saveInterval", class = "numeric", default = NA, 
+                    desc = "optional. Interval between save events."),
     defineParameter(".useCache", "numeric", FALSE, NA, NA, "Should this entire module be run with caching activated? This is generally intended for data-type modules, where stochasticity and time are not relevant")
   ),
   inputObjects = expectsInput(
@@ -106,7 +110,7 @@ doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FAL
     eventType,
     init = { sim <- sim$fireSense_FrequencyFitInit(sim) },
     run = { sim <- sim$fireSense_FrequencyFitRun(sim) },
-    save = {  },
+    save = { sim <- sim$fireSense_FrequencyFitSave(sim) },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
   )
@@ -132,8 +136,11 @@ fireSense_FrequencyFitInit <- function(sim)
   if (!is(P(sim)$formula, "formula")) stop(paste0(moduleName, "> The supplied object for the 'formula' parameter is not of class formula."))
   
   sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
+  
+  if (!is.na(P(sim)$.saveInitialTime))
+    sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, moduleName, "save", .last())
+  
   invisible(sim)
-
 }
 
 fireSense_FrequencyFitRun <- function(sim)
@@ -543,5 +550,22 @@ fireSense_FrequencyFitRun <- function(sim)
     sim <- scheduleEvent(sim, currentTime + P(sim)$.runInterval, moduleName, "run")
   
   invisible(sim)
+}
 
+
+fireSense_FrequencyFitSave <- function(sim)
+{
+  moduleName <- current(sim)$moduleName
+  timeUnit <- timeunit(sim)
+  currentTime <- time(sim, timeUnit)
+  
+  saveRDS(
+    sim$fireSense_FrequencyPredicted, 
+    file = file.path(paths(sim)$out, paste0("fireSense_FrequencyFitted_", timeUnit, currentTime, ".rds"))
+  )
+  
+  if (!is.na(P(sim)$.saveInterval))
+    sim <- scheduleEvent(sim, currentTime + P(sim)$.saveInterval, moduleName, "save", .last())
+  
+  invisible(sim)
 }
