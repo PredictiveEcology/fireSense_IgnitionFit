@@ -76,10 +76,10 @@ defineModule(sim, list(
                     default = list(iter.max = 5e3L, eval.max=5e3L),
                     desc = "optional list of control parameters to be passed to 
                             the `nlminb` optimizer. See `?nlminb`."),
-    defineParameter(name = "initialRunTime", class = "numeric", default = start(sim),
+    defineParameter(name = ".runInitialTime", class = "numeric", default = start(sim),
                     desc = "when to start this module? By default, the start 
                             time of the simulation."),
-    defineParameter(name = "intervalRunModule", class = "numeric", default = NA, 
+    defineParameter(name = ".runInterval", class = "numeric", default = NA, 
                     desc = "optional. Interval between two runs of this module,
                             expressed in units of simulation time."),
     defineParameter(".useCache", "numeric", FALSE, NA, NA, "Should this entire module be run with caching activated? This is generally intended for data-type modules, where stochasticity and time are not relevant")
@@ -131,7 +131,7 @@ fireSense_FrequencyFitInit <- function(sim)
   stopifnot(P(sim)$nTrials >= 1)
   if (!is(P(sim)$formula, "formula")) stop(paste0(moduleName, "> The supplied object for the 'formula' parameter is not of class formula."))
   
-  sim <- scheduleEvent(sim, eventTime = P(sim)$initialRunTime, moduleName, "run")
+  sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
   invisible(sim)
 
 }
@@ -578,8 +578,9 @@ fireSense_FrequencyFitRun <- function(sim)
   #   }
   # }
   
-  if (!is.na(P(sim)$intervalRunModule) && (currentTime + P(sim)$intervalRunModule) <= endTime) # Assumes time only moves forward
-    sim <- scheduleEvent(sim, currentTime + P(sim)$intervalRunModule, moduleName, "run")
+  
+  if (!is.na(P(sim)$.runInterval))
+    sim <- scheduleEvent(sim, currentTime + P(sim)$.runInterval, moduleName, "run")
   
   invisible(sim)
 
