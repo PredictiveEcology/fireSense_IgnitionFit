@@ -55,9 +55,10 @@ sim <- simInit(
 sim <- spades(sim)
 
 # Prepare data
-plotData <- bind_cols(plotData, list(predict = sim$fireSense_FrequencyPredicted[[as.character(start)]])) 
+plotData <- bind_cols(plotData, list(predict = sim$fireSense_FrequencyPredicted)) 
 
 # Predicted number of fires as a function of two covariates
+x11()
 p <- ggplot(data = plotData) + theme_bw()
 p <- p + geom_line(aes(x = weather, y = predict, group = group, color = group), size = 2)
 p

@@ -49,7 +49,7 @@ sim <- simInit(
 sim <- spades(sim)
 
 # Prepare data
-data <- bind_cols(dummyData, list(predict = sim$fireSense_FrequencyPredicted[[as.character(start)]])) 
+data <- bind_cols(dummyData, list(predict = sim$fireSense_FrequencyPredicted)) 
 
 # Plot predictions versus observations
 data %>%
@@ -59,7 +59,8 @@ data %>%
 abline(0,1, col = "red", lwd = 2)
 
 # Predicted number of fires as a function of a covariate, here weather
-with(data, plot(sim$fireSense_FrequencyPredicted[[as.character(start)]] ~ weather, 
+x11()
+with(data, plot(sim$fireSense_FrequencyPredicted ~ weather, 
                 ylab = expression(Predicted~number~of~fires~occurrences), type = "l", lwd = 2))
 
 
