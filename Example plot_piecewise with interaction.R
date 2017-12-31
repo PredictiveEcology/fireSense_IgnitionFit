@@ -18,11 +18,11 @@ model <- structure(
   list(
     formula = n_fires ~ hw:weather + cn:weather + hw:pw(weather, k_HW) + cn:pw(weather, k_CN) - 1, 
     family = negative.binomial(.42, link = "identity"),
-    coef = structure(c(1e-23, 9e-05,  1e-03, 7e-03),
-                     .Names = c("hw:weather", "cn:weather", "hw:pw(weather, k_HW)", "cn:pw(weather, k_CN)")),
-    knots = structure(c(70, 33), .Names = c("k_HW", "k_CN")),
+    coef = c("hw:weather" = 1e-23, "cn:weather" = 9e-05,
+             "hw:pw(weather, k_HW)" = 1e-03, "cn:pw(weather, k_CN)" = 7e-03),
+    knots = c("k_HW" = 70, "k_CN" = 33),
     theta = .42
-  ), .Names = c("formula", "family", "coef", "knots", "theta"), class = "fireSense_FrequencyFit"
+  ), class = "fireSense_FrequencyFit"
 )
 
 plotData <- data_frame(weather = rep(1:100, 2),
