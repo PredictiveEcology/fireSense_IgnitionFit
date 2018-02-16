@@ -250,9 +250,9 @@ fireSense_FrequencyFitRun <- function(sim)
   
   # Check the presence of at least one piecewise term
   isPW <- !is.null(attr(terms, "specials")$pw)
-
-  kLB <- kUB <- NULL
   
+  kLB <- kUB <- NULL
+
   if (isPW) 
   {
     objfun <- objPW
