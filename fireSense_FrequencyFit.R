@@ -133,7 +133,7 @@ fireSense_FrequencyFitInit <- function(sim)
   stopifnot(P(sim)$nCores >= 1)
   stopifnot(P(sim)$itermax >= 1)
   stopifnot(P(sim)$nTrials >= 1)
-  if (!is(P(sim)$formula, "formula")) stop(paste0(moduleName, "> The supplied object for the 'formula' parameter is not of class formula."))
+  if (!is(P(sim)$formula, "formula")) stop(moduleName, "> The supplied object for the 'formula' parameter is not of class formula.")
   
   sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
   
@@ -148,7 +148,7 @@ fireSense_FrequencyFitRun <- function(sim)
   moduleName <- current(sim)$moduleName
   currentTime <- time(sim, timeunit(sim))
   endTime <- end(sim, timeunit(sim))
-  
+
   ## Toolbox: set of functions used internally by fireSense_FrequencyFitRun
     ## Handling piecewise terms in a formula
     pw <- function(variableName, knotName) pmax(variableName - knotName, 0)
@@ -161,7 +161,7 @@ fireSense_FrequencyFitRun <- function(sim)
     {
       cl <- match.call()
 
-      if(missing(k)) stop(paste0(moduleName, "> Argument 'knotName' is missing (variable '", as.character(cl$v), "')"))
+      if(missing(k)) stop(moduleName, "> Argument 'knotName' is missing (variable '", as.character(cl$v), "')")
       else list(variable = as.character(cl$v), knot = as.character(cl$k))
     }
     
@@ -230,7 +230,7 @@ fireSense_FrequencyFitRun <- function(sim)
       {
         list2env(sim[[x]], envir = envData)
       } 
-      else stop(paste0(moduleName, "> '", x, "' is not a data.frame."))
+      else stop(moduleName, "> '", x, "' is not a data.frame.")
     }
   }
     
@@ -238,19 +238,19 @@ fireSense_FrequencyFitRun <- function(sim)
   envData$pw <- pw
       
   if (is.empty.model(P(sim)$formula))
-    stop(paste0(moduleName, "> The formula describes an empty model."))
+    stop(moduleName, "> The formula describes an empty model.")
   
   terms <- terms.formula(formula <- P(sim)$formula, specials = "pw")
   
   if (attr(terms, "response")) y <- as.character(formula[[2L]])
-  else stop(paste0(moduleName, "> Incomplete formula, the LHS is missing."))
+  else stop(moduleName, "> Incomplete formula, the LHS is missing.")
 
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
   allxy <- all.vars(terms)
   
   # Check the presence of at least one piecewise term
   isPW <- !is.null(attr(terms, "specials")$pw)
-  
+
   kLB <- kUB <- NULL
   
   if (isPW) 
@@ -270,7 +270,7 @@ fireSense_FrequencyFitRun <- function(sim)
     kNames <- sapply(specialsTerms, "[[", "knot")
     
     if (anyDuplicated(kNames)) 
-      stop(paste0(moduleName, "> Knot's names are not unique."))
+      stop(moduleName, "> Knot's names are not unique.")
     
     nk <- length(kNames)
     allx <- allxy[!allxy %in% c(y, kNames)]
@@ -278,9 +278,9 @@ fireSense_FrequencyFitRun <- function(sim)
     missing <- !allxy[!allxy %in% kNames] %in% ls(envData, all.names = TRUE)
     
     if (s <- sum(missing))
-      stop(paste0(moduleName, "> '", allxy[!allxy %in% kNames][missing][1L], "'",
-                  if (s > 1) paste0(" (and ", s-1L, " other", if (s>2) "s", ")"),
-                  " not found in data objects nor in the simList environment."))
+      stop(moduleName, "> '", allxy[!allxy %in% kNames][missing][1L], "'",
+           if (s > 1) paste0(" (and ", s-1L, " other", if (s>2) "s", ")"),
+           " not found in data objects nor in the simList environment.")
     
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable")
@@ -300,9 +300,9 @@ fireSense_FrequencyFitRun <- function(sim)
     missing <- !allxy %in% ls(envData, all.names = TRUE)
     
     if (s <- sum(missing))
-      stop(paste0(moduleName, "> '", allxy[missing][1L], "'",
-                  if (s > 1) paste0(" (and ", s-1L, " other", if (s>2) "s", ")"),
-                  " not found in data objects nor in the simList environment."))
+      stop(moduleName, "> '", allxy[missing][1L], "'",
+           if (s > 1) paste0(" (and ", s-1L, " other", if (s>2) "s", ")"),
+           " not found in data objects nor in the simList environment.")
     
     allx <- allxy[allxy != y] 
     objfun <- obj
@@ -350,7 +350,8 @@ fireSense_FrequencyFitRun <- function(sim)
   ## First defined the bounds for DEoptim, the first optimizer    
 
     DEoptimUB <- c(
-      if (is.null(P(sim)$ub$c)) {
+      if (is.null(P(sim)$ub$c))
+      {
         ## Automatically estimate an upper boundary for each parameter       
         (tryCatch(glm(formula = formula,
                       y = FALSE,
@@ -377,13 +378,13 @@ fireSense_FrequencyFitRun <- function(sim)
                else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
                
              }, identity = {
-
+               
                if (is.null(P(sim)$lb$c)) rep_len(1e-16, nx) ## Ensure non-negativity
                else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
                
-             }, stop(paste0(moduleName, "> Link function ", family$link, " is not supported.")))
+             }, stop(moduleName, "> Link function ", family$link, " is not supported."))
     }, kLB)
-
+    
     ## If negative.binomial family needs to add bounds for theta parameter
       if (isFamilyNB) 
       {
@@ -503,14 +504,14 @@ fireSense_FrequencyFitRun <- function(sim)
   {
     convergence <- FALSE
     convergDiagnostic <- paste0("nlminb optimizer did not converge (", out$message, ")")
-    warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
+    warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
   } 
   else if(anyNA(se)) 
   {
     ## Negative values in the Hessian matrix suggest that the algorithm did not converge
     convergence <- FALSE
     convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
-    warning(paste0(moduleName, "> ", convergDiagnostic), immediate. = TRUE)
+    warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
   }
   else
   {
