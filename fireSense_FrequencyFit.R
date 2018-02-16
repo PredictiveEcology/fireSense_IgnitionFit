@@ -353,22 +353,34 @@ fireSense_FrequencyFitRun <- function(sim)
       if (is.null(P(sim)$ub$c))
       {
         ## Automatically estimate an upper boundary for each parameter       
-        (tryCatch(glm(formula = formula,
-                      y = FALSE,
-                      model = FALSE,
-                      data = envData,
-                      family = poisson(link = family$link)),
-                  error = function(e) stop(
-                    paste0(moduleName, "> Automated estimation of upper bounds", 
-                          " (coefs) failed, please set the 'coef' element of ",
-                           "the 'ub' parameter.")
-                  )
-        ) %>%
-          suppressWarnings %>%
-          coef %>%
-          oom(.)) * 10L
-      } else rep_len(P(sim)$ub$c, nx) ## User-defined bounds (recycled if necessary)
-      , kUB)
+        (suppressWarnings(
+          tryCatch(
+            glm(
+              formula = formula,
+              y = FALSE,
+              model = FALSE,
+              data = envData,
+              family = poisson(link = family$link)
+            ),
+            error = function(e) stop(
+              moduleName, "> Automated estimation of upper bounds", 
+              " (coefs) failed, please set the 'coef' element of ",
+              "the 'ub' parameter."
+            )
+          )
+        ) %>% coef %>% oom(.)) * 10L -> ub
+        
+        if (anyNA(ub))
+          stop(
+            moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
+            "please set the 'coef' element of the 'ub' parameter."
+          )
+        else ub
+      } 
+      else
+        rep_len(P(sim)$ub$c, nx), ## User-defined bounds (recycled if necessary)
+      kUB
+    )
 
     DEoptimLB <- c({
       switch(family$link,
