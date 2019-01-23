@@ -166,7 +166,7 @@ frequencyFitRun <- function(sim)
     }
     
     ## Function to pass to the optimizer
-    obj <- function(params, linkinv, nll, sm, nx, mm, envData)
+    obj <- function(params, linkinv, nll, sm, nx, mm, mod)
     {
       ## Parameters scaling
       params <- drop(params %*% sm)
@@ -177,24 +177,24 @@ frequencyFitRun <- function(sim)
       mu <- linkinv(mu)
       
       if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
-      else return(eval(nll, envir = as.list(environment()), enclos = envData))
+      else return(eval(nll, envir = as.list(environment()), enclos = mod))
     }
       
     ## Function to pass to the optimizer (PW version)
-    objPW <- function(params, formula, linkinv, nll, sm, updateKnotExpr, nx, envData)
+    objPW <- function(params, formula, linkinv, nll, sm, updateKnotExpr, nx, mod)
     {
       ## Parameters scaling
       params <- drop(params %*% sm)
       
-      eval(updateKnotExpr, envir = environment(), enclos = envData) ## update knot's values
+      eval(updateKnotExpr, envir = environment(), enclos = mod) ## update knot's values
   
-      mu <- drop(model.matrix(formula, envData) %*% params[1:nx])
+      mu <- drop(model.matrix(formula, mod) %*% params[1:nx])
       
       ## link implementation
       mu <- linkinv(mu)
       
       if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
-      else return(eval(nll, envir = as.list(environment()), enclos = envData))
+      else return(eval(nll, envir = as.list(environment()), enclos = mod))
     }
       
     ## Nlminb wrapper
@@ -215,12 +215,9 @@ frequencyFitRun <- function(sim)
       }
       o
     }
-  
-  # Create a container to hold the data	
-  envData <- new.env(parent = envir(sim))
     
   # Load inputs in the data container
-  list2env(as.list(envir(sim)), envir = envData)
+  list2env(as.list(envir(sim)), envir = mod)
   
   for (x in P(sim)$data)
   {
@@ -228,14 +225,14 @@ frequencyFitRun <- function(sim)
     {
       if (is.data.frame(sim[[x]])) 
       {
-        list2env(sim[[x]], envir = envData)
+        list2env(sim[[x]], envir = mod)
       } 
       else stop(moduleName, "> '", x, "' is not a data.frame.")
     }
   }
     
   # Define pw() within the data container
-  envData$pw <- pw
+  mod$pw <- pw
       
   if (is.empty.model(P(sim)$formula))
     stop(moduleName, "> The formula describes an empty model.")
@@ -275,7 +272,7 @@ frequencyFitRun <- function(sim)
     nk <- length(kNames)
     allx <- allxy[!allxy %in% c(y, kNames)]
     
-    missing <- !allxy[!allxy %in% kNames] %in% ls(envData, all.names = TRUE)
+    missing <- !allxy[!allxy %in% kNames] %in% ls(mod, all.names = TRUE)
     
     if (s <- sum(missing))
       stop(moduleName, "> '", allxy[!allxy %in% kNames][missing][1L], "'",
@@ -285,19 +282,19 @@ frequencyFitRun <- function(sim)
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable")
     
-    kUB <- if (is.null(P(sim)$ub$k)) lapply(pwVarNames, function(x) max(envData[[x]])) %>% unlist
+    kUB <- if (is.null(P(sim)$ub$k)) lapply(pwVarNames, function(x) max(mod[[x]])) %>% unlist
            else rep_len(P(sim)$ub$k, nk) ## User-defined bounds (recycled if necessary)
     
-    kLB <- if (is.null(P(sim)$lb$k)) lapply(pwVarNames, function(x) min(envData[[x]])) %>% unlist
+    kLB <- if (is.null(P(sim)$lb$k)) lapply(pwVarNames, function(x) min(mod[[x]])) %>% unlist
            else rep_len(P(sim)$lb$k, nk) ## User-defined bounds (recycled if necessary)
     
-    invisible(mapply(kNames, z = pwVarNames, FUN = function(w, z) envData[[w]] <- mean(envData[[z]]), SIMPLIFY = FALSE))
+    invisible(mapply(kNames, z = pwVarNames, FUN = function(w, z) mod[[w]] <- mean(mod[[z]]), SIMPLIFY = FALSE))
     
-    updateKnotExpr <- parse(text = paste0("envData[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse="; "))
+    updateKnotExpr <- parse(text = paste0("mod[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse="; "))
   } 
   else
   {
-    missing <- !allxy %in% ls(envData, all.names = TRUE)
+    missing <- !allxy %in% ls(mod, all.names = TRUE)
     
     if (s <- sum(missing))
       stop(moduleName, "> '", allxy[missing][1L], "'",
@@ -320,7 +317,7 @@ frequencyFitRun <- function(sim)
                        error = function(e) family(theta = suppressWarnings(glm.nb(formula = formula,
                                                                                   y = FALSE,
                                                                                   model = FALSE,
-                                                                                  data = envData)[["theta"]])))
+                                                                                  data = mod)[["theta"]])))
   } 
   else if (is.function(family))
   {
@@ -336,7 +333,7 @@ frequencyFitRun <- function(sim)
   
   linkinv <- family$linkinv
 
-  mm <- model.matrix(terms, envData)
+  mm <- model.matrix(terms, mod)
   
   ## Define the scaling matrix. This is used later in the optimization process
   ##to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
@@ -359,7 +356,7 @@ frequencyFitRun <- function(sim)
               formula = formula,
               y = FALSE,
               model = FALSE,
-              data = envData,
+              data = mod,
               family = poisson(link = family$link)
             ),
             error = function(e) stop(
