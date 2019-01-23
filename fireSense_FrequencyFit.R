@@ -95,7 +95,7 @@ defineModule(sim, list(
     sourceURL = NA_character_
   ),
   outputObjects = createsOutput(
-    objectName = "frequencyPredicted",
+    objectName = "fireSense_FrequencyFitted",
     objectClass = "fireSense_FrequencyFit",
     desc = "A fitted model object of class fireSense_FrequencyFit."
   )
@@ -553,8 +553,8 @@ frequencyFitRun <- function(sim)
     l$theta.se <- se[length(se)]
   }
   
-  sim$frequencyPredicted <- l
-  class(sim$frequencyPredicted) <- "fireSense_FrequencyFit"
+  sim$fireSense_FrequencyFitted <- l
+  class(sim$fireSense_FrequencyFitted) <- "fireSense_FrequencyFit"
   
   if (!is.na(P(sim)$.runInterval))
     sim <- scheduleEvent(sim, currentTime + P(sim)$.runInterval, moduleName, "run")
@@ -570,7 +570,7 @@ frequencyFitSave <- function(sim)
   currentTime <- time(sim, timeUnit)
   
   saveRDS(
-    sim$frequencyPredicted, 
+    sim$fireSense_FrequencyPredicted, 
     file = file.path(paths(sim)$out, paste0("fireSense_FrequencyFitted_", timeUnit, currentTime, ".rds"))
   )
   
