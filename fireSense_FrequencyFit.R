@@ -108,9 +108,9 @@ doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FAL
 {
   switch(
     eventType,
-    init = { sim <- sim$fireSense_FrequencyFitInit(sim) },
-    run = { sim <- sim$fireSense_FrequencyFitRun(sim) },
-    save = { sim <- sim$fireSense_FrequencyFitSave(sim) },
+    init = { sim <- frequencyFitInit(sim) },
+    run = { sim <- frequencyFitRun(sim) },
+    save = { sim <- frequencyFitSave(sim) },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
   )
@@ -124,7 +124,7 @@ doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FAL
 #   - keep event functions short and clean, modularize by calling subroutines from section below.
 
 ### template initialization
-fireSense_FrequencyFitInit <- function(sim) 
+frequencyFitInit <- function(sim) 
 {
   moduleName <- current(sim)$moduleName
 
@@ -143,13 +143,13 @@ fireSense_FrequencyFitInit <- function(sim)
   invisible(sim)
 }
 
-fireSense_FrequencyFitRun <- function(sim)
+frequencyFitRun <- function(sim)
 {
   moduleName <- current(sim)$moduleName
   currentTime <- time(sim, timeunit(sim))
   endTime <- end(sim, timeunit(sim))
 
-  ## Toolbox: set of functions used internally by fireSense_FrequencyFitRun
+  ## Toolbox: set of functions used internally by frequencyFitRun
     ## Handling piecewise terms in a formula
     pw <- function(variableName, knotName) pmax(variableName - knotName, 0)
       
@@ -566,7 +566,7 @@ fireSense_FrequencyFitRun <- function(sim)
 }
 
 
-fireSense_FrequencyFitSave <- function(sim)
+frequencyFitSave <- function(sim)
 {
   moduleName <- current(sim)$moduleName
   timeUnit <- timeunit(sim)
