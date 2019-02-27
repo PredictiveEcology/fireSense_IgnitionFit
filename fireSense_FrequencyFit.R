@@ -473,6 +473,11 @@ frequencyFitRun <- function(sim)
       
       ## Update scaling matrix
       diag(sm) <- oom(DEoptimBestMem)
+      
+      ## Update of the lower and upper bounds of the coefficients based on the scaling matrix
+      nlminbLB[c(1:nx, length(nlminbLB))] <- nlminbLB[c(1:nx, length(nlminbLB))] / diag(sm)[c(1:nx, length(nlminbLB))]
+      nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
+      
       ## Update of the lower and upper bounds for the knots based on the scaling matrix
         if (hvPW) 
         {
