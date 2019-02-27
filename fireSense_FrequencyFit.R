@@ -162,7 +162,7 @@ frequencyFitRun <- function(sim)
       cl <- match.call()
 
       if(missing(k)) stop(moduleName, "> Argument 'knotName' is missing (variable '", as.character(cl$v), "')")
-      else list(variable = as.character(cl$v), knot = as.character(cl$k))
+      else list(variable = if (is(v, "AsIs")) v else as.character(cl$v), knot = as.character(cl$k))
     }
     
     ## Function to pass to the optimizer
@@ -280,15 +280,15 @@ frequencyFitRun <- function(sim)
            " not found in data objects nor in the simList environment.")
     
     ## Covariates that have a breakpoint
-    pwVarNames <- sapply(specialsTerms, "[[", "variable")
+    pwVarNames <- sapply(specialsTerms, "[[", "variable", simplify = FALSE)
     
-    kUB <- if (is.null(P(sim)$ub$k)) lapply(pwVarNames, function(x) max(mod[[x]])) %>% unlist
+    kUB <- if (is.null(P(sim)$ub$k)) lapply(pwVarNames, function(x) max(if(is(x, "AsIs")) x else mod[[x]])) %>% unlist
            else rep_len(P(sim)$ub$k, nk) ## User-defined bounds (recycled if necessary)
     
-    kLB <- if (is.null(P(sim)$lb$k)) lapply(pwVarNames, function(x) min(mod[[x]])) %>% unlist
+    kLB <- if (is.null(P(sim)$lb$k)) lapply(pwVarNames, function(x) min(if(is(x, "AsIs")) x else mod[[x]])) %>% unlist
            else rep_len(P(sim)$lb$k, nk) ## User-defined bounds (recycled if necessary)
     
-    invisible(mapply(kNames, z = pwVarNames, FUN = function(w, z) mod[[w]] <- mean(mod[[z]]), SIMPLIFY = FALSE))
+    invisible(mapply(kNames, z = pwVarNames, FUN = function(w, z) mod[[w]] <- mean(if(is(z, "AsIs")) z else mod[[z]]), SIMPLIFY = FALSE))
     
     updateKnotExpr <- parse(text = paste0("mod[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse="; "))
   } 
