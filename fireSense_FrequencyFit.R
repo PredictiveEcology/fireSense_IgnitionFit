@@ -246,11 +246,11 @@ frequencyFitRun <- function(sim)
   allxy <- all.vars(terms)
   
   # Check the presence of at least one piecewise term
-  isPW <- !is.null(attr(terms, "specials")$pw)
+  hvPW <- !is.null(attr(terms, "specials")$pw)
   
   kLB <- kUB <- NULL
 
-  if (isPW) 
+  if (hvPW) 
   {
     objfun <- objPW
     
@@ -352,38 +352,39 @@ frequencyFitRun <- function(sim)
   ## Define parameter bounds automatically if they are not supplied by user
   ## First defined the bounds for DEoptim, the first optimizer    
 
-    DEoptimUB <- c(
-      if (is.null(P(sim)$ub$c))
-      {
-        ## Automatically estimate an upper boundary for each parameter       
-        (suppressWarnings(
-          tryCatch(
-            glm(
-              formula = formula,
-              y = FALSE,
-              model = FALSE,
-              data = mod,
-              family = poisson(link = family$link)
-            ),
-            error = function(e) stop(
-              moduleName, "> Automated estimation of upper bounds", 
-              " (coefs) failed, please set the 'coef' element of ",
-              "the 'ub' parameter."
+    ## Upper bounds
+      DEoptimUB <- c(
+        if (is.null(P(sim)$ub$c))
+        {
+          ## Automatically estimate an upper boundary for each parameter       
+          (suppressWarnings(
+            tryCatch(
+              glm(
+                formula = formula,
+                y = FALSE,
+                model = FALSE,
+                data = mod,
+                family = poisson(link = family$link)
+              ),
+              error = function(e) stop(
+                moduleName, "> Automated estimation of upper bounds", 
+                " (coefs) failed, please set the 'coef' element of ",
+                "the 'ub' parameter."
+              )
             )
-          )
-        ) %>% coef %>% oom(.)) * 10L -> ub
-        
-        if (anyNA(ub))
-          stop(
-            moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
-            "please set the 'coef' element of the 'ub' parameter."
-          )
-        else ub
-      } 
-      else
-        rep_len(P(sim)$ub$c, nx), ## User-defined bounds (recycled if necessary)
-      kUB
-    )
+          ) %>% coef %>% oom(.)) * 10L -> ub
+          
+          if (anyNA(ub))
+            stop(
+              moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
+              "please set the 'coef' element of the 'ub' parameter."
+            )
+          else ub
+        } 
+        else
+          rep_len(P(sim)$ub$c, nx), ## User-defined bounds (recycled if necessary)
+        kUB
+      )
 
     DEoptimLB <- c({
       switch(family$link,
@@ -400,7 +401,7 @@ frequencyFitRun <- function(sim)
              }, stop(moduleName, "> Link function ", family$link, " is not supported."))
     }, kLB)
     
-    ## If negative.binomial family needs to add bounds for theta parameter
+      ## If negative.binomial family needs to add bounds for theta parameter
       if (isFamilyNB) 
       {
         DEoptimUB <- c(DEoptimUB, if (is.null(P(sim)$ub$t)) 2L * theta else P(sim)$ub$t)
@@ -458,9 +459,8 @@ frequencyFitRun <- function(sim)
       
       ## Update scaling matrix
       diag(sm) <- oom(DEoptimBestMem)
-
-      ## Update the bounds for the knots
-        if (isPW) 
+      ## Update of the lower and upper bounds for the knots based on the scaling matrix
+        if (hvPW) 
         {
           kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
           nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
@@ -478,7 +478,7 @@ frequencyFitRun <- function(sim)
       {
         diag(sm) <- lapply(P(sim)$start, oom) %>%
           do.call("rbind", .) %>%
-          apply(2, function(x) as.numeric(names(which.max(table(x)))))
+          apply(2, function(x) as.numeric(names(base::which.max(table(x)))))
         
          lapply(P(sim)$start, function(x) x / diag(sm))
       } 
@@ -545,7 +545,7 @@ frequencyFitRun <- function(sim)
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic)
   
-  if (isPW) 
+  if (hvPW) 
   {
     l$knots <- setNames(out$par[(nx + 1L):(nx + nk)], kNames)
     l$knots.se <- setNames(se[(nx + 1L):(nx + nk)], kNames)
