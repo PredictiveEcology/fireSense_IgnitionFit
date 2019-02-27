@@ -151,7 +151,7 @@ frequencyFitRun <- function(sim)
 
   ## Toolbox: set of functions used internally by frequencyFitRun
     ## Handling piecewise terms in a formula
-    pw <- function(variableName, knotName) pmax(variableName - knotName, 0)
+    pw <- function(variable, knot) pmax(variable - knot, 0)
       
     ## Compute the order of magnitude
     oom <- function(x) 10^(ceiling(log10(abs(x))))
@@ -172,7 +172,7 @@ frequencyFitRun <- function(sim)
       params <- drop(params %*% sm)
       
       mu <- drop(mm %*% params[1L:nx])
-
+      
       ## link implementation
       mu <- linkinv(mu)
       
@@ -313,11 +313,17 @@ frequencyFitRun <- function(sim)
   if (is.character(family))
   {
     family <- get(family, mode = "function", envir = parent.frame())
-    family <- tryCatch(family(),
-                       error = function(e) family(theta = suppressWarnings(glm.nb(formula = formula,
-                                                                                  y = FALSE,
-                                                                                  model = FALSE,
-                                                                                  data = mod)[["theta"]])))
+    family <- tryCatch(
+      family(),
+      error = function(e) family(
+        theta = suppressWarnings(
+          glm.nb(formula = formula,
+                 y = FALSE,
+                 model = FALSE,
+                 data = mod)[["theta"]]
+        )
+      )
+    )
   } 
   else if (is.function(family))
   {
