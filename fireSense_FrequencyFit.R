@@ -395,20 +395,21 @@ frequencyFitRun <- function(sim)
         kUB
       )
 
-    DEoptimLB <- c({
-      switch(family$link,
-             log = {
-               
-               if (is.null(P(sim)$lb$c)) -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
-               else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
-               
-             }, identity = {
-               
-               if (is.null(P(sim)$lb$c)) rep_len(1e-16, nx) ## Ensure non-negativity
-               else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
-               
-             }, stop(moduleName, "> Link function ", family$link, " is not supported."))
-    }, kLB)
+    ## Lower bounds
+      DEoptimLB <- c({
+        switch(family$link,
+               log = {
+                 
+                 if (is.null(P(sim)$lb$c)) -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
+                 else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
+                 
+               }, identity = {
+                 
+                 if (is.null(P(sim)$lb$c)) rep_len(1e-16, nx) ## Ensure non-negativity
+                 else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
+                 
+               }, stop(moduleName, "> Link function ", family$link, " is not supported."))
+      }, kLB)
     
       ## If negative.binomial family needs to add bounds for theta parameter
       if (isFamilyNB) 
@@ -418,26 +419,30 @@ frequencyFitRun <- function(sim)
       }
 
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
-    nlminbUB <- if (is.null(P(sim)$ub$c)) c(rep_len(Inf, nx), kUB) else DEoptimUB
+    ## Upper bounds
+      nlminbUB <- DEoptimUB
+      if (is.null(P(sim)$ub$c))
+        nlminbUB[1:nx] <- rep_len(Inf, nx)
 
-    nlminbLB <- if (is.null(P(sim)$lb$c))
-    {
-      c(switch(family$link,
-               log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
-               identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
-        , kLB)
-      
-    } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
-
-    ## If negative.binomial family add bounds for the theta parameter
-    if (isFamilyNB && is.null(P(sim)$lb$t)) 
-    {
-      nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
-    } 
-    else if (isFamilyNB)
-    {
-      nlminbLB <- c(nlminbLB, P(sim)$lb$t)
-    }
+    ## Lower bounds  
+      nlminbLB <- if (is.null(P(sim)$lb$c))
+      {
+        c(switch(family$link,
+                 log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
+                 identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
+          , kLB)
+        
+      } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
+  
+      ## If negative.binomial family add bounds for the theta parameter
+      if (isFamilyNB && is.null(P(sim)$lb$t)) 
+      {
+        nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
+      } 
+      else if (isFamilyNB)
+      {
+        nlminbLB <- c(nlminbLB, P(sim)$lb$t)
+      }
 
   ## Define the log-likelihood function (objective function)
   nll <- switch(family$family,
