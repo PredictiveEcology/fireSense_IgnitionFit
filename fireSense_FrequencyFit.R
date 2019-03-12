@@ -217,8 +217,8 @@ frequencyFitRun <- function(sim)
     }
     
   # Load inputs in the data container
-  list2env(as.list(envir(sim)), envir = mod)
-  
+  # list2env(as.list(envir(sim)), envir = mod)
+
   for (x in P(sim)$data)
   {
     if (!is.null(sim[[x]])) 
