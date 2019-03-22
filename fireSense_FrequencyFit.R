@@ -28,9 +28,7 @@ defineModule(sim, list(
                     desc = "a character vector indicating the names of objects 
                             in the `simList` environment in which to look for 
                             variables present in the model formula. `data` 
-                            objects should be data.frames. If variables are not
-                            found in `data` objects, they are searched in the
-                            `simList` environment."),
+                            objects should be data.frames."),
     defineParameter(name = "plot", class = "logical", default = TRUE,
                     desc = "logical. Plot model fit against the data. Prediction interval"),
     defineParameter(name = "start", class = "numeric, list", default = NULL, 
@@ -68,10 +66,10 @@ defineModule(sim, list(
                     desc = "non-negative integer. If > 0, tracing information on
                             the progress of the optimization are printed every
                             `trace` iteration. If parallel computing is enable, 
-                            nlminb trace logs are written to disk. Log files are
-                            prefixed with 'fireSense_FrequencyFit_trace'
-                            followed by the subprocess pid. Default is 0, which
-                            turns off tracing."),
+                            nlminb trace logs are written into the working directory. 
+                            Log files are prefixed with 'fireSense_FrequencyFit_trace'
+                            followed by the nodename (see ?Sys.info) and the
+                            subprocess pid. Default is 0, which turns off tracing."),
     defineParameter(name = "nlminb.control", class = "numeric",
                     default = list(iter.max = 5e3L, eval.max=5e3L),
                     desc = "optional list of control parameters to be passed to 
@@ -106,11 +104,30 @@ defineModule(sim, list(
 
 doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FALSE) 
 {
+  moduleName <- current(sim)$moduleName
+  
   switch(
     eventType,
-    init = { sim <- frequencyFitInit(sim) },
-    run = { sim <- frequencyFitRun(sim) },
-    save = { sim <- frequencyFitSave(sim) },
+    init = {
+      sim <- frequencyFitInit(sim)
+      
+      sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
+      
+      if (!is.na(P(sim)$.saveInitialTime))
+        sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, moduleName, "save", .last())
+    },
+    run = { 
+      sim <- frequencyFitRun(sim)
+      
+      if (!is.na(P(sim)$.runInterval))
+        sim <- scheduleEvent(sim, time(sim) + P(sim)$.runInterval, moduleName, "run")
+    },
+    save = { 
+      sim <- frequencyFitSave(sim)
+      
+      if (!is.na(P(sim)$.saveInterval))
+        sim <- scheduleEvent(sim, time(sim) + P(sim)$.saveInterval, moduleName, "save", .last())
+    },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
   )
@@ -135,19 +152,12 @@ frequencyFitInit <- function(sim)
   stopifnot(P(sim)$nTrials >= 1)
   if (!is(P(sim)$formula, "formula")) stop(moduleName, "> The supplied object for the 'formula' parameter is not of class formula.")
   
-  sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
-  
-  if (!is.na(P(sim)$.saveInitialTime))
-    sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, moduleName, "save", .last())
-  
   invisible(sim)
 }
 
 frequencyFitRun <- function(sim)
 {
   moduleName <- current(sim)$moduleName
-  currentTime <- time(sim, timeunit(sim))
-  endTime <- end(sim, timeunit(sim))
 
   ## Toolbox: set of functions used internally by frequencyFitRun
     ## Handling piecewise terms in a formula
@@ -512,7 +522,10 @@ frequencyFitRun <- function(sim)
   {
     if (P(sim)$nCores > 1) 
     {
-      if (trace) clusterEvalQ(cl, sink(paste0("fireSense_FrequencyFit_trace.", Sys.getpid())))
+      if (trace) clusterEvalQ(
+        cl, 
+        sink(file.path(getwd(), paste0(moduleName, "_trace.", Sys.info()[["nodename"]], ".", Sys.getpid())))
+      )
       
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
       
@@ -581,26 +594,19 @@ frequencyFitRun <- function(sim)
   sim$fireSense_FrequencyFitted <- l
   class(sim$fireSense_FrequencyFitted) <- "fireSense_FrequencyFit"
   
-  if (!is.na(P(sim)$.runInterval))
-    sim <- scheduleEvent(sim, currentTime + P(sim)$.runInterval, moduleName, "run")
-  
   invisible(sim)
 }
 
 
 frequencyFitSave <- function(sim)
 {
-  moduleName <- current(sim)$moduleName
   timeUnit <- timeunit(sim)
   currentTime <- time(sim, timeUnit)
   
   saveRDS(
-    sim$fireSense_FrequencyPredicted, 
+    sim$fireSense_FrequencyFitted, 
     file = file.path(paths(sim)$out, paste0("fireSense_FrequencyFitted_", timeUnit, currentTime, ".rds"))
   )
-  
-  if (!is.na(P(sim)$.saveInterval))
-    sim <- scheduleEvent(sim, currentTime + P(sim)$.saveInterval, moduleName, "save", .last())
   
   invisible(sim)
 }
