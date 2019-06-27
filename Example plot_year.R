@@ -3,7 +3,7 @@ library(SpaDES)
 
 set.seed(1)
 
-modulePath <- "~/Documents/GitHub/McIntire-lab/modulesPrivate/"
+modulePath <- "~/git/SpaDES_Modules"
 start <- end <- 1
 
 # Define simulation parameters

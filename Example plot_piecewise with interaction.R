@@ -4,7 +4,7 @@ library(MASS)
 library(parallel)
 library(SpaDES)
 
-modulePath <- "~/Documents/GitHub/McIntire-lab/modulesPrivate/"
+modulePath <- "~/git/SpaDES_Modules"
 start <- end <- 1
 
 # Define simulation parameters
