@@ -522,10 +522,18 @@ frequencyFitRun <- function(sim)
   {
     if (P(sim)$nCores > 1) 
     {
-      if (trace) clusterEvalQ(
-        cl, 
-        sink(file.path(getwd(), paste0(moduleName, "_trace.", Sys.info()[["nodename"]], ".", Sys.getpid())))
-      )
+      outputPath <- outputPath(sim)
+      basePattern <- paste(moduleName, Sys.info()[["nodename"]], format(Sys.time(), "%Y%m%d"), "trace", sep = "_")
+
+      if (trace) 
+      {
+        clusterExport(cl, c("outputPath", "basePattern"), envir = environment())
+        
+        clusterEvalQ(
+          cl, 
+          sink(file.path(outputPath, paste0(basePattern, ".", Sys.getpid())))
+        )
+      }  
       
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
       
