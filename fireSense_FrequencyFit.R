@@ -79,7 +79,7 @@ defineModule(sim, list(
                             time of the simulation."),
     defineParameter(name = ".runInterval", class = "numeric", default = NA, 
                     desc = "optional. Interval between two runs of this module,
-                            expressed in units of simulation time."),
+                            expressed in units of simulation time. By default, NA, which means that this module only runs once per simulation."),
     defineParameter(name = ".saveInitialTime", class = "numeric", default = NA, 
                     desc = "optional. When to start saving output to a file."),
     defineParameter(name = ".saveInterval", class = "numeric", default = NA, 
