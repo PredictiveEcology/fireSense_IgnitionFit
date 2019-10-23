@@ -1,5 +1,5 @@
 ---
-title: "fireSense_FrequencyFit"
+title: "fireSense_IgnitionFit"
 author: "Jean Marchal (jean.d.marchal@gmail.com)"
 date: "`r format(Sys.time(), '%B %Y')`"
 output:
@@ -14,7 +14,7 @@ Fit statistical models that can be used to parameterize the fire ignition compon
 ```{r download module, eval = FALSE, echo = TRUE}
 library(SpaDES)
 
-moduleName <- "fireSense_FrequencyFit"
+moduleName <- "fireSense_IgnitionFit"
 
 spadesModulesDirectory <- tempdir() # Location where the module will be downloaded
 
@@ -27,14 +27,14 @@ Name|Default|Description
 ----|:--------------|---------------------------------------------------------------------
 `formula`|`NA`|a formula describing the model to be fitted. Piece-wised terms can be specifed using `pw(variableName, knotName)`.
 `family`|`negative.binomial`|a family function (must be wrapped with `quote()`) or a character string naming a family function. For additional details see `?family`.
-`data`|`"dataFireSense_FrequencyFit"`|a character vector indicating the names of objects in the `simList` environment in which to look for variables present in the model formula. `data` objects should be data.frames.
+`data`|`"dataFireSense_IgnitionFit"`|a character vector indicating the names of objects in the `simList` environment in which to look for variables present in the model formula. `data` objects should be data.frames.
 `start`|`NULL`|optional starting values for the parameters to be estimated. Those are passed to `nlminb` and can be a single vector, or a list of vectors. In the latter case, only the best solution, that is, the one which minimizes the most the objective function, is kept.
 `lb`|`NULL`|optional named list with up to three elements, 'coef', 'theta' and 'knots', specifying lower bounds for coefficients to be estimated. These must be finite and will be recycled if necessary to match `length(coefficients)`.
 `ub`|`NULL`|optional named list with up to three elements, 'coef', 'theta' and 'knots', specifying upper bounds for coefficients to be estimated. These must be finite and will be recycled if necessary to match `length(coefficients)`.
 `itermax`|`2000`|integer defining the maximum number of iterations allowed (DEoptim optimizer).
 `nTrials`|`500`|if start is not supplied, `nTrials` defines the number of trials, or searches, to be performed by the nlminb optimizer in order to find the best solution.
 `nCores`|`1`|non-negative integer. Defines the number of logical cores to be used for parallel computation. The default value is 1, which disables parallel computing.
-`trace`|`0`|non-negative integer. If > 0, tracing information on the progress of the optimization are printed every `trace` iteration. If parallel computing is enable, nlminb trace logs are written into the working directory. Log files are prefixed with 'fireSense_FrequencyFit_trace' followed by the nodename (see ?Sys.info) and the subprocess pid. Default is 0, which turns off tracing.
+`trace`|`0`|non-negative integer. If > 0, tracing information on the progress of the optimization are printed every `trace` iteration. If parallel computing is enable, nlminb trace logs are written into the working directory. Log files are prefixed with 'fireSense_IgnitionFit_trace' followed by the nodename (see ?Sys.info) and the subprocess pid. Default is 0, which turns off tracing.
 `nlminb.control`|`list(iter.max = 5e3L,`<br>&emsp;&emsp;&emsp;`eval.max=5e3L`)|optional list of control parameters to be passed to the `nlminb` optimizer. See `?nlminb`.
 `.runInitialTime`|`start(simList)`|when to start this module? By default, the start time of the simulation.
 `.runInterval`|`NA`|optional. Interval between two runs of this module, expressed in units of simulation time. By default, NA, which means that this module only runs once per simulation.
@@ -48,7 +48,7 @@ library(SpaDES)
 
 # Define simulation parameters
 times <- list(start = 1, end = 1, timeunit = "year")
-modules <- list("fireSense_FrequencyFit")
+modules <- list("fireSense_IgnitionFit")
 paths <- list(
   modulePath = spadesModulesDirectory
 )
@@ -64,16 +64,16 @@ model <- n_fires ~ -1 + # Remove the intercept
 
 # Define module parameters
 parameters <- list(
-  fireSense_FrequencyFit = list(
+  fireSense_IgnitionFit = list(
     formula = formula,
     family = quote(MASS::negative.binomial(theta = 1, link = "identity")),
-    data = "dataFireSense_FrequencyFit"
+    data = "dataFireSense_IgnitionFit"
   )
 )
 
 # Define from where and how data will be loaded in the simList environment
 inputs <- data.frame(
-  objectName = "dataFireSense_FrequencyFit",
+  objectName = "dataFireSense_IgnitionFit",
   file = "/path/to/data/input/",
   fun = "readRDS",
   package = "base",
@@ -90,7 +90,7 @@ sim <- simInit(
 )
 
 sim <- spades(sim)
-sim$fireSense_FrequencyFitted
+sim$fireSense_IgnitionFitted
 ```
 
 # Events
@@ -101,10 +101,10 @@ Events are scheduled as follows:
 
 # Data dependencies
 ## Input data
-- **dataFireSense_FrequencyFit**: one or more data.frames in which to look for variables present in the model formula.
+- **dataFireSense_IgnitionFit**: one or more data.frames in which to look for variables present in the model formula.
 
 ## Output data
-- **fireSense_FrequencyFitted**: an object of class `fireSense_FrequencyFit`, i.e. a list containing the following elements:
+- **fireSense_IgnitionFitted**: an object of class `fireSense_IgnitionFit`, i.e. a list containing the following elements:
 
     - formula (model formula)
     - family (model family)

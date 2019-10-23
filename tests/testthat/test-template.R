@@ -3,18 +3,18 @@
 # 1. Rename this file based on the content you are testing using
 #    `test-functionName.R` format so that your can directly call `moduleCoverage`
 #    to calculate module coverage information.
-#    `functionName` is a function's name in your module (e.g., `fireSense_FrequencyFitEvent1`).
-# 2. Copy this file to the tests folder (i.e., `fireSense_FrequencyFit/tests/testthat`).
+#    `functionName` is a function's name in your module (e.g., `fireSense_IgnitionFitEvent1`).
+# 2. Copy this file to the tests folder (i.e., `fireSense_IgnitionFit/tests/testthat`).
 
 # 3. Modify the test description based on the content you are testing:
 test_that("test Event1 and Event2.", {
-  module <- list("fireSense_FrequencyFit")
+  module <- list("fireSense_IgnitionFit")
   path <- list(modulePath = "..",
                outputPath = file.path(tempdir(), "outputs"))
   parameters <- list(
     #.progress = list(type = "graphical", interval = 1),
     .globals = list(verbose = FALSE),
-    fireSense_FrequencyFit = list(.saveInitialTime = NA)
+    fireSense_IgnitionFit = list(.saveInitialTime = NA)
   )
   times <- list(start = 0, end = 1)
 
@@ -55,10 +55,10 @@ test_that("test Event1 and Event2.", {
   #    Use this approach when using any function within the simList object
   #    (i.e., one version as a direct call, and one with `simList` object prepended).
 
-  if (exists("fireSense_FrequencyFitEvent1", envir = .GlobalEnv)) {
-    simOutput <- fireSense_FrequencyFitEvent1(mySim)
+  if (exists("fireSense_IgnitionFitEvent1", envir = .GlobalEnv)) {
+    simOutput <- fireSense_IgnitionFitEvent1(mySim)
   } else {
-    simOutput <- mySim$fireSense_FrequencyFitEvent1(mySim)
+    simOutput <- mySim$fireSense_IgnitionFitEvent1(mySim)
   }
 
   expectedOutputEvent1Test1 <- " this is test for event 1. " # please define your expection of your output
@@ -66,10 +66,10 @@ test_that("test Event1 and Event2.", {
   expect_equal(simOutput$event1Test1, expectedOutputEvent1Test1) # or other expect function in testthat package.
   expect_equal(simOutput$event1Test2, as.numeric(999)) # or other expect function in testthat package.
 
-  if (exists("fireSense_FrequencyFitEvent2", envir = .GlobalEnv)) {
-    simOutput <- fireSense_FrequencyFitEvent2(mySim)
+  if (exists("fireSense_IgnitionFitEvent2", envir = .GlobalEnv)) {
+    simOutput <- fireSense_IgnitionFitEvent2(mySim)
   } else {
-    simOutput <- mySim$fireSense_FrequencyFitEvent2(mySim)
+    simOutput <- mySim$fireSense_IgnitionFitEvent2(mySim)
   }
 
   expectedOutputEvent2Test1 <- " this is test for event 2. " # please define your expection of your output

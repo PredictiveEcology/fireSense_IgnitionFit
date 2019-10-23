@@ -6,7 +6,7 @@ modulePath <- normalizePath("..")
 
 # Define simulation parameters
 times <- list(start = 1, end = 1, timeunit = "year")
-modules <- list("fireSense_FrequencyFit")
+modules <- list("fireSense_IgnitionFit")
 paths <- list(
   modulePath = modulePath
 )
@@ -18,11 +18,11 @@ formula <- nFires ~ hw:MDC_07 + cn:MDC_07 + ot:MDC_07 + dt:MDC_07 +
 
 # Define module parameters
 parameters <- list(
-  fireSense_FrequencyFit = list(
+  fireSense_IgnitionFit = list(
     formula = formula,
     family = quote(MASS::negative.binomial(theta = 1, link = "identity")),
     ub = list(coef = c(1, 1, 1, 1, 1, 1, 1, 1)),
-    data = "dataFireSense_FrequencyFit",
+    data = "dataFireSense_IgnitionFit",
     trace = 10, # Print progress every 10 iterations
     itermax = 10,
     nTrials = 2,
@@ -32,8 +32,8 @@ parameters <- list(
 
 # Define from where and how data will be loaded in the simList environment
 inputs <- data.frame(
-  objectName = "dataFireSense_FrequencyFit",
-  file = normalizePath("../inputs/dataFireSense_FrequencyFit.rds"),
+  objectName = "dataFireSense_IgnitionFit",
+  file = normalizePath("../inputs/dataFireSense_IgnitionFit.rds"),
   fun = "readRDS",
   package = "base",
   loadTime = 1
@@ -49,5 +49,5 @@ sim <- simInit(
 )
 
 sim <- spades(sim)
-sim$fireSense_FrequencyFitted
+sim$fireSense_IgnitionFitted
 

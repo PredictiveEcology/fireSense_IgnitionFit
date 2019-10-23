@@ -1,18 +1,18 @@
 # Everything in this file gets sourced during simInit, and all functions and objects
 # are put into the simList. To use objects and functions, use sim$xxx.
 defineModule(sim, list(
-  name = "fireSense_FrequencyFit",
+  name = "fireSense_IgnitionFit",
   description = "Fit statistical models that can be used to parameterize (calibrate) 
                  the fire ignition component of landscape fire models (e.g. fireSense).",
   keywords = c("fire frequency", "optimization", "additive property", "poisson", "negative binomial", "fireSense"),
   authors = c(person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre"))),
   childModules = character(),
-  version = list(SpaDES.core = "0.1.0", fireSense_FrequencyFit = "0.0.1"),
+  version = list(SpaDES.core = "0.1.0", fireSense_IgnitionFit = "0.0.1"),
   spatialExtent = raster::extent(rep(NA_real_, 4)),
   timeframe = as.POSIXlt(c(NA, NA)),
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
-  documentation = list("README.txt", "fireSense_FrequencyFit.Rmd"),
+  documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel"),
   parameters = rbind(
     #defineParameter("paramName", "paramClass", default, min, max, "parameter description")),
@@ -24,7 +24,7 @@ defineModule(sim, list(
                     desc = "a family function (must be wrapped with `quote()`) 
                             or a character string naming a family function. For 
                             additional details see `?family`"),
-    defineParameter(name = "data", class = "character", default = "dataFireSense_FrequencyFit",
+    defineParameter(name = "data", class = "character", default = "dataFireSense_IgnitionFit",
                     desc = "a character vector indicating the names of objects 
                             in the `simList` environment in which to look for 
                             variables present in the model formula. `data` 
@@ -67,7 +67,7 @@ defineModule(sim, list(
                             the progress of the optimization are printed every
                             `trace` iteration. If parallel computing is enable, 
                             nlminb trace logs are written into the working directory. 
-                            Log files are prefixed with 'fireSense_FrequencyFit_trace'
+                            Log files are prefixed with 'fireSense_IgnitionFit_trace'
                             followed by the nodename (see ?Sys.info) and the
                             subprocess pid. Default is 0, which turns off tracing."),
     defineParameter(name = "nlminb.control", class = "numeric",
@@ -87,22 +87,22 @@ defineModule(sim, list(
     defineParameter(".useCache", "logical", FALSE, NA, NA, "Should this entire module be run with caching activated? This is generally intended for data-type modules, where stochasticity and time are not relevant")
   ),
   inputObjects = expectsInput(
-    objectName = "dataFireSense_FrequencyFit",
+    objectName = "dataFireSense_IgnitionFit",
     objectClass = "data.frame",
     desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
     sourceURL = NA_character_
   ),
   outputObjects = createsOutput(
-    objectName = "fireSense_FrequencyFitted",
-    objectClass = "fireSense_FrequencyFit",
-    desc = "A fitted model object of class fireSense_FrequencyFit."
+    objectName = "fireSense_IgnitionFitted",
+    objectClass = "fireSense_IgnitionFit",
+    desc = "A fitted model object of class fireSense_IgnitionFit."
   )
 ))
 
 ## event types
 #   - type `init` is required for initialiazation
 
-doEvent.fireSense_FrequencyFit = function(sim, eventTime, eventType, debug = FALSE) 
+doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALSE) 
 {
   moduleName <- current(sim)$moduleName
   
@@ -609,8 +609,8 @@ frequencyFitRun <- function(sim)
     l$theta.se <- se[length(se)]
   }
   
-  sim$fireSense_FrequencyFitted <- l
-  class(sim$fireSense_FrequencyFitted) <- "fireSense_FrequencyFit"
+  sim$fireSense_IgnitionFitted <- l
+  class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
   
   invisible(sim)
 }
@@ -622,8 +622,8 @@ frequencyFitSave <- function(sim)
   currentTime <- time(sim, timeUnit)
   
   saveRDS(
-    sim$fireSense_FrequencyFitted, 
-    file = file.path(paths(sim)$out, paste0("fireSense_FrequencyFitted_", timeUnit, currentTime, ".rds"))
+    sim$fireSense_IgnitionFitted, 
+    file = file.path(paths(sim)$out, paste0("fireSense_IgnitionFitted_", timeUnit, currentTime, ".rds"))
   )
   
   invisible(sim)
