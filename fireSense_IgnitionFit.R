@@ -371,7 +371,7 @@ frequencyFitRun <- function(sim)
   mm <- model.matrix(object = terms, data = mod_env)
   
   ## Define the scaling matrix. This is used later in the optimization process
-  ##to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
+  ## to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
     n <- nx + nk
     if (isFamilyNB) n <- n + 1L
     
