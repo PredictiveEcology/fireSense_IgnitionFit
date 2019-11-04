@@ -49,11 +49,11 @@ defineModule(sim, list(
                             for coefficients to be estimated. These must be
                             finite and will be recycled if necessary to match 
                             `length(coefficients)`."),
-    defineParameter(name = "itermax", class = "integer", default = 2000,
+    defineParameter(name = "nIterDEoptim", class = "integer", default = 2000,
                     desc = "integer defining the maximum number of iterations 
                             allowed (DEoptim optimizer). Default is 2000."),
-    defineParameter(name = "nTrials", class = "integer", default = 500, 
-                    desc = "if start is not supplied, nTrials defines 
+    defineParameter(name = "nIterNlminb", class = "integer", default = 500, 
+                    desc = "if start is not supplied, nIterNlminb defines 
                             the number of trials, or searches, to be performed
                             by the nlminb optimizer in order to find the best
                             solution. Default is 500."),
@@ -148,8 +148,8 @@ frequencyFitInit <- function(sim)
   # Checking parameters
   stopifnot(P(sim)$trace >= 0)
   stopifnot(P(sim)$nCores >= 1)
-  stopifnot(P(sim)$itermax >= 1)
-  stopifnot(P(sim)$nTrials >= 1)
+  stopifnot(P(sim)$nIterDEoptim >= 1)
+  stopifnot(P(sim)$nIterNlminb >= 1)
   if (!is(P(sim)$formula, "formula")) stop(moduleName, "> The supplied object for the 'formula' parameter is not of class formula.")
   
   invisible(sim)
@@ -489,7 +489,7 @@ frequencyFitRun <- function(sim)
       ## First optimizer, get rough estimates of the parameter values
       ## Use these estimates to compute the order of magnitude of these parameters
   
-      control <- list(itermax = P(sim)$itermax, trace = P(sim)$trace)
+      control <- list(itermax = P(sim)$nIterDEoptim, trace = P(sim)$trace)
       if(P(sim)$nCores > 1) control$cluster <- cl
 
       DEoptimCall <- quote(DEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB, control = do.call("DEoptim.control", control)))
@@ -514,7 +514,7 @@ frequencyFitRun <- function(sim)
         }
 
       getRandomStarts <- function(.) pmin(pmax(rnorm(length(DEoptimBestMem),0L,2L)/10 + unname(DEoptimBestMem/oom(DEoptimBestMem)), nlminbLB), nlminbUB)
-      start <- c(lapply(1:P(sim)$nTrials, getRandomStarts), list(unname(DEoptimBestMem/oom(DEoptimBestMem))))
+      start <- c(lapply(1:P(sim)$nIterNlminb, getRandomStarts), list(unname(DEoptimBestMem/oom(DEoptimBestMem))))
     } 
     else 
     {
