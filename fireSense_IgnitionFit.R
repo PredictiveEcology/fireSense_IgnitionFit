@@ -176,12 +176,12 @@ frequencyFitRun <- function(sim)
     }
     
     ## Function to pass to the optimizer
-    obj <- function(params, linkinv, nll, sm, nx, mm, mod_env)
+    obj <- function(params, linkinv, nll, sm, nx, mm, mod_env, offset)
     {
       ## Parameters scaling
       params <- drop(params %*% sm)
       
-      mu <- drop(mm %*% params[1L:nx])
+      mu <- drop(mm %*% params[1L:nx]) + offset
       
       ## link implementation
       mu <- linkinv(mu)
@@ -191,14 +191,14 @@ frequencyFitRun <- function(sim)
     }
       
     ## Function to pass to the optimizer (PW version)
-    objPW <- function(params, formula, linkinv, nll, sm, updateKnotExpr, nx, mod_env)
+    objPW <- function(params, formula, linkinv, nll, sm, updateKnotExpr, nx, mod_env, offset)
     {
       ## Parameters scaling
       params <- drop(params %*% sm)
       
       eval(updateKnotExpr, envir = environment(), enclos = mod_env) ## update knot's values
   
-      mu <- drop(model.matrix(formula, mod_env) %*% params[1:nx])
+      mu <- drop(model.matrix(formula, mod_env) %*% params[1:nx]) + offset
       
       ## link implementation
       mu <- linkinv(mu)
@@ -369,6 +369,10 @@ frequencyFitRun <- function(sim)
   linkinv <- family$linkinv
   
   mm <- model.matrix(object = terms, data = mod_env)
+  
+  # Does the model formula contain an offset?
+  model_offset <- model.offset(model.frame(formula, mod_env))
+  offset <- if(is.null(model_offset)) 0 else model_offset
   
   ## Define the scaling matrix. This is used later in the optimization process
   ## to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
