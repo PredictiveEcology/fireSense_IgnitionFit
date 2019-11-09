@@ -31,9 +31,9 @@ Name|Default|Description
 `start`|`NULL`|optional starting values for the parameters to be estimated. Those are passed to `nlminb` and can be a single vector, or a list of vectors. In the latter case, only the best solution, that is, the one which minimizes the most the objective function, is kept.
 `lb`|`NULL`|optional named list with up to three elements, 'coef', 'theta' and 'knots', specifying lower bounds for coefficients to be estimated. These must be finite and will be recycled if necessary to match `length(coefficients)`.
 `ub`|`NULL`|optional named list with up to three elements, 'coef', 'theta' and 'knots', specifying upper bounds for coefficients to be estimated. These must be finite and will be recycled if necessary to match `length(coefficients)`.
-`nIterDEoptim`|`2000`|integer defining the maximum number of iterations allowed (DEoptim optimizer).
-`nIterNlminb`|`500`|if start is not supplied, `nIterNlminb` defines the number of trials, or searches, to be performed by the nlminb optimizer in order to find the best solution.
-`nCores`|`1`|non-negative integer. Defines the number of logical cores to be used for parallel computation. The default value is 1, which disables parallel computing.
+`iterDEoptim`|`2000`|integer defining the maximum number of iterations allowed (DEoptim optimizer).
+`iterNlminb`|`500`|if start is not supplied, `iterNlminb` defines the number of trials, or searches, to be performed by the nlminb optimizer in order to find the best solution.
+`cores`|`1`|non-negative integer. Defines the number of logical cores to be used for parallel computation. The default value is 1, which disables parallel computing.
 `trace`|`0`|non-negative integer. If > 0, tracing information on the progress of the optimization are printed every `trace` iteration. If parallel computing is enable, nlminb trace logs are written into the working directory. Log files are prefixed with 'fireSense_IgnitionFit_trace' followed by the nodename (see ?Sys.info) and the subprocess pid. Default is 0, which turns off tracing.
 `nlminb.control`|`list(iter.max = 5e3L,`<br>&emsp;&emsp;&emsp;`eval.max=5e3L`)|optional list of control parameters to be passed to the `nlminb` optimizer. See `?nlminb`.
 `.runInitialTime`|`start(simList)`|when to start this module? By default, the start time of the simulation.
