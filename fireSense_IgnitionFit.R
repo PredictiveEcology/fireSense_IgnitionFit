@@ -16,7 +16,7 @@ defineModule(sim, list(
   reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel"),
   parameters = rbind(
     #defineParameter("paramName", "paramClass", default, min, max, "parameter description")),
-    defineParameter(name = "formula", class = "formula", default = NA,
+    defineParameter(name = "fireSense_ignitionFormula", class = "character", default = NA,
                     desc = "a formula describing the model to be fitted.
                             Piece-wised terms can be specifed using
                             `pw(variableName, knotName)`."),
@@ -24,7 +24,7 @@ defineModule(sim, list(
                     desc = "a family function (must be wrapped with `quote()`)
                             or a character string naming a family function. For
                             additional details see `?family`"),
-    defineParameter(name = "data", class = "character", default = "dataFireSense_IgnitionFit",
+    defineParameter(name = "data", class = "character", default = "fireSense_ignitionCovariates",
                     desc = "a character vector indicating the names of objects
                             in the `simList` environment in which to look for
                             variables present in the model formula. `data`
@@ -87,7 +87,7 @@ defineModule(sim, list(
     defineParameter(".useCache", "logical", FALSE, NA, NA, "Should this entire module be run with caching activated? This is generally intended for data-type modules, where stochasticity and time are not relevant")
   ),
   inputObjects = expectsInput(
-    objectName = "dataFireSense_IgnitionFit",
+    objectName = "fireSense_ignitionCovariates",
     objectClass = "data.frame",
     desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
     sourceURL = NA_character_
@@ -141,112 +141,23 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
 #   - keep event functions short and clean, modularize by calling subroutines from section below.
 
 ### template initialization
-frequencyFitInit <- function(sim)
-{
-  moduleName <- current(sim)$moduleName
+frequencyFitInit <- function(sim) {
 
   # Checking parameters
   stopifnot(P(sim)$trace >= 0)
   stopifnot(P(sim)$cores >= 1)
   stopifnot(P(sim)$iterDEoptim >= 1)
   stopifnot(P(sim)$iterNlminb >= 1)
-  if (!is(P(sim)$formula, "formula")) stop(moduleName, "> The supplied object for the 'formula' parameter is not of class formula.")
 
-  invisible(sim)
+  return(invisible(sim))
 }
 
-frequencyFitRun <- function(sim)
-{
+frequencyFitRun <- function(sim) {
+  browser()
+
   moduleName <- current(sim)$moduleName
 
-  ## Toolbox: set of functions used internally by frequencyFitRun
-    ## Handling piecewise terms in a formula
-    pw <- function(variable, knot) pmax(variable - knot, 0)
-
-    ## Compute the order of magnitude
-    oom <- function(x) 10^(ceiling(log10(abs(x))))
-
-    ## Extract the elements of the special terms, i.e. the variable and the knot value
-    extractSpecial <- function(v, k)
-    {
-      cl <- match.call()
-
-      if(missing(k)) stop(moduleName, "> Argument 'knotName' is missing (variable '", as.character(cl$v), "')")
-      else list(variable = if (is(cl$v, "AsIs")) cl$v else as.character(cl$v), knot = as.character(cl$k))
-    }
-
-    ## Function to pass to the optimizer
-    obj <- function(params, linkinv, nll, sm, nx, mm, mod_env, offset)
-    {
-      ## Parameters scaling
-      params <- drop(params %*% sm)
-
-      mu <- drop(mm %*% params[1L:nx]) + offset
-
-      ## link implementation
-      mu <- linkinv(mu)
-
-      if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
-      else return(eval(nll, envir = as.list(environment()), enclos = mod_env))
-    }
-
-    ## Function to pass to the optimizer (PW version)
-    objPW <- function(params, formula, linkinv, nll, sm, updateKnotExpr, nx, mod_env, offset)
-    {
-      ## Parameters scaling
-      params <- drop(params %*% sm)
-
-      eval(updateKnotExpr, envir = environment(), enclos = mod_env) ## update knot's values
-
-      mu <- drop(model.matrix(formula, mod_env) %*% params[1:nx]) + offset
-
-      ## link implementation
-      mu <- linkinv(mu)
-
-      if(any(mu <= 0) || anyNA(mu) || any(is.infinite(mu)) || length(mu) == 0) return(1e20)
-      else return(eval(nll, envir = as.list(environment()), enclos = mod_env))
-    }
-
-    ## Nlminb wrapper
-    objNlminb <- function(start, objective, lower, upper, control)
-    {
-      nlminb.call <- quote(nlminb(start = start, objective = objective, lower = lower, upper = upper, control = control))
-      nlminb.call[names(formals(objective)[-1L])] <- parse(text = formalArgs(objective)[-1L])
-
-      o <- eval(nlminb.call)
-
-      i <- 1L
-
-      ## When there is no convergence and restart is possible, run nlminb() again
-      while(as.integer(gsub("[\\(\\)]", "", regmatches(o$message, gregexpr("\\(.*?\\)", o$message))[[1L]])) %in% 7:14 & i < 3L)
-      {
-        i <- i + 1L
-        o <- eval(nlminb.call)
-      }
-      o
-    }
-
-  # Load inputs in the data container
-  # list2env(as.list(envir(sim)), envir = mod)
-
-  mod_env <- new.env()
-
-  for (x in P(sim)$data)
-  {
-    if (!is.null(sim[[x]]))
-    {
-      if (is.data.frame(sim[[x]]))
-      {
-        list2env(sim[[x]], envir = mod_env)
-      }
-      else stop(moduleName, "> '", x, "' is not a data.frame.")
-    }
-  }
-
-  # Define pw() within the data container
-  mod_env$pw <- pw
-
-  if (is.empty.model(P(sim)$formula))
+ if (is.empty.model(P(sim)$formula))
     stop(moduleName, "> The formula describes an empty model.")
 
   terms <- terms.formula(formula <- P(sim)$formula, specials = "pw")
@@ -262,9 +173,8 @@ frequencyFitRun <- function(sim)
 
   kLB <- kUB <- NULL
 
-  if (hvPW)
-  {
-    objfun <- objPW
+  if (hvPW) {
+    objfun <- fireSenseUtils::objPW
 
     specialsInd <- which(unlist(lapply(attr(terms,"variables"), is.call)))
     specialsCalls <- attr(terms,"variables")[specialsInd]
