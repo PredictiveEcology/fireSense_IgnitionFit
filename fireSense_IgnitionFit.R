@@ -181,12 +181,8 @@ frequencyFitRun <- function(sim) {
 
     ## Extract the names of the knots (breakpoints)
     ## Alternative way: all.vars(terms)[!all.vars(terms) %in% rownames(attr(terms,"factors"))]
-    specialsTerms <- lapply(
-      specialsCalls,
-      function(specialsCall)
-      {
-        if (specialsCall[[1L]] == "pw")
-        {
+    specialsTerms <- lapply(specialsCalls, function(specialsCall) {
+        if (specialsCall[[1L]] == "pw") {
           specialsCall[[1L]] <- quote(extractSpecial)
           eval(specialsCall)
         }
