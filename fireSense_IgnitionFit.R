@@ -1,11 +1,11 @@
-# Everything in this file gets sourced during simInit, and all functions and objects
-# are put into the simList. To use objects and functions, use sim$xxx.
 defineModule(sim, list(
   name = "fireSense_IgnitionFit",
   description = "Fit statistical models that can be used to parameterize (calibrate)
                  the fire ignition component of landscape fire models (e.g. fireSense).",
   keywords = c("fire frequency", "optimization", "additive property", "poisson", "negative binomial", "fireSense"),
-  authors = c(person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre"))),
+  authors = c(
+    person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre"))
+  ),
   childModules = character(),
   version = list(SpaDES.core = "0.1.0", fireSense_IgnitionFit = "0.0.1"),
   spatialExtent = raster::extent(rep(NA_real_, 4)),
@@ -15,7 +15,6 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel"),
   parameters = rbind(
-    #defineParameter("paramName", "paramClass", default, min, max, "parameter description")),
     defineParameter(name = "fireSense_ignitionFormula", class = "character", default = NA,
                     desc = "a formula describing the model to be fitted.
                             Piece-wised terms can be specifed using
@@ -71,20 +70,22 @@ defineModule(sim, list(
                             followed by the nodename (see ?Sys.info) and the
                             subprocess pid. Default is 0, which turns off tracing."),
     defineParameter(name = "nlminb.control", class = "numeric",
-                    default = list(iter.max = 5e3L, eval.max=5e3L),
-                    desc = "optional list of control parameters to be passed to
-                            the `nlminb` optimizer. See `?nlminb`."),
+                    default = list(iter.max = 5e3L, eval.max = 5e3L),
+                    desc = paste("optional list of control parameters to be passed to",
+                                 "the `nlminb` optimizer. See `?nlminb`.")),
     defineParameter(name = ".runInitialTime", class = "numeric", default = start(sim),
-                    desc = "when to start this module? By default, the start
-                            time of the simulation."),
+                    desc = "when to start this module? By default, the start time of the simulation."),
     defineParameter(name = ".runInterval", class = "numeric", default = NA,
-                    desc = "optional. Interval between two runs of this module,
-                            expressed in units of simulation time. By default, NA, which means that this module only runs once per simulation."),
+                    desc = paste("optional. Interval between two runs of this module,",
+                                 "expressed in units of simulation time.",
+                                 "By default, NA, which means that this module only runs once per simulation.")),
     defineParameter(name = ".saveInitialTime", class = "numeric", default = NA,
                     desc = "optional. When to start saving output to a file."),
     defineParameter(name = ".saveInterval", class = "numeric", default = NA,
                     desc = "optional. Interval between save events."),
-    defineParameter(".useCache", "logical", FALSE, NA, NA, "Should this entire module be run with caching activated? This is generally intended for data-type modules, where stochasticity and time are not relevant")
+    defineParameter(".useCache", "logical", FALSE, NA, NA,
+                    paste("Should this entire module be run with caching activated?",
+                          "This is generally intended for data-type modules, where stochasticity and time are not relevant."))
   ),
   inputObjects = expectsInput(
     objectName = "fireSense_ignitionCovariates",
@@ -183,10 +184,8 @@ frequencyFitRun <- function(sim) {
     ## Alternative way: all.vars(terms)[!all.vars(terms) %in% rownames(attr(terms,"factors"))]
     specialsTerms <- lapply(
       specialsCalls,
-      function(specialsCall)
-      {
-        if (specialsCall[[1L]] == "pw")
-        {
+      function(specialsCall) {
+        if (specialsCall[[1L]] == "pw") {
           specialsCall[[1L]] <- quote(extractSpecial)
           eval(specialsCall)
         }
@@ -207,16 +206,16 @@ frequencyFitRun <- function(sim) {
 
     if (s <- sum(missing))
       stop(moduleName, "> '", allxy[!allxy %in% kNames][missing][1L], "'",
-           if (s > 1) paste0(" (and ", s-1L, " other", if (s>2) "s", ")"),
+           if (s > 1) paste0(" (and ", s - 1L, " other", if (s > 2) "s", ")"),
            " not found in data objects nor in the simList environment.")
 
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable", simplify = FALSE)
 
-    kUB <- if (is.null(P(sim)$ub$k)) lapply(pwVarNames, function(x) max(if(is(x, "AsIs")) x else mod_env[[x]])) %>% unlist
+    kUB <- if (is.null(P(sim)$ub$k)) lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else mod_env[[x]])) %>% unlist
            else rep_len(P(sim)$ub$k, nk) ## User-defined bounds (recycled if necessary)
 
-    kLB <- if (is.null(P(sim)$lb$k)) lapply(pwVarNames, function(x) min(if(is(x, "AsIs")) x else mod_env[[x]])) %>% unlist
+    kLB <- if (is.null(P(sim)$lb$k)) lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else mod_env[[x]])) %>% unlist
            else rep_len(P(sim)$lb$k, nk) ## User-defined bounds (recycled if necessary)
 
     invisible(
@@ -224,20 +223,18 @@ frequencyFitRun <- function(sim) {
         kNames,
         z = pwVarNames,
         FUN = function(w, z)
-          mod_env[[w]] <- mean(if(is(z, "AsIs")) z else mod_env[[z]]),
+          mod_env[[w]] <- mean(if (is(z, "AsIs")) z else mod_env[[z]]),
         SIMPLIFY = FALSE
       )
     )
 
-    updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse="; "))
-  }
-  else
-  {
+    updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse = "; "))
+  } else {
     missing <- !allxy %in% ls(mod_env, all.names = TRUE)
 
     if (s <- sum(missing))
       stop(moduleName, "> '", allxy[missing][1L], "'",
-           if (s > 1) paste0(" (and ", s-1L, " other", if (s>2) "s", ")"),
+           if (s > 1) paste0(" (and ", s - 1L, " other", if (s > 2) "s", ")"),
            " not found in data objects nor in the simList environment.")
 
     allx <- allxy[allxy != y]
@@ -274,7 +271,8 @@ frequencyFitRun <- function(sim) {
 
   # Extract starting value for theta
   if (isFamilyNB)
-    theta <- as.numeric(gsub(x = regmatches(family$family, gregexpr("\\(.*?\\)", family$family))[[1L]], pattern = "[\\(\\)]", replacement = ""))
+    theta <- as.numeric(gsub(x = regmatches(family$family, gregexpr("\\(.*?\\)", family$family))[[1L]],
+                             pattern = "[\\(\\)]", replacement = ""))
 
   linkinv <- family$linkinv
 
@@ -282,7 +280,7 @@ frequencyFitRun <- function(sim) {
 
   # Does the model formula contain an offset?
   model_offset <- model.offset(model.frame(formula, mod_env))
-  offset <- if(is.null(model_offset)) 0 else model_offset
+  offset <- if (is.null(model_offset)) 0 else model_offset
 
   ## Define the scaling matrix. This is used later in the optimization process
   ## to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
@@ -297,8 +295,7 @@ frequencyFitRun <- function(sim) {
 
     ## Upper bounds
       DEoptimUB <- c(
-        if (is.null(P(sim)$ub$c))
-        {
+        if (is.null(P(sim)$ub$c)) {
           ## Automatically estimate an upper boundary for each parameter
           (suppressWarnings(
             tryCatch(
@@ -318,10 +315,8 @@ frequencyFitRun <- function(sim) {
           ) %>% coef %>% oom(.)) * 10L -> ub
 
           if (anyNA(ub))
-            stop(
-              moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
-              "please set the 'coef' element of the 'ub' parameter."
-            )
+            stop(moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
+                 "please set the 'coef' element of the 'ub' parameter.")
           else ub
         }
         else
@@ -346,8 +341,7 @@ frequencyFitRun <- function(sim) {
       }, kLB)
 
       ## If negative.binomial family needs to add bounds for theta parameter
-      if (isFamilyNB)
-      {
+      if (isFamilyNB) {
         DEoptimUB <- c(DEoptimUB, if (is.null(P(sim)$ub$t)) 2L * theta else P(sim)$ub$t)
         DEoptimLB <- c(DEoptimLB, if (is.null(P(sim)$lb$t)) 1e-16 else P(sim)$lb$t) ## Enfore non-negativity
       }
@@ -359,29 +353,27 @@ frequencyFitRun <- function(sim) {
         nlminbUB[1:nx] <- rep_len(Inf, nx)
 
     ## Lower bounds
-      nlminbLB <- if (is.null(P(sim)$lb$c))
-      {
+      nlminbLB <- if (is.null(P(sim)$lb$c)) {
         c(switch(family$link,
                  log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
                  identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
           , kLB)
 
-      } else DEoptimLB ## User-defined lower bounds for parameters to be estimated
+      } else {
+        DEoptimLB ## User-defined lower bounds for parameters to be estimated
+      }
 
       ## If negative.binomial family add bounds for the theta parameter
-      if (isFamilyNB && is.null(P(sim)$lb$t))
-      {
+      if (isFamilyNB && is.null(P(sim)$lb$t)) {
         nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
-      }
-      else if (isFamilyNB)
-      {
+      } else if (isFamilyNB) {
         nlminbLB <- c(nlminbLB, P(sim)$lb$t)
       }
 
   ## Define the log-likelihood function (objective function)
   nll <- switch(family$family,
-                poisson = parse(text=paste0("-sum(dpois(x=", y,", lambda = mu, log = TRUE))")),
-                parse(text=paste0("-sum(dnbinom(x=", y,", mu = mu, size = params[length(params)], log = TRUE))")))
+                poisson = parse(text = paste0("-sum(dpois(x=", y, ", lambda = mu, log = TRUE))")),
+                parse(text = paste0("-sum(dnbinom(x=", y, ", mu = mu, size = params[length(params)], log = TRUE))")))
 
   trace <- P(sim)$trace
 
@@ -404,11 +396,11 @@ frequencyFitRun <- function(sim) {
       ## Use these estimates to compute the order of magnitude of these parameters
 
       control <- list(itermax = P(sim)$iterDEoptim, trace = P(sim)$trace)
-      if(P(sim)$cores > 1) control$cluster <- cl
+      if (P(sim)$cores > 1) control$cluster <- cl
 
       DEoptimCall <- quote(DEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB, control = do.call("DEoptim.control", control)))
       DEoptimCall[names(formals(objfun)[-1])] <- parse(text = formalArgs(objfun)[-1])
-      DEoptimBestMem <- eval(DEoptimCall) %>% `[[` ("optim") %>% `[[` ("bestmem")
+      DEoptimBestMem <- eval(DEoptimCall) %>% `[[`("optim") %>% `[[`("bestmem")
 
       ## Update scaling matrix
       diag(sm) <- oom(DEoptimBestMem)
@@ -418,44 +410,35 @@ frequencyFitRun <- function(sim) {
       nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
 
       ## Update of the lower and upper bounds for the knots based on the scaling matrix
-        if (hvPW)
-        {
+        if (hvPW) {
           kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
           nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
 
           kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
-          nlminbUB[(nx + 1L):(nx + nk)] <- if(is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
+          nlminbUB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
         }
 
       getRandomStarts <- function(.) pmin(pmax(rnorm(length(DEoptimBestMem),0L,2L)/10 + unname(DEoptimBestMem/oom(DEoptimBestMem)), nlminbLB), nlminbUB)
       start <- c(lapply(1:P(sim)$iterNlminb, getRandomStarts), list(unname(DEoptimBestMem/oom(DEoptimBestMem))))
-    }
-    else
-    {
-      start <- if (is.list(P(sim)$start))
-      {
+    } else {
+      start <- if (is.list(P(sim)$start)) {
         diag(sm) <- lapply(P(sim)$start, oom) %>%
           do.call("rbind", .) %>%
           apply(2, function(x) as.numeric(names(base::which.max(table(x)))))
 
          lapply(P(sim)$start, function(x) x / diag(sm))
-      }
-      else
-      {
+      } else {
         diag(sm) <- oom(P(sim)$start)
         P(sim)$start / diag(sm)
       }
     }
 
-  out <- if (is.list(start))
-  {
-    if (P(sim)$cores > 1)
-    {
+  out <- if (is.list(start)) {
+    if (P(sim)$cores > 1) {
       outputPath <- outputPath(sim)
       basePattern <- paste(moduleName, Sys.info()[["nodename"]], format(Sys.time(), "%Y%m%d"), "trace", sep = "_")
 
-      if (trace)
-      {
+      if (trace) {
         clusterExport(cl, c("outputPath", "basePattern"), envir = environment())
 
         clusterEvalQ(
@@ -467,14 +450,17 @@ frequencyFitRun <- function(sim) {
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
 
       if (trace) clusterEvalQ(cl, sink())
+    } else {
+      out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB,
+                    control = c(P(sim)$nlminb.control, list(trace = trace)))
     }
-    else out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
 
     ## Select best minimum amongst all trials
     out[[which.min(sapply(out, "[[", "objective"))]]
 
+  } else {
+    objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace)))
   }
-  else objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace)))
 
   ## Compute the standard errors around the estimates
     hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
@@ -484,21 +470,16 @@ frequencyFitRun <- function(sim) {
 
   convergence <- TRUE
 
-  if (out$convergence)
-  {
+  if (out$convergence) {
     convergence <- FALSE
     convergDiagnostic <- paste0("nlminb optimizer did not converge (", out$message, ")")
     warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
-  }
-  else if(anyNA(se))
-  {
+  } else if (anyNA(se)) {
     ## Negative values in the Hessian matrix suggest that the algorithm did not converge
     convergence <- FALSE
     convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
     warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
-  }
-  else
-  {
+  } else {
     convergDiagnostic <- out$message
   }
 
@@ -514,14 +495,12 @@ frequencyFitRun <- function(sim) {
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic)
 
-  if (hvPW)
-  {
+  if (hvPW) {
     l$knots <- setNames(out$par[(nx + 1L):(nx + nk)], kNames)
     l$knots.se <- setNames(se[(nx + 1L):(nx + nk)], kNames)
   }
 
-  if(isFamilyNB)
-  {
+  if (isFamilyNB) {
     ## Update the NB family template with the estimated theta
     l$family <- MASS::negative.binomial(theta = out$par[length(out$par)], link = family$link)
     l$theta <- out$par[length(out$par)]
@@ -534,9 +513,7 @@ frequencyFitRun <- function(sim) {
   invisible(sim)
 }
 
-
-frequencyFitSave <- function(sim)
-{
+frequencyFitSave <- function(sim) {
   timeUnit <- timeunit(sim)
   currentTime <- time(sim, timeUnit)
 
