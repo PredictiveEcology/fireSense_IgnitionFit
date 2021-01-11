@@ -175,7 +175,7 @@ frequencyFitRun <- function(sim) {
   kLB <- kUB <- NULL
 
   if (hvPW) {
-    objfun <- fireSenseUtils::objPW
+    objfun <- fireSenseUtils::.objFunIgnitionPW
 
     specialsInd <- which(unlist(lapply(attr(terms,"variables"), is.call)))
     specialsCalls <- attr(terms,"variables")[specialsInd]
@@ -236,7 +236,7 @@ frequencyFitRun <- function(sim) {
            " not found in data objects nor in the simList environment.")
 
     allx <- allxy[allxy != y]
-    objfun <- obj
+    objfun <- fireSenseUtils::.objFunIgnition
     nk <- 0L
   }
 
