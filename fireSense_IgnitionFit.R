@@ -158,12 +158,13 @@ frequencyFitRun <- function(sim) {
 
   moduleName <- current(sim)$moduleName
 
- if (is.empty.model(P(sim)$formula))
+ if (is.empty.model(P(sim)$fireSense_ignitionFormula))
     stop(moduleName, "> The formula describes an empty model.")
 
-  terms <- terms.formula(formula <- P(sim)$formula, specials = "pw")
+  fireSense_ignitionFormula <- P(sim)$fireSense_ignitionFormula
+  terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
-  if (attr(terms, "response")) y <- as.character(formula[[2L]])
+  if (attr(terms, "response")) y <- as.character(fireSense_ignitionFormula[[2L]])
   else stop(moduleName, "> Incomplete formula, the LHS is missing.")
 
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
@@ -251,7 +252,7 @@ frequencyFitRun <- function(sim) {
       family(),
       error = function(e) family(
         theta = suppressWarnings(
-          glm.nb(formula = formula,
+          glm.nb(formula = fireSense_ignitionFormula,
                  y = FALSE,
                  model = FALSE,
                  data = mod_env)[["theta"]]
@@ -277,7 +278,7 @@ frequencyFitRun <- function(sim) {
   mm <- model.matrix(object = terms, data = mod_env)
 
   # Does the model formula contain an offset?
-  model_offset <- model.offset(model.frame(formula, mod_env))
+  model_offset <- model.offset(model.frame(fireSense_ignitionFormula, mod_env))
   offset <- if (is.null(model_offset)) 0 else model_offset
 
   ## Define the scaling matrix. This is used later in the optimization process
@@ -298,7 +299,7 @@ frequencyFitRun <- function(sim) {
           (suppressWarnings(
             tryCatch(
               glm(
-                formula = formula,
+                formula = fireSense_ignitionFormula,
                 y = FALSE,
                 model = FALSE,
                 data = mod_env,
@@ -484,7 +485,7 @@ frequencyFitRun <- function(sim) {
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   out$par <- drop(out$par %*% sm)
 
-  l <- list(formula = formula,
+  l <- list(formula = fireSense_ignitionFormula,
             family = family,
             coef = setNames(out$par[1:nx], colnames(mm)),
             coef.se = setNames(se[1:nx], colnames(mm)),
