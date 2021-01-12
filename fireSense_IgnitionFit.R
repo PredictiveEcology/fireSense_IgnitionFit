@@ -1,10 +1,13 @@
 defineModule(sim, list(
   name = "fireSense_IgnitionFit",
-  description = "Fit statistical models that can be used to parameterize (calibrate)
-                 the fire ignition component of landscape fire models (e.g. fireSense).",
-  keywords = c("fire frequency", "optimization", "additive property", "poisson", "negative binomial", "fireSense"),
+  description = paste("Fit statistical models that can be used to parameterize (calibrate)",
+                      "the fire ignition component of landscape fire models (e.g. fireSense)."),
+  keywords = c("fire frequency", "optimization", "additive property", "poisson",
+               "negative binomial", "fireSense"),
   authors = c(
-    person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre"))
+    person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre")),
+    person("Ian", "Eddy", email = "ian.eddy@canada.ca", role = c("aut")),
+    person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = c("ctb"))
   ),
   childModules = character(),
   version = list(SpaDES.core = "0.1.0", fireSense_IgnitionFit = "0.0.1"),
@@ -15,76 +18,72 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel"),
   parameters = rbind(
-    defineParameter(name = "fireSense_ignitionFormula", class = "character", default = NA,
+    defineParameter("cores", "integer", default = 1,
+                    desc = paste("non-negative integer. Defines the number of logical cores",
+                                 "to be used for parallel computation.",
+                                 "The default value is 1, which disables parallel computing.")),
+    defineParameter("data", "character", default = "fireSense_ignitionCovariates",
+                    desc = paste("a character vector indicating the names of objects in the",
+                                 "`simList` environment in which to look for variables present",
+                                 "in the model formula. `data` objects should be data.frames.")),
+    defineParameter("family", "function, character", default = "negative.binomial",
+                    desc = paste("a family function (must be wrapped with `quote()`) or a",
+                                 "character string naming a family function.",
+                                 "For additional details see `?family`.")),
+    defineParameter("fireSense_ignitionFormula", "character", default = NA,
                     desc = paste("formula - as a character - describing the model to be fitted.",
                                  "Piece-wised terms can be specifed using `pw(variableName, knotName)`.")),
-    defineParameter(name = "family", class = "function, character", default = "negative.binomial",
-                    desc = "a family function (must be wrapped with `quote()`)
-                            or a character string naming a family function. For
-                            additional details see `?family`"),
-    defineParameter(name = "data", class = "character", default = "fireSense_ignitionCovariates",
-                    desc = "a character vector indicating the names of objects
-                            in the `simList` environment in which to look for
-                            variables present in the model formula. `data`
-                            objects should be data.frames."),
-    defineParameter(name = "plot", class = "logical", default = TRUE,
-                    desc = "logical. Plot model fit against the data. Prediction interval"),
-    defineParameter(name = "start", class = "numeric, list", default = NULL,
-                    desc = "optional starting values for the parameters to be
-                            estimated. Those are passed to `nlminb` and can be a
-                            single vector, or a list of vectors. In the latter
-                            case, only the best solution, that is, the one which
-                            minimizes the most the objective function, is kept."),
-    defineParameter(name = "lb", class = "list", default = NULL,
-                    desc = "optional named list with up to three elements,
-                            'coef', 'theta' and 'knots', specifying lower bounds
-                            for coefficients to be estimated. These must be
-                            finite and will be recycled if necessary to match
-                            `length(coefficients)`."),
-    defineParameter(name = "ub", class = "numeric", default = NULL,
-                    desc = "optional named list with up to three elements,
-                            'coef', 'theta' and 'knots', specifying upper bounds
-                            for coefficients to be estimated. These must be
-                            finite and will be recycled if necessary to match
-                            `length(coefficients)`."),
-    defineParameter(name = "iterDEoptim", class = "integer", default = 2000,
-                    desc = "integer defining the maximum number of iterations
-                            allowed (DEoptim optimizer). Default is 2000."),
-    defineParameter(name = "iterNlminb", class = "integer", default = 500,
-                    desc = "if start is not supplied, iterNlminb defines
-                            the number of trials, or searches, to be performed
-                            by the nlminb optimizer in order to find the best
-                            solution. Default is 500."),
-    defineParameter(name = "cores", class = "integer", default = 1,
-                    desc = "non-negative integer. Defines the number of logical
-                            cores to be used for parallel computation. The
-                            default value is 1, which disables parallel
-                            computing."),
-    defineParameter(name = "trace", class = "numeric", default = 0,
-                    desc = "non-negative integer. If > 0, tracing information on
-                            the progress of the optimization are printed every
-                            `trace` iteration. If parallel computing is enable,
-                            nlminb trace logs are written into the working directory.
-                            Log files are prefixed with 'fireSense_IgnitionFit_trace'
-                            followed by the nodename (see ?Sys.info) and the
-                            subprocess pid. Default is 0, which turns off tracing."),
-    defineParameter(name = "nlminb.control", class = "numeric",
+    defineParameter("iterDEoptim", "integer", default = 2000,
+                    desc = "maximum number of iterations allowed (DEoptim optimizer)."),
+    defineParameter("iterNlminb", "integer", default = 500,
+                    desc = paste("if start is not supplied, iterNlminb defines the number of trials,",
+                                 "or searches, to be performed by the nlminb optimizer in order to",
+                                 "find the best solution.")),
+    defineParameter("lb", "list", default = NULL,
+                    desc = paste("optional named list with up to three elements,",
+                                 "'coef', 'theta' and 'knots', specifying lower bounds",
+                                 "for coefficients to be estimated.",
+                                 "These must be finite and will be recycled if necessary to match",
+                                 "`length(coefficients)`.")),
+    defineParameter("nlminb.control", "numeric",
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
                                  "the `nlminb` optimizer. See `?nlminb`.")),
-    defineParameter(name = ".runInitialTime", class = "numeric", default = start(sim),
+    defineParameter("plot", "logical", default = TRUE,
+                    desc = "logical. Plot model fit against the data. Prediction interval"),
+    defineParameter("start", "numeric, list", default = NULL,
+                    desc = paste("optional starting values for the parameters to be estimated.
+                                 Those are passed to `nlminb` and can be a single vector, or a list of vectors.",
+                                 "In the latter case, only the best solution, that is,",
+                                 "the one which minimizes the most the objective function, is kept.")),
+    defineParameter("trace", "numeric", default = 0,
+                    desc = paste("non-negative integer. If > 0, tracing information on the progress",
+                                 "of the optimization are printed every `trace` iteration.",
+                                 "If parallel computing is enable, nlminb trace logs are written",
+                                 "into the working directory.",
+                                 "Log files are prefixed with 'fireSense_IgnitionFit_trace'",
+                                 "followed by the nodename (see ?Sys.info) and the subprocess pid.",
+                                 "Default is 0, which turns off tracing.")),
+    defineParameter("ub", "numeric", default = NULL,
+                    desc = paste("optional named list with up to three elements,",
+                                 "'coef', 'theta' and 'knots', specifying upper bounds",
+                                 "for coefficients to be estimated.",
+                                 "These must be finite and will be recycled if necessary to match",
+                                 "`length(coefficients)`.")),
+    defineParameter(".runInitialTime", "numeric", default = start(sim),
                     desc = "when to start this module? By default, the start time of the simulation."),
-    defineParameter(name = ".runInterval", class = "numeric", default = NA,
+    defineParameter(".runInterval", "numeric", default = NA,
                     desc = paste("optional. Interval between two runs of this module,",
                                  "expressed in units of simulation time.",
                                  "By default, NA, which means that this module only runs once per simulation.")),
-    defineParameter(name = ".saveInitialTime", class = "numeric", default = NA,
+    defineParameter(".saveInitialTime", "numeric", default = NA,
                     desc = "optional. When to start saving output to a file."),
-    defineParameter(name = ".saveInterval", class = "numeric", default = NA,
+    defineParameter(".saveInterval", "numeric", default = NA,
                     desc = "optional. Interval between save events."),
     defineParameter(".useCache", "logical", FALSE, NA, NA,
-                    paste("Should this entire module be run with caching activated?",
-                          "This is generally intended for data-type modules, where stochasticity and time are not relevant."))
+                    desc = paste("Should this entire module be run with caching activated?",
+                                 "This is generally intended for data-type modules,",
+                                 "where stochasticity and time are not relevant."))
   ),
   inputObjects = expectsInput(
     objectName = "fireSense_ignitionCovariates",
