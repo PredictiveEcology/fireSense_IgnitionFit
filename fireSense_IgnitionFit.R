@@ -154,18 +154,17 @@ frequencyFitRun <- function(sim) {
 
   moduleName <- current(sim)$moduleName
 
-  if (is.empty.model(P(sim)$fireSense_ignitionFormula))
+ if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula)))
     stop(moduleName, "> The formula describes an empty model.")
 
   fireSense_ignitionFormula <- P(sim)$fireSense_ignitionFormula
   terms <- terms.formula(as.formula(fireSense_ignitionFormula), specials = "pw")
 
   if (attr(terms, "response")) {
-    y <- fireSense_ignitionFormula[[2L]]
+    y <- as.formula(fireSense_ignitionFormula)[[2L]]
   } else {
     stop(moduleName, "> Incomplete formula, the LHS is missing.")
   }
-
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
   allxy <- all.vars(terms)
 
@@ -234,7 +233,7 @@ frequencyFitRun <- function(sim) {
 
     updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse = "; "))
   } else {
-    missing <- !allxy %in% ls(mod_env, all.names = TRUE)
+    missing <- !allxy %in% ls(sim$fireSense_ignitionCovariates, all.names = TRUE)
 
     if (s <- sum(missing))
       stop(moduleName, "> '", allxy[missing][1L], "'",
