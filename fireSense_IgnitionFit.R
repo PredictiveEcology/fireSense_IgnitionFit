@@ -101,8 +101,7 @@ defineModule(sim, list(
 ## event types
 #   - type `init` is required for initialiazation
 
-doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALSE)
-{
+doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALSE) {
   moduleName <- current(sim)$moduleName
 
   switch(
@@ -141,7 +140,6 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
 
 ### template initialization
 frequencyFitInit <- function(sim) {
-
   # Checking parameters
   stopifnot(P(sim)$trace >= 0)
   stopifnot(P(sim)$cores >= 1)
@@ -156,14 +154,17 @@ frequencyFitRun <- function(sim) {
 
   moduleName <- current(sim)$moduleName
 
- if (is.empty.model(P(sim)$fireSense_ignitionFormula))
+  if (is.empty.model(P(sim)$fireSense_ignitionFormula))
     stop(moduleName, "> The formula describes an empty model.")
 
   fireSense_ignitionFormula <- P(sim)$fireSense_ignitionFormula
   terms <- terms.formula(as.formula(fireSense_ignitionFormula), specials = "pw")
 
-  if (attr(terms, "response")) y <- fireSense_ignitionFormula[[2L]]
-  else stop(moduleName, "> Incomplete formula, the LHS is missing.")
+  if (attr(terms, "response")) {
+    y <- fireSense_ignitionFormula[[2L]]
+  } else {
+    stop(moduleName, "> Incomplete formula, the LHS is missing.")
+  }
 
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
   allxy <- all.vars(terms)
@@ -182,11 +183,11 @@ frequencyFitRun <- function(sim) {
     ## Extract the names of the knots (breakpoints)
     ## Alternative way: all.vars(terms)[!all.vars(terms) %in% rownames(attr(terms,"factors"))]
     specialsTerms <- lapply(specialsCalls, function(specialsCall) {
-        if (specialsCall[[1L]] == "pw") {
-          specialsCall[[1L]] <- quote(extractSpecial)
-          eval(specialsCall)
-        }
+      if (specialsCall[[1L]] == "pw") {
+        specialsCall[[1L]] <- quote(extractSpecial)
+        eval(specialsCall)
       }
+    }
     )
 
     specialsTerms <- specialsTerms[!unlist(lapply(specialsTerms, is.null))]
@@ -209,11 +210,17 @@ frequencyFitRun <- function(sim) {
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable", simplify = FALSE)
 
-    kUB <- if (is.null(P(sim)$ub$k)) lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else mod_env[[x]])) %>% unlist
-           else rep_len(P(sim)$ub$k, nk) ## User-defined bounds (recycled if necessary)
+    kUB <- if (is.null(P(sim)$ub$k)) {
+      lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else mod_env[[x]])) %>% unlist()
+    } else {
+      rep_len(P(sim)$ub$k, nk) ## User-defined bounds (recycled if necessary)
+    }
 
-    kLB <- if (is.null(P(sim)$lb$k)) lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else mod_env[[x]])) %>% unlist
-           else rep_len(P(sim)$lb$k, nk) ## User-defined bounds (recycled if necessary)
+    kLB <- if (is.null(P(sim)$lb$k)) {
+      lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else mod_env[[x]])) %>% unlist()
+    } else {
+      rep_len(P(sim)$lb$k, nk) ## User-defined bounds (recycled if necessary)
+    }
 
     invisible(
       mapply(
@@ -243,8 +250,7 @@ frequencyFitRun <- function(sim) {
 
   if (is.language(family)) family <- eval(family)
 
-  if (is.character(family))
-  {
+  if (is.character(family)) {
     family <- get(family, mode = "function", envir = parent.frame())
     family <- tryCatch(
       family(),
@@ -257,9 +263,7 @@ frequencyFitRun <- function(sim) {
         )
       )
     )
-  }
-  else if (is.function(family))
-  {
+  } else if (is.function(family)) {
     family <- family()
   }
 
@@ -281,91 +285,95 @@ frequencyFitRun <- function(sim) {
 
   ## Define the scaling matrix. This is used later in the optimization process
   ## to rescale parameter values between 0 and 1, i.e. put all variables on the same scale.
-    n <- nx + nk
-    if (isFamilyNB) n <- n + 1L
+  n <- nx + nk
+  if (isFamilyNB) n <- n + 1L
 
-    sm <- matrix(0, n, n)
-    diag(sm) <- 1
+  sm <- matrix(0, n, n)
+  diag(sm) <- 1
 
   ## Define parameter bounds automatically if they are not supplied by user
   ## First defined the bounds for DEoptim, the first optimizer
 
-    ## Upper bounds
-      DEoptimUB <- c(
-        if (is.null(P(sim)$ub$c)) {
-          ## Automatically estimate an upper boundary for each parameter
-          (suppressWarnings(
-            tryCatch(
-              glm(
-                formula = as.formula(fireSense_ignitionFormula),
-                y = FALSE,
-                model = FALSE,
-                data = mod_env,
-                family = poisson(link = family$link)
-              ),
-              error = function(e) stop(
-                moduleName, "> Automated estimation of upper bounds",
-                " (coefs) failed, please set the 'coef' element of ",
-                "the 'ub' parameter."
-              )
-            )
-          ) %>% coef %>% oom(.)) * 10L -> ub
+  ## Upper bounds
+  DEoptimUB <- c(
+    if (is.null(P(sim)$ub$c)) {
+      ## Automatically estimate an upper boundary for each parameter
+      (suppressWarnings(
+        tryCatch(
+          glm(
+            formula = as.formula(fireSense_ignitionFormula),
+            y = FALSE,
+            model = FALSE,
+            data = mod_env,
+            family = poisson(link = family$link)
+          ),
+          error = function(e) stop(
+            moduleName, "> Automated estimation of upper bounds",
+            " (coefs) failed, please set the 'coef' element of ",
+            "the 'ub' parameter."
+          )
+        )
+      ) %>% coef() %>% oom(.)) * 10L -> ub
 
-          if (anyNA(ub))
-            stop(moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
-                 "please set the 'coef' element of the 'ub' parameter.")
-          else ub
-        }
-        else
-          rep_len(P(sim)$ub$c, nx), ## User-defined bounds (recycled if necessary)
-        kUB
-      )
-
-    ## Lower bounds
-      DEoptimLB <- c({
-        switch(family$link,
-               log = {
-
-                 if (is.null(P(sim)$lb$c)) -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
-                 else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
-
-               }, identity = {
-
-                 if (is.null(P(sim)$lb$c)) rep_len(1e-16, nx) ## Ensure non-negativity
-                 else rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
-
-               }, stop(moduleName, "> Link function ", family$link, " is not supported."))
-      }, kLB)
-
-      ## If negative.binomial family needs to add bounds for theta parameter
-      if (isFamilyNB) {
-        DEoptimUB <- c(DEoptimUB, if (is.null(P(sim)$ub$t)) 2L * theta else P(sim)$ub$t)
-        DEoptimLB <- c(DEoptimLB, if (is.null(P(sim)$lb$t)) 1e-16 else P(sim)$lb$t) ## Enfore non-negativity
+      if (anyNA(ub)) {
+        stop(moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
+             "please set the 'coef' element of the 'ub' parameter.")
+      } else {
+        ub
       }
+    } else {
+      rep_len(P(sim)$ub$c, nx) ## User-defined bounds (recycled if necessary)
+    },
+    kUB
+  )
+
+  ## Lower bounds
+  DEoptimLB <- c({
+    switch(family$link,
+           log = {
+             if (is.null(P(sim)$lb$c)) {
+               -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
+             } else {
+               rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
+             }
+
+           }, identity = {
+             if (is.null(P(sim)$lb$c)) {
+               rep_len(1e-16, nx) ## Ensure non-negativity
+             } else {
+               rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
+             }
+           }, stop(moduleName, "> Link function ", family$link, " is not supported."))
+  }, kLB)
+
+  ## If negative.binomial family needs to add bounds for theta parameter
+  if (isFamilyNB) {
+    DEoptimUB <- c(DEoptimUB, if (is.null(P(sim)$ub$t)) 2L * theta else P(sim)$ub$t)
+    DEoptimLB <- c(DEoptimLB, if (is.null(P(sim)$lb$t)) 1e-16 else P(sim)$lb$t) ## Enfore non-negativity
+  }
 
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
-    ## Upper bounds
-      nlminbUB <- DEoptimUB
-      if (is.null(P(sim)$ub$c))
-        nlminbUB[1:nx] <- rep_len(Inf, nx)
+  ## Upper bounds
+  nlminbUB <- DEoptimUB
+  if (is.null(P(sim)$ub$c))
+    nlminbUB[1:nx] <- rep_len(Inf, nx)
 
-    ## Lower bounds
-      nlminbLB <- if (is.null(P(sim)$lb$c)) {
-        c(switch(family$link,
-                 log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
-                 identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
-          , kLB)
+  ## Lower bounds
+  nlminbLB <- if (is.null(P(sim)$lb$c)) {
+    c(switch(family$link,
+             log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
+             identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
+      , kLB)
+  } else {
+    DEoptimLB ## User-defined lower bounds for parameters to be estimated
+  }
 
-      } else {
-        DEoptimLB ## User-defined lower bounds for parameters to be estimated
-      }
-
-      ## If negative.binomial family add bounds for the theta parameter
-      if (isFamilyNB && is.null(P(sim)$lb$t)) {
-        nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
-      } else if (isFamilyNB) {
-        nlminbLB <- c(nlminbLB, P(sim)$lb$t)
-      }
+  ## If negative.binomial family add bounds for the theta parameter
+  if (isFamilyNB && is.null(P(sim)$lb$t)) {
+    nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
+  } else if (isFamilyNB) {
+    nlminbLB <- c(nlminbLB, P(sim)$lb$t)
+  }
 
   ## Define the log-likelihood function (objective function)
   nll <- switch(family$family,
@@ -374,12 +382,12 @@ frequencyFitRun <- function(sim) {
 
   trace <- P(sim)$trace
 
-  if (P(sim)$cores > 1)
-  {
-    if (.Platform$OS.type == "unix")
+  if (P(sim)$cores > 1) {
+    if (.Platform$OS.type == "unix") {
       mkCluster <- parallel::makeForkCluster
-    else
+    } else {
       mkCluster <- parallel::makePSOCKcluster
+    }
 
     cl <- mkCluster(P(sim)$cores)
     on.exit(stopCluster(cl))
@@ -387,48 +395,51 @@ frequencyFitRun <- function(sim) {
   }
 
   ## If starting values are not supplied
-    if (is.null(P(sim)$start))
-    {
-      ## First optimizer, get rough estimates of the parameter values
-      ## Use these estimates to compute the order of magnitude of these parameters
+  if (is.null(P(sim)$start)) {
+    ## First optimizer, get rough estimates of the parameter values
+    ## Use these estimates to compute the order of magnitude of these parameters
 
-      control <- list(itermax = P(sim)$iterDEoptim, trace = P(sim)$trace)
-      if (P(sim)$cores > 1) control$cluster <- cl
+    control <- list(itermax = P(sim)$iterDEoptim, trace = P(sim)$trace)
+    if (P(sim)$cores > 1) control$cluster <- cl
 
-      DEoptimCall <- quote(DEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB, control = do.call("DEoptim.control", control)))
-      DEoptimCall[names(formals(objfun)[-1])] <- parse(text = formalArgs(objfun)[-1])
-      DEoptimBestMem <- eval(DEoptimCall) %>% `[[`("optim") %>% `[[`("bestmem")
+    DEoptimCall <- quote(DEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB, control = do.call("DEoptim.control", control)))
+    DEoptimCall[names(formals(objfun)[-1])] <- parse(text = formalArgs(objfun)[-1])
+    DEoptimBestMem <- eval(DEoptimCall) %>% `[[`("optim") %>% `[[`("bestmem")
 
-      ## Update scaling matrix
-      diag(sm) <- oom(DEoptimBestMem)
+    ## Update scaling matrix
+    diag(sm) <- oom(DEoptimBestMem)
 
-      ## Update of the lower and upper bounds of the coefficients based on the scaling matrix
-      nlminbLB[c(1:nx, length(nlminbLB))] <- nlminbLB[c(1:nx, length(nlminbLB))] / diag(sm)[c(1:nx, length(nlminbLB))]
-      nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
+    ## Update of the lower and upper bounds of the coefficients based on the scaling matrix
+    nlminbLB[c(1:nx, length(nlminbLB))] <- nlminbLB[c(1:nx, length(nlminbLB))] / diag(sm)[c(1:nx, length(nlminbLB))]
+    nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
 
-      ## Update of the lower and upper bounds for the knots based on the scaling matrix
-        if (hvPW) {
-          kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
-          nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
+    ## Update of the lower and upper bounds for the knots based on the scaling matrix
+    if (hvPW) {
+      kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
+      nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
 
-          kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
-          nlminbUB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
-        }
-
-      getRandomStarts <- function(.) pmin(pmax(rnorm(length(DEoptimBestMem),0L,2L)/10 + unname(DEoptimBestMem/oom(DEoptimBestMem)), nlminbLB), nlminbUB)
-      start <- c(lapply(1:P(sim)$iterNlminb, getRandomStarts), list(unname(DEoptimBestMem/oom(DEoptimBestMem))))
-    } else {
-      start <- if (is.list(P(sim)$start)) {
-        diag(sm) <- lapply(P(sim)$start, oom) %>%
-          do.call("rbind", .) %>%
-          apply(2, function(x) as.numeric(names(base::which.max(table(x)))))
-
-         lapply(P(sim)$start, function(x) x / diag(sm))
-      } else {
-        diag(sm) <- oom(P(sim)$start)
-        P(sim)$start / diag(sm)
-      }
+      kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
+      nlminbUB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
     }
+
+    getRandomStarts <- function(.) {
+      pmin(pmax(rnorm(length(DEoptimBestMem), 0L, 2L) / 10 +
+                  unname(DEoptimBestMem / oom(DEoptimBestMem)), nlminbLB), nlminbUB)
+    }
+    start <- c(lapply(1:P(sim)$iterNlminb, getRandomStarts),
+               list(unname(DEoptimBestMem / oom(DEoptimBestMem))))
+  } else {
+    start <- if (is.list(P(sim)$start)) {
+      diag(sm) <- lapply(P(sim)$start, oom) %>%
+        do.call("rbind", .) %>%
+        apply(2, function(x) as.numeric(names(base::which.max(table(x)))))
+
+      lapply(P(sim)$start, function(x) x / diag(sm))
+    } else {
+      diag(sm) <- oom(P(sim)$start)
+      P(sim)$start / diag(sm)
+    }
+  }
 
   out <- if (is.list(start)) {
     if (P(sim)$cores > 1) {
@@ -454,16 +465,15 @@ frequencyFitRun <- function(sim) {
 
     ## Select best minimum amongst all trials
     out[[which.min(sapply(out, "[[", "objective"))]]
-
   } else {
     objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace)))
   }
 
   ## Compute the standard errors around the estimates
-    hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
-    hess.call[names(formals(objfun)[-1L])] <- parse(text = formalArgs(objfun)[-1L])
-    hess <- eval(hess.call)
-    se <- suppressWarnings(tryCatch(drop(sqrt(diag(solve(hess))) %*% sm), error = function(e) NA))
+  hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
+  hess.call[names(formals(objfun)[-1L])] <- parse(text = formalArgs(objfun)[-1L])
+  hess <- eval(hess.call)
+  se <- suppressWarnings(tryCatch(drop(sqrt(diag(solve(hess))) %*% sm), error = function(e) NA))
 
   convergence <- TRUE
 
