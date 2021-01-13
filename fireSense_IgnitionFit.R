@@ -294,7 +294,7 @@ frequencyFitRun <- function(sim) {
 
   ## Upper bounds
   DEoptimUB <- c(
-    if (is.null(P(sim)$ub$c)) {
+    if (is.null(P(sim)$ub[["coef"]])) {
       ## Automatically estimate an upper boundary for each parameter
       (suppressWarnings(
         tryCatch(
@@ -320,7 +320,7 @@ frequencyFitRun <- function(sim) {
         ub
       }
     } else {
-      rep_len(P(sim)$ub$c, nx) ## User-defined bounds (recycled if necessary)
+      rep_len(P(sim)$ub[["coef"]], nx) ## User-defined bounds (recycled if necessary)
     },
     kUB
   )
@@ -329,17 +329,17 @@ frequencyFitRun <- function(sim) {
   DEoptimLB <- c({
     switch(family$link,
            log = {
-             if (is.null(P(sim)$lb$c)) {
+             if (is.null(P(sim)$lb[["coef"]])) {
                -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
              } else {
-               rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
+               rep_len(P(sim)$lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
 
            }, identity = {
-             if (is.null(P(sim)$lb$c)) {
+             if (is.null(P(sim)$lb[["coef"]])) {
                rep_len(1e-16, nx) ## Ensure non-negativity
              } else {
-               rep_len(P(sim)$lb$c, nx) ## User-defined bounds (recycled if necessary)
+               rep_len(P(sim)$lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
            }, stop(moduleName, "> Link function ", family$link, " is not supported."))
   }, kLB)
@@ -353,11 +353,11 @@ frequencyFitRun <- function(sim) {
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
   ## Upper bounds
   nlminbUB <- DEoptimUB
-  if (is.null(P(sim)$ub$c))
+  if (is.null(P(sim)$ub[["coef"]]))
     nlminbUB[1:nx] <- rep_len(Inf, nx)
 
   ## Lower bounds
-  nlminbLB <- if (is.null(P(sim)$lb$c)) {
+  nlminbLB <- if (is.null(P(sim)$lb[["coef"]])) {
     c(switch(family$link,
              log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
              identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
