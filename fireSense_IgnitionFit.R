@@ -26,7 +26,7 @@ defineModule(sim, list(
                     desc = paste("a character vector indicating the names of objects in the",
                                  "`simList` environment in which to look for variables present",
                                  "in the model formula. `data` objects should be data.frames.")),
-    defineParameter("family", "function, character", default = "negative.binomial",
+    defineParameter("family", "function, character", default = quote(poisson(link = "identity")),
                     desc = paste("a family function (must be wrapped with `quote()`) or a",
                                  "character string naming a family function.",
                                  "For additional details see `?family`.")),
@@ -150,7 +150,6 @@ frequencyFitInit <- function(sim) {
 }
 
 frequencyFitRun <- function(sim) {
-  browser()
 
   moduleName <- current(sim)$moduleName
 
@@ -199,7 +198,7 @@ frequencyFitRun <- function(sim) {
     nk <- length(kNames)
     allx <- allxy[!allxy %in% c(y, kNames)]
 
-    missing <- !allxy[!allxy %in% kNames] %in% ls(mod_env, all.names = TRUE)
+    missing <- !allxy[!allxy %in% kNames] %in% ls(sim$fireSense_ignitionCovariates, all.names = TRUE)
 
     if (s <- sum(missing))
       stop(moduleName, "> '", allxy[!allxy %in% kNames][missing][1L], "'",
@@ -210,13 +209,13 @@ frequencyFitRun <- function(sim) {
     pwVarNames <- sapply(specialsTerms, "[[", "variable", simplify = FALSE)
 
     kUB <- if (is.null(P(sim)$ub$k)) {
-      lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else mod_env[[x]])) %>% unlist()
+      lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else sim$fireSense_ignitionCovariates[[x]])) %>% unlist()
     } else {
       rep_len(P(sim)$ub$k, nk) ## User-defined bounds (recycled if necessary)
     }
 
     kLB <- if (is.null(P(sim)$lb$k)) {
-      lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else mod_env[[x]])) %>% unlist()
+      lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else sim$fireSense_ignitionCovariates[[x]])) %>% unlist()
     } else {
       rep_len(P(sim)$lb$k, nk) ## User-defined bounds (recycled if necessary)
     }
@@ -226,12 +225,12 @@ frequencyFitRun <- function(sim) {
         kNames,
         z = pwVarNames,
         FUN = function(w, z)
-          mod_env[[w]] <- mean(if (is(z, "AsIs")) z else mod_env[[z]]),
+          sim$fireSense_ignitionCovariates[[w]] <- mean(if (is(z, "AsIs")) z else sim$fireSense_ignitionCovariates[[z]]),
         SIMPLIFY = FALSE
       )
     )
 
-    updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse = "; "))
+    updateKnotExpr <- parse(text = paste0("sim$fireSense_ignitionCovariates[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse = "; "))
   } else {
     missing <- !allxy %in% ls(sim$fireSense_ignitionCovariates, all.names = TRUE)
 
@@ -258,7 +257,7 @@ frequencyFitRun <- function(sim) {
           glm.nb(formula = as.formula(fireSense_ignitionFormula),
                  y = FALSE,
                  model = FALSE,
-                 data = mod_env)[["theta"]]
+                 data = sim$fireSense_ignitionCovariates)[["theta"]]
         )
       )
     )
@@ -276,10 +275,10 @@ frequencyFitRun <- function(sim) {
 
   linkinv <- family$linkinv
 
-  mm <- model.matrix(object = terms, data = mod_env)
+  mm <- model.matrix(object = terms, data = sim$fireSense_ignitionCovariates)
 
   # Does the model formula contain an offset?
-  model_offset <- model.offset(model.frame(as.formula(fireSense_ignitionFormula), mod_env))
+  model_offset <- model.offset(model.frame(as.formula(fireSense_ignitionFormula), sim$fireSense_ignitionCovariates))
   offset <- if (is.null(model_offset)) 0 else model_offset
 
   ## Define the scaling matrix. This is used later in the optimization process
@@ -303,7 +302,7 @@ frequencyFitRun <- function(sim) {
             formula = as.formula(fireSense_ignitionFormula),
             y = FALSE,
             model = FALSE,
-            data = mod_env,
+            data = sim$fireSense_ignitionCovariates,
             family = poisson(link = family$link)
           ),
           error = function(e) stop(
