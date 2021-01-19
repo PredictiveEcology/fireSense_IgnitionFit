@@ -26,7 +26,7 @@ defineModule(sim, list(
                     desc = paste("a character vector indicating the names of objects in the",
                                  "`simList` environment in which to look for variables present",
                                  "in the model formula. `data` objects should be data.frames.")),
-    defineParameter("family", "function, character", default = quote(poisson(link = "identity")),
+    defineParameter("family", "function, character", default = quote(poisson(link = "log")),
                     desc = paste("a family function (must be wrapped with `quote()`) or a",
                                  "character string naming a family function.",
                                  "For additional details see `?family`.")),
@@ -398,11 +398,20 @@ frequencyFitRun <- function(sim) {
     ## Use these estimates to compute the order of magnitude of these parameters
 
     control <- list(itermax = P(sim)$iterDEoptim, trace = P(sim)$trace)
-    if (P(sim)$cores > 1) control$cluster <- cl
+    if (P(sim)$cores > 1) {
+      control$cluster <- cl
+    }
 
-    DEoptimCall <- quote(DEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB, control = do.call("DEoptim.control", control)))
-    DEoptimCall[names(formals(objfun)[-1])] <- parse(text = formalArgs(objfun)[-1])
-    DEoptimBestMem <- eval(DEoptimCall) %>% `[[`("optim") %>% `[[`("bestmem")
+    DEoptimCall <- quote(DEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
+                                 control = do.call("DEoptim.control", control),
+                                 mod_env = sim$fireSense_ignitionFitCovariates,
+                                 linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
+                                 offset = offset))
+
+    DEoptimBestMem <- Cache(FUN = eval, expr = DEoptimCall, envir = environment(),
+                            userTags = c(".objIgnitionFit", "DEoptimCall"),
+                                        omitArgs = "envir") %>%
+      `[[`("optim") %>% `[[`("bestmem")
 
     ## Update scaling matrix
     diag(sm) <- oom(DEoptimBestMem)
@@ -453,12 +462,20 @@ frequencyFitRun <- function(sim) {
         )
       }
 
-      out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, control = c(P(sim)$nlminb.control, list(trace = trace)))
+      #Cache these calls?
+      out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun,
+                            control = c(P(sim)$nlminb.control, list(trace = trace)),
+                            lower = nlminbLB, upper = nlminbUB, cores = 1, linkinv = linkinv,
+                            nll = nll, sm = sm, nx = nx, mm = mm,
+                            mod_env = sim$fireSense_ignitionCovariates, offset = offset)
+
 
       if (trace) clusterEvalQ(cl, sink())
     } else {
       out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB,
-                    control = c(P(sim)$nlminb.control, list(trace = trace)))
+                    control = c(P(sim)$nlminb.control, list(trace = trace)),
+                    linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
+                    mod_env = sim$fireSense_ignitionCovariates, offset = offset)
     }
 
     ## Select best minimum amongst all trials
@@ -468,8 +485,12 @@ frequencyFitRun <- function(sim) {
   }
 
   ## Compute the standard errors around the estimates
-  hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par))
-  hess.call[names(formals(objfun)[-1L])] <- parse(text = formalArgs(objfun)[-1L])
+  hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par,
+                                       mod_env = sim$fireSense_ignitionCovariates,
+                                       linkinv = linkinv, nll = nll,
+                                       sm = sm, nx = nx, mm = mm,
+                                       offset = offset))
+
   hess <- eval(hess.call)
   se <- suppressWarnings(tryCatch(drop(sqrt(diag(solve(hess))) %*% sm), error = function(e) NA))
 
