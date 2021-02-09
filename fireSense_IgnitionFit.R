@@ -26,7 +26,7 @@ defineModule(sim, list(
                     desc = paste("a character vector indicating the names of objects in the",
                                  "`simList` environment in which to look for variables present",
                                  "in the model formula. `data` objects should be data.frames.")),
-    defineParameter("family", "function, character", default = quote(poisson(link = "log")),
+    defineParameter("family", "function, character", default = quote(poisson(link = "identity")),
                     desc = paste("a family function (must be wrapped with `quote()`) or a",
                                  "character string naming a family function.",
                                  "For additional details see `?family`.")),
