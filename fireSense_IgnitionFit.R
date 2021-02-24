@@ -230,7 +230,7 @@ frequencyFitRun <- function(sim) {
       )
     )
 
-    updateKnotExpr <- parse(text = paste0("sim$fireSense_ignitionCovariates[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse = "; "))
+    updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse = "; "))
   } else {
     missing <- !allxy %in% ls(sim$fireSense_ignitionCovariates, all.names = TRUE)
 
@@ -269,9 +269,10 @@ frequencyFitRun <- function(sim) {
   isFamilyNB <- grepl(x = family$family, pattern = "Negative Binomial")
 
   # Extract starting value for theta
-  if (isFamilyNB)
+  if (isFamilyNB) {
     theta <- as.numeric(gsub(x = regmatches(family$family, gregexpr("\\(.*?\\)", family$family))[[1L]],
                              pattern = "[\\(\\)]", replacement = ""))
+  }
 
   linkinv <- family$linkinv
 
@@ -402,16 +403,27 @@ frequencyFitRun <- function(sim) {
       control$cluster <- cl
     }
 
-    DEoptimCall <- quote(DEoptim(fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
-                                 control = do.call("DEoptim.control", control),
-                                 mod_env = sim$fireSense_ignitionFitCovariates,
-                                 linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
-                                 offset = offset))
-
-    DEoptimBestMem <- Cache(FUN = eval, expr = DEoptimCall, envir = environment(),
-                            userTags = c(".objIgnitionFit", "DEoptimCall"),
-                                        omitArgs = "envir") %>%
-      `[[`("optim") %>% `[[`("bestmem")
+    browser()
+    if (hvPW) {
+      #no model matrix passed in objFunPW
+      DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
+                              control = do.call("DEoptim.control", control),
+                              formula = P(sim)$fireSense_ignitionFormula,
+                              mod_env = sim$fireSense_ignitionFitCovariates,
+                              linkinv = linkinv, nll = nll, sm = sm, nx = nx,
+                              offset = offset, updateKnotExpr = updateKnotExpr,
+                              userTags = c("ignitionFit", "DEoptim"))%>%
+        `[[`("optim") %>% `[[`("bestmem")
+    } else {
+      DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
+                              control = do.call("DEoptim.control", control),
+                              formula = P(sim)$fireSense_ignitionFormula,
+                              mod_env = sim$fireSense_ignitionFitCovariates,
+                              linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
+                              offset = offset,
+                              userTags = c("ignitionFit", "DEoptim"))%>%
+        `[[`("optim") %>% `[[`("bestmem")
+    }
 
     ## Update scaling matrix
     diag(sm) <- oom(DEoptimBestMem)
