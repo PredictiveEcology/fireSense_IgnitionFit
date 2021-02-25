@@ -156,11 +156,11 @@ frequencyFitRun <- function(sim) {
  if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula)))
     stop(moduleName, "> The formula describes an empty model.")
 
-  fireSense_ignitionFormula <- P(sim)$fireSense_ignitionFormula
-  terms <- terms.formula(as.formula(fireSense_ignitionFormula), specials = "pw")
+  fireSense_ignitionFormula <- as.formula(P(sim)$fireSense_ignitionFormula)
+  terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
   if (attr(terms, "response")) {
-    y <- as.formula(fireSense_ignitionFormula)[[2L]]
+    y <- fireSense_ignitionFormula[[2L]]
   } else {
     stop(moduleName, "> Incomplete formula, the LHS is missing.")
   }
@@ -254,7 +254,7 @@ frequencyFitRun <- function(sim) {
       family(),
       error = function(e) family(
         theta = suppressWarnings(
-          glm.nb(formula = as.formula(fireSense_ignitionFormula),
+          glm.nb(formula = fireSense_ignitionFormula,
                  y = FALSE,
                  model = FALSE,
                  data = sim$fireSense_ignitionCovariates)[["theta"]]
@@ -279,7 +279,7 @@ frequencyFitRun <- function(sim) {
   mm <- model.matrix(object = terms, data = sim$fireSense_ignitionCovariates)
 
   # Does the model formula contain an offset?
-  model_offset <- model.offset(model.frame(as.formula(fireSense_ignitionFormula), sim$fireSense_ignitionCovariates))
+  model_offset <- model.offset(model.frame(fireSense_ignitionFormula, sim$fireSense_ignitionCovariates))
   offset <- if (is.null(model_offset)) 0 else model_offset
 
   ## Define the scaling matrix. This is used later in the optimization process
@@ -300,7 +300,7 @@ frequencyFitRun <- function(sim) {
       (suppressWarnings(
         tryCatch(
           glm(
-            formula = as.formula(fireSense_ignitionFormula),
+            formula = fireSense_ignitionFormula,
             y = FALSE,
             model = FALSE,
             data = sim$fireSense_ignitionCovariates,
@@ -408,7 +408,7 @@ frequencyFitRun <- function(sim) {
       #no model matrix passed in objFunPW
       DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
-                              formula = P(sim)$fireSense_ignitionFormula,
+                              formula = fireSense_ignitionFormula,
                               mod_env = sim$fireSense_ignitionFitCovariates,
                               linkinv = linkinv, nll = nll, sm = sm, nx = nx,
                               offset = offset, updateKnotExpr = updateKnotExpr,
@@ -417,7 +417,7 @@ frequencyFitRun <- function(sim) {
     } else {
       DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
-                              formula = P(sim)$fireSense_ignitionFormula,
+                              formula = fireSense_ignitionFormula,
                               mod_env = sim$fireSense_ignitionFitCovariates,
                               linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
                               offset = offset,
