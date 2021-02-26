@@ -16,7 +16,7 @@ defineModule(sim, list(
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
-  reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel"),
+  reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel", "pemisc"),
   parameters = rbind(
     defineParameter("cores", "integer", default = 1,
                     desc = paste("non-negative integer. Defines the number of logical cores",
@@ -403,36 +403,39 @@ frequencyFitRun <- function(sim) {
       control$cluster <- cl
     }
 
-    browser()
+    # control$cluster <- NULL #when debugging DEoptim
     if (hvPW) {
-      #no model matrix passed in objFunPW
+
       DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
-                              formula = fireSense_ignitionFormula,
-                              mod_env = sim$fireSense_ignitionFitCovariates,
+                              formula = P(sim)$fireSense_ignitionFormula,
+                              mod_env = sim$fireSense_ignitionCovariates,
                               linkinv = linkinv, nll = nll, sm = sm, nx = nx,
                               offset = offset, updateKnotExpr = updateKnotExpr,
-                              userTags = c("ignitionFit", "DEoptim"))%>%
+                              userTags = c("ignitionFit", "DEoptim")) %>%
         `[[`("optim") %>% `[[`("bestmem")
     } else {
       DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
-                              formula = fireSense_ignitionFormula,
-                              mod_env = sim$fireSense_ignitionFitCovariates,
+                              formula = P(sim)$fireSense_ignitionFormula,
+                              mod_env = sim$fireSense_ignitionCovariates,
                               linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
                               offset = offset,
-                              userTags = c("ignitionFit", "DEoptim"))%>%
+                              userTags = c("ignitionFit", "DEoptim")) %>%
         `[[`("optim") %>% `[[`("bestmem")
     }
 
     ## Update scaling matrix
     diag(sm) <- oom(DEoptimBestMem)
 
+    #TODO: I believe this is a mistake, and the length(nlminUB) subset should be replaced with
     ## Update of the lower and upper bounds of the coefficients based on the scaling matrix
     nlminbLB[c(1:nx, length(nlminbLB))] <- nlminbLB[c(1:nx, length(nlminbLB))] / diag(sm)[c(1:nx, length(nlminbLB))]
     nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
 
     ## Update of the lower and upper bounds for the knots based on the scaling matrix
+    #TODO: fix the partial matching
+
     if (hvPW) {
       kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
       nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
@@ -474,20 +477,15 @@ frequencyFitRun <- function(sim) {
         )
       }
 
-      #Cache these calls?
+      browser()
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun,
-                            control = c(P(sim)$nlminb.control, list(trace = trace)),
-                            lower = nlminbLB, upper = nlminbUB, cores = 1, linkinv = linkinv,
-                            nll = nll, sm = sm, nx = nx, mm = mm,
-                            mod_env = sim$fireSense_ignitionCovariates, offset = offset)
-
+                            lower = nlminLB, upper = nlminUB,
+                            control = c(P(sim)$nlminb.control, list(trace = trace)))
 
       if (trace) clusterEvalQ(cl, sink())
     } else {
       out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB,
-                    control = c(P(sim)$nlminb.control, list(trace = trace)),
-                    linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
-                    mod_env = sim$fireSense_ignitionCovariates, offset = offset)
+                    control = c(P(sim)$nlminb.control, list(trace = trace)))
     }
 
     ## Select best minimum amongst all trials
