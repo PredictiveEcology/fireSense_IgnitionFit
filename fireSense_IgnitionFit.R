@@ -477,9 +477,9 @@ frequencyFitRun <- function(sim) {
         )
       }
 
-      browser()
+      # browser()
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun,
-                            lower = nlminLB, upper = nlminUB,
+                            lower = nlminbLB, upper = nlminbUB,
                             control = c(P(sim)$nlminb.control, list(trace = trace)))
 
       if (trace) clusterEvalQ(cl, sink())
