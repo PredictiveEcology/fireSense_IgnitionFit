@@ -464,6 +464,7 @@ frequencyFitRun <- function(sim) {
   }
 
   out <- if (is.list(start)) {
+
     if (P(sim)$cores > 1) {
       outputPath <- outputPath(sim)
       basePattern <- paste(moduleName, Sys.info()[["nodename"]], format(Sys.time(), "%Y%m%d"), "trace", sep = "_")
@@ -476,15 +477,21 @@ frequencyFitRun <- function(sim) {
           sink(file.path(outputPath, paste0(basePattern, ".", Sys.getpid())))
         )
       }
-
-      # browser()
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun,
-                            lower = nlminbLB, upper = nlminbUB,
+                            lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                            linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                            mod_env = sim$fireSense_ignitionCovariates, offset = offset,
+                            formula = P(sim)$fireSense_ignitionFormula,
+                            updateKnotExpr = updateKnotExpr,
                             control = c(P(sim)$nlminb.control, list(trace = trace)))
 
       if (trace) clusterEvalQ(cl, sink())
     } else {
-      out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB,
+      out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                    linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                    mod_env = sim$fireSense_ignitionCovariates, offset = offset,
+                    formula = P(sim)$fireSense_ignitionFormula,
+                    updateKnotExpr = updateKnotExpr,
                     control = c(P(sim)$nlminb.control, list(trace = trace)))
     }
 
@@ -495,13 +502,23 @@ frequencyFitRun <- function(sim) {
   }
 
   ## Compute the standard errors around the estimates
-  hess.call <- quote(numDeriv::hessian(func = objfun, x = out$par,
-                                       mod_env = sim$fireSense_ignitionCovariates,
-                                       linkinv = linkinv, nll = nll,
-                                       sm = sm, nx = nx, mm = mm,
-                                       offset = offset))
+  if (hvPW) {
+    hess <- Cache(numDeriv::hessian, func = objfun, x = out$par,
+                       mod_env = sim$fireSense_ignitionCovariates,
+                       linkinv = linkinv, nll = nll,
+                       sm = sm, nx = nx, updateKnotExpr = updateKnotExpr,
+                       formula = P(sim)$fireSense_ignitionFormula,
+                       offset = offset,
+                       userTags = c("fireSense_ignitionFit", "hessian"))
+  } else {
+    hess <- Cache(numDeriv::hessian, func = objfun, x = out$par,
+                  mod_env = sim$fireSense_ignitionCovariates,
+                  linkinv = linkinv, nll = nll,
+                  sm = sm, nx = nx, mm = mm,
+                  offset = offset,
+                  userTags = c("fireSense_ignitionFit", "hessian"))
+  }
 
-  hess <- eval(hess.call)
   se <- suppressWarnings(tryCatch(drop(sqrt(diag(solve(hess))) %*% sm), error = function(e) NA))
 
   convergence <- TRUE
