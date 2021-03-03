@@ -17,7 +17,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9040)"),
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9041)"),
   parameters = rbind(
     defineParameter("cores", "integer", default = 1,
                     desc = paste("non-negative integer. Defines the number of logical cores",
@@ -57,7 +57,7 @@ defineModule(sim, list(
                                  Those are passed to `nlminb` and can be a single vector, or a list of vectors.",
                                  "In the latter case, only the best solution, that is,",
                                  "the one which minimizes the most the objective function, is kept.")),
-    defineParameter("trace", "numeric", default = 0,
+    defineParameter("trace", "numeric", default = 1,
                     desc = paste("non-negative integer. If > 0, tracing information on the progress",
                                  "of the optimization are printed every `trace` iteration.",
                                  "If parallel computing is enable, nlminb trace logs are written",
@@ -153,6 +153,12 @@ frequencyFitInit <- function(sim) {
 frequencyFitRun <- function(sim) {
 
   moduleName <- current(sim)$moduleName
+
+  setDT(sim$fireSense_ignitionCovariates)
+  sim$fireSense_ignitionCovariates[, MDC := as.numeric(LandR:::rescale(MDC, to = c(0.001, 1)))]
+  setDF(sim$fireSense_ignitionCovariates)
+  params(sim)[[currentModule(sim)]]$ub$knots <- quantile(sim$fireSense_ignitionCovariates$MDC, probs = 0.6)
+
 
  if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula)))
     stop(moduleName, "> The formula describes an empty model.")
@@ -389,9 +395,16 @@ frequencyFitRun <- function(sim) {
       mkCluster <- parallel::makePSOCKcluster
     }
 
+    message("Creating cluster")
     cl <- mkCluster(P(sim)$cores)
     on.exit(stopCluster(cl))
     clusterEvalQ(cl, library("MASS"))
+    mod_env <- sim$fireSense_ignitionCovariates
+    mm <- model.matrix(as.formula(P(sim)$fireSense_ignitionFormula),
+                       sim$fireSense_ignitionCovariates)
+    assign("mod_env", mod_env, envir = .GlobalEnv)
+    assign("mm", mm, envir = .GlobalEnv)
+    clusterExport(cl, varlist = list("mod_env", "mm"), envir = environment())
   }
 
   ## If starting values are not supplied
@@ -407,14 +420,16 @@ frequencyFitRun <- function(sim) {
     # control$cluster <- NULL #when debugging DEoptim
     if (hvPW) {
 
-      DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
+      message("Starting DEoptim")
+      DEoptimBestMem <- DEoptim(objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
-                              formula = P(sim)$fireSense_ignitionFormula,
-                              mod_env = sim$fireSense_ignitionCovariates,
+                              # mm = mm,
+                              # formula = P(sim)$fireSense_ignitionFormula,
+                              # mod_env = sim$fireSense_ignitionCovariates,
                               linkinv = linkinv, nll = nll, sm = sm, nx = nx,
-                              offset = offset, updateKnotExpr = updateKnotExpr,
-                              userTags = c("ignitionFit", "DEoptim")) %>%
-        `[[`("optim") %>% `[[`("bestmem")
+                              offset = offset, updateKnotExpr = updateKnotExpr)#,
+#                              userTags = c("ignitionFit", "DEoptim")) %>%
+#        `[[`("optim") %>% `[[`("bestmem")
     } else {
       DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
