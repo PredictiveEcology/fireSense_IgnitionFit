@@ -400,8 +400,8 @@ frequencyFitRun <- function(sim) {
     on.exit(stopCluster(cl))
     clusterEvalQ(cl, library("MASS"))
     mod_env <- sim$fireSense_ignitionCovariates
-    mm <- model.matrix(as.formula(P(sim)$fireSense_ignitionFormula),
-                       sim$fireSense_ignitionCovariates)
+    #mm1 <- model.matrix(as.formula(P(sim)$fireSense_ignitionFormula),
+    #                   sim$fireSense_ignitionCovariates)
     assign("mod_env", mod_env, envir = .GlobalEnv)
     assign("mm", mm, envir = .GlobalEnv)
     clusterExport(cl, varlist = list("mod_env", "mm"), envir = environment())
@@ -421,15 +421,18 @@ frequencyFitRun <- function(sim) {
     if (hvPW) {
 
       message("Starting DEoptim")
-      DEoptimBestMem <- DEoptim(objfun, lower = DEoptimLB, upper = DEoptimUB,
+      startTime <- Sys.time()
+      DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
                               # mm = mm,
                               # formula = P(sim)$fireSense_ignitionFormula,
                               # mod_env = sim$fireSense_ignitionCovariates,
                               linkinv = linkinv, nll = nll, sm = sm, nx = nx,
-                              offset = offset, updateKnotExpr = updateKnotExpr)#,
-#                              userTags = c("ignitionFit", "DEoptim")) %>%
-#        `[[`("optim") %>% `[[`("bestmem")
+                              offset = offset, updateKnotExpr = updateKnotExpr,
+                              userTags = c("ignitionFit", "DEoptim")) %>%
+        `[[`("optim") %>% `[[`("bestmem")
+      endTime <- Sys.time()
+      message("... Done. It took: ", format(round(endTime - startTime, 2), units = "auto"))
     } else {
       DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
@@ -493,6 +496,7 @@ frequencyFitRun <- function(sim) {
           sink(file.path(outputPath, paste0(basePattern, ".", Sys.getpid())))
         )
       }
+      message("Starting nlminb ... ")
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun,
                             lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                             linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
@@ -500,6 +504,7 @@ frequencyFitRun <- function(sim) {
                             formula = P(sim)$fireSense_ignitionFormula,
                             updateKnotExpr = updateKnotExpr,
                             control = c(P(sim)$nlminb.control, list(trace = trace)))
+      message("... Done")
 
       if (trace) clusterEvalQ(cl, sink())
     } else {
