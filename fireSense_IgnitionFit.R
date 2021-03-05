@@ -521,16 +521,22 @@ frequencyFitRun <- function(sim) {
 
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
         #  MUST MANUALLY IDENTIFY THE PIDS
-        pids <- 1784000 + 307:320;
-        aa <- lapply(paste0("~/GitHub/WBI_fireSense/outputs/NT/fireSense_IgnitionFit_spades189_20210304_trace.", pids), readLines)
-        bb <- lapply(aa, function(bb) {
-          cc <- do.call(rbind, lapply(strsplit(bb, split = ":* +"), as.numeric))
-          wh <- which(cc[, 2] == 0) - 1
-          wh <- setdiff(wh, 0)
-          cc[wh,, drop = FALSE]
-        })
-        cc <- do.call(rbind, bb)
-        dd <- as.data.table(cc[order(cc[, 2]),])
+        if (exists("pids")) {
+          aa <- lapply(paste0("~/GitHub/WBI_fireSense/outputs/NT/fireSense_IgnitionFit_spades189_20210305_trace.", pids), readLines)
+          bb <- lapply(aa, function(bb) {
+            bb <- gsub("^ +", "", bb)
+            vals <- strsplit(bb, split = ":* +")
+            cc <- do.call(rbind, lapply(vals, as.numeric))
+            wh <- unique(c(which(cc[, 1] == 0) - 1, NROW(cc)))
+            wh <- setdiff(wh, 0)
+            cc[wh,, drop = FALSE]
+          })
+          cc <- do.call(rbind, bb)
+          dd <- head(data.table::as.data.table(cc[order(cc[, 2]),]), 20)
+          colnms <- c("IterationNumStopped", "ObjFunValue", attr(terms, "term.labels"),
+                      unlist(lapply(updateKnotExpr, function(x) x[[2]][[3]])), "NB_theta")
+          (data.table::setnames(dd, colnms))
+        }
       }
       message("... Done")
 
