@@ -17,7 +17,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9046)"),
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9047)"),
   parameters = rbind(
     defineParameter("cores", "integer", default = 1,
                     desc = paste("non-negative integer. Defines the number of logical cores",
@@ -420,8 +420,8 @@ frequencyFitRun <- function(sim) {
       control$itermax <- 300
       browser()
       DEout <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
-                              control = do.call("DEoptim.control", control),
-                              formula = P(sim)$fireSense_ignitionFormula,
+                     control = do.call("DEoptim.control", control),
+                     formula = P(sim)$fireSense_ignitionFormula,
                      mod_env = sim$fireSense_ignitionCovariates,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx,
                      offset = offset, updateKnotExpr = updateKnotExpr,
@@ -438,35 +438,39 @@ frequencyFitRun <- function(sim) {
         `[[`("optim") %>% `[[`("bestmem")
     }
 
-    ## Update scaling matrix
-    diag(sm) <- oom(DEoptimBestMem)
+    if (FALSE) { # THIS IS ELIOT BLOCKING THIS -- I DON"T THINK IT IS NECESSARY
+      ## Update scaling matrix
+      diag(sm) <- oom(DEoptimBestMem)
 
-    #TODO: I believe this is a mistake, and the length(nlminUB) subset should be replaced with
-    ## Update of the lower and upper bounds of the coefficients based on the scaling matrix
-    nlminbLB <- nlminbLB / diag(sm)
-    nlminbUB <- nlminbUB / diag(sm)
+      #TODO: I believe this is a mistake, and the length(nlminUB) subset should be replaced with
+      ## Update of the lower and upper bounds of the coefficients based on the scaling matrix
+      nlminbLB <- nlminbLB / diag(sm)
+      nlminbUB <- nlminbUB / diag(sm)
 
-    #nlminbLB[c(1:nx, length(nlminbLB))] <- nlminbLB[c(1:nx, length(nlminbLB))] / diag(sm)[c(1:nx, length(nlminbLB))]
-    #nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
+      #nlminbLB[c(1:nx, length(nlminbLB))] <- nlminbLB[c(1:nx, length(nlminbLB))] / diag(sm)[c(1:nx, length(nlminbLB))]
+      #nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
 
-    ## Update of the lower and upper bounds for the knots based on the scaling matrix
-    #TODO: fix the partial matching
+      ## Update of the lower and upper bounds for the knots based on the scaling matrix
+      #TODO: fix the partial matching
 
-    if (hvPW) {
-      kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
-      nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
+      if (hvPW) {
+        kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
+        nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
 
-      kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
-      nlminbUB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
+        kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
+        nlminbUB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
+      }
+
+      getRandomStarts <- function(.) {
+       pmin(pmax(rnorm(length(DEoptimBestMem), 0L, 2L) / 40 +
+                   unname(DEoptimBestMem / oom(DEoptimBestMem)), nlminbLB), nlminbUB)
+      }
+      start <- c(lapply(1:P(sim)$iterNlminb, getRandomStarts),
+                list(unname(DEoptimBestMem / oom(DEoptimBestMem))))
     }
 
+    # This is ELIOT's change March 5, 2021 -- simpler -- use more Information from DEoptim
     start <- split(DEout$member$pop, seq(NROW(DEout$member$pop)))
-    #getRandomStarts <- function(.) {
-    #  pmin(pmax(rnorm(length(DEoptimBestMem), 0L, 2L) / 40 +
-    #              unname(DEoptimBestMem / oom(DEoptimBestMem)), nlminbLB), nlminbUB)
-    #}
-    #start <- c(lapply(1:P(sim)$iterNlminb, getRandomStarts),
-    #           list(unname(DEoptimBestMem / oom(DEoptimBestMem))))
   } else {
     start <- if (is.list(P(sim)$start)) {
       diag(sm) <- lapply(P(sim)$start, oom) %>%
@@ -495,6 +499,7 @@ frequencyFitRun <- function(sim) {
         )
       }
       message("Starting nlminb ... ")
+      browser()
       out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun,
                             lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                             linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
@@ -502,8 +507,11 @@ frequencyFitRun <- function(sim) {
                             formula = P(sim)$fireSense_ignitionFormula,
                             updateKnotExpr = updateKnotExpr,
                             control = c(P(sim)$nlminb.control, list(trace = trace)))
-      if (FALSE) {
-        pids <- 1784000 + 307:320; aa <- lapply(paste0("~/GitHub/WBI_fireSense/outputs/NT/fireSense_IgnitionFit_spades189_20210304_trace.", pids), readLines)
+
+      if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
+        #  MUST MANUALLY IDENTIFY THE PIDS
+        pids <- 1784000 + 307:320;
+        aa <- lapply(paste0("~/GitHub/WBI_fireSense/outputs/NT/fireSense_IgnitionFit_spades189_20210304_trace.", pids), readLines)
         bb <- lapply(aa, function(bb) {
           cc <- do.call(rbind, lapply(strsplit(bb, split = ":* +"), as.numeric))
           wh <- which(cc[, 2] == 0) - 1
@@ -517,11 +525,6 @@ frequencyFitRun <- function(sim) {
 
       if (trace) clusterEvalQ(cl, sink())
     } else {
-      DEoptimBestMem <- c(0.035547,    0.005960,    0.001118,    0.318472,    0.227213,    0.803050,    0.106184,    0.019238,    0.074035,    0.306645,    0.112640,    0.120402,    0.142217,    0.138744,    0.109269)
-
-      # DEoptimBestMem <- c(0.000010,    0.000007,    0.000003,    0.000289,    0.000284,    0.001340,    0.000091,    0.000020,    0.000034,    0.000269,  123.202095,  124.944181,  172.975829,  172.509741,  138.399639)
-      # DEoptimBestMem <- c(0.000007,    0.000009,    0.000001,    0.000292,    0.000282,    0.001348,    0.000094,    0.000029,    0.000023,    0.000260,  124.729139,  122.971900,  172.988124,  172.945087,  135.848640)
-      start <- list(DEoptimBestMem)
       out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                     mod_env = sim$fireSense_ignitionCovariates, offset = offset,
