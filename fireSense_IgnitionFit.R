@@ -604,6 +604,24 @@ frequencyFitRun <- function(sim) {
     warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
   } else if (anyNA(se)) {
     ## Negative values in the Hessian matrix suggest that the algorithm did not converge
+
+    tooClose <- 0.00001
+    closeToBounds <- abs(drop((best - DEoptimLB)/ (DEoptimUB - DEoptimLB))) < tooClose |
+      best < tooClose
+    ctb <- data.table(term = names(closeToBounds), best = best,
+                      upperBoundary = DEoptimUB,
+                      lowerBoundary = DEoptimLB,
+                      closeToBounds = closeToBounds)[closeToBounds]
+    possTerms <- attr(terms, "term.labels")[1:nx][!closeToBounds[1:nx]]
+    possForm <- paste0(terms[[2]], " ~ ", paste(possTerms, collapse = " + "))
+
+
+    message("It is possible that parameters are too close to their boundary values (or zero). ",
+            "The following are within ",tooClose*100,"% of their boundary and removing them ",
+            "from sim$fireSense_ignitionFormula may help with convergence or invertability... e.g.")
+    message("sim$fireSense_ignitionFormula <- \"", possForm, "\"")
+    messageDF(ctb)
+
     convergence <- FALSE
     convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
     warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
