@@ -171,6 +171,16 @@ frequencyFitRun <- function(sim) {
   # Remove rows of data with no cover and no ignitions
   whRowsHaveNoCover <- apply(as.data.frame(sim$fireSense_ignitionCovariates)[,c(2,4:8)], 1, sum) == 0
   sim$fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates[!whRowsHaveNoCover,]
+
+  # sim$fireSense_ignitionFormula <- paste0("ignitions ~ ",
+  #                                         # "youngAge:MDC + ",
+  #                                         "nonForest_highFlam:MDC + ",
+  #                                         "nonForest_lowFlam:MDC + class2:MDC + class3:MDC + ",
+  #                                         "youngAge:pw(MDC, k_YA) + nonForest_lowFlam:pw(MDC, k_NFLF) + ",
+  #                                         # "nonForest_highFlam:pw(MDC, k_NFHF) + class2:pw(MDC, k_class2) + ",
+  #                                         "class3:pw(MDC, k_class3) - 1")
+  # params(sim)[[currentModule(sim)]]$fireSense_ignitionFormula <- sim$fireSense_ignitionFormula
+  #
   fireSense_ignitionFormula <- as.formula(P(sim)$fireSense_ignitionFormula)
   terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
