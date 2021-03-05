@@ -550,12 +550,12 @@ frequencyFitRun <- function(sim) {
                     control = c(P(sim)$nlminb.control, list(trace = trace)))
     }
 
-    ## Select best minimum amongst all trials
     out
   } else {
     list(objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace))))
   }
 
+  ## Select best minimum amongst all trials
   outBest <- outNlminb[[which.min(sapply(outNlminb, "[[", "objective"))]]
 
   ## Compute the standard errors around the estimates
