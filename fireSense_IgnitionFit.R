@@ -626,12 +626,20 @@ frequencyFitRun <- function(sim) {
     possForm <- paste0(terms[[2]], " ~ ", paste(possTerms, collapse = " + "))
 
 
+    message("--------------------------------------------------")
     message("It is possible that parameters are too close to their boundary values (or zero). ",
             "The following are within ",tooClose*100,"% of their boundary and removing them ",
             "from sim$fireSense_ignitionFormula may help with convergence or invertability... e.g.")
     message("sim$fireSense_ignitionFormula <- \"", possForm, "\"")
     messageDF(ctb)
 
+    if (interactive())  {
+      out <- readline("Would you like to restart this IgnitionFit event with that new formula (Y or N)? ")
+      if (identical(tolower(out), "y")) {
+        sim$fireSense_ignitionFormula <- possForm
+        sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run", eventPriority = 1)
+      }
+    }
     convergence <- FALSE
     convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
 
