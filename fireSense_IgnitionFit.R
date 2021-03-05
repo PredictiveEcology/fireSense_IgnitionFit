@@ -16,8 +16,8 @@ defineModule(sim, list(
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
-  reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9047)"),
+  reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9048)"),
   parameters = rbind(
     defineParameter("cores", "integer", default = 1,
                     desc = paste("non-negative integer. Defines the number of logical cores",
@@ -71,6 +71,10 @@ defineModule(sim, list(
                                  "for coefficients to be estimated.",
                                  "These must be finite and will be recycled if necessary to match",
                                  "`length(coefficients)`.")),
+    defineParameter(".plots", "character", default = "screen",
+                    desc = "See ?Plots. There are a few plots that are made within this module, if set."),
+    defineParameter(".plotInitialTime", "numeric", default = start(sim),
+                    desc = "when to do plot"),
     defineParameter(".runInitialTime", "numeric", default = start(sim),
                     desc = "when to start this module? By default, the start time of the simulation."),
     defineParameter(".runInterval", "numeric", default = NA,
@@ -559,6 +563,24 @@ frequencyFitRun <- function(sim) {
 
   se <- suppressWarnings(tryCatch(drop(sqrt(diag(solve(hess))) %*% sm), error = function(e) NA))
 
+  if (!exists("outBest", inherits = FALSE)) {
+    best <- drop(as.matrix(dd[1, -(1:2)]))
+  } else {
+    best <- outBest$par
+    colnms <- c(attr(terms, "term.labels"),
+                unlist(lapply(updateKnotExpr, function(x) x[[2]][[3]])), "NB_theta")
+    names(best) <- colnms
+  }
+
+  if (anyPlotting(P(sim)$.plots)) {
+
+    ndLong <- pwPlotData(bestParams = best,
+                         formula = sim$fireSense_ignitionFormula,
+                         xColName = "MDC", nx = nx)
+    Plots(data = ndLong, fn = pwPlot, filename = "Ignition Rate per 100km2")#, types = "screen", .plotInitialTime = time(sim))
+  }
+
+
   convergence <- TRUE
 
   if (out$convergence) {
@@ -614,4 +636,43 @@ frequencyFitSave <- function(sim) {
   )
 
   invisible(sim)
+}
+
+pwPlot <- function(d)  {
+  ggplot(d,  aes(x=MDC, y=mu, group=Type, color=Type)) +
+    geom_line() +
+    labs(y = "Igntion rate per 100km2") + #, title = "Ignition Rate per 100km2") +
+    theme_bw()
+}
+
+pwPlotData <- function(bestParams, formula, xColName = "MDC", nx) {
+
+  newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
+                        nonForest_lowFlam = 0:1,
+                        class2 = 0:1, class3 = 0:1)
+  cns <- setdiff(colnames(newDat), xColName)
+
+  # bestParams <- drop(as.matrix(dd[1, -(1:2)]))
+
+  keep <- grep("^k_", names(bestParams), value = TRUE)
+  newDat <- data.table(newDat, t(bestParams[keep]))
+  for (cn in cns) {
+    set(newDat, which(newDat[[cn]] == 1), setdiff(cns, cn), 0)
+  }
+  newDat <- unique(newDat)
+  keepers <- apply(newDat[, ..cns], 1, function(x) sum(x) > 0)
+  newDat <- newDat[keepers]
+
+  # setnames(newDat, old = grep("V", colnames(newDat), value = TRUE), new = colnms[11:15+2])
+  mm <- model.matrix(as.formula(formula)[-2], newDat)
+  mu <- drop(mm %*% bestParams[1:nx]) + offset
+
+  ## link implementation
+  mu <- linkinv(mu)
+  newDat$mu <- mu
+  newDat <- newDat[, !..keep]
+  newDat[, MDC := MDC * 1000]
+  setkeyv(newDat, "MDC")
+  ndLong <- data.table::melt(newDat, measure.vars = 2:6, variable.name = "Type")
+  ndLong <- ndLong[value > 0]
 }
