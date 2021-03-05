@@ -423,9 +423,6 @@ frequencyFitRun <- function(sim) {
 
     # control$cluster <- NULL #when debugging DEoptim
     if (hvPW) {
-
-      control$itermax <- 300
-      browser()
       DEout <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                      control = do.call("DEoptim.control", control),
                      formula = P(sim)$fireSense_ignitionFormula,
@@ -478,6 +475,11 @@ frequencyFitRun <- function(sim) {
 
     # This is ELIOT's change March 5, 2021 -- simpler -- use more Information from DEoptim
     start <- split(DEout$member$pop, seq(NROW(DEout$member$pop)))
+
+    if (FALSE) { # This allows a faster estimate, but fewer different starting values
+      subset <- sample(NROW(start), size = length(cl))
+      start <- start[subset]
+    }
   } else {
     start <- if (is.list(P(sim)$start)) {
       diag(sm) <- lapply(P(sim)$start, oom) %>%
@@ -491,7 +493,7 @@ frequencyFitRun <- function(sim) {
     }
   }
 
-  out <- if (is.list(start)) {
+  outNlminb <- if (is.list(start)) {
 
     if (P(sim)$cores > 1) {
       outputPath <- outputPath(sim)
@@ -504,10 +506,12 @@ frequencyFitRun <- function(sim) {
           cl,
           sink(file.path(outputPath, paste0(basePattern, ".", Sys.getpid())))
         )
+        pids <- unlist(clusterEvalQ(cl, Sys.getpid()))
+        dput(pids)
+
       }
       message("Starting nlminb ... ")
-      browser()
-      out <- clusterApplyLB(cl = cl, x = start, fun = objNlminb, objective = objfun,
+      out <- Cache(clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                             lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                             linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                             mod_env = sim$fireSense_ignitionCovariates, offset = offset,
@@ -541,14 +545,16 @@ frequencyFitRun <- function(sim) {
     }
 
     ## Select best minimum amongst all trials
-    out[[which.min(sapply(out, "[[", "objective"))]]
+    out
   } else {
-    objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace)))
+    list(objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace))))
   }
+
+  outBest <- outNlminb[[which.min(sapply(outNlminb, "[[", "objective"))]]
 
   ## Compute the standard errors around the estimates
   if (hvPW) {
-    hess <- Cache(numDeriv::hessian, func = objfun, x = out$par,
+    hess <- Cache(numDeriv::hessian, func = objfun, x = outBest$par,
                   mod_env = sim$fireSense_ignitionCovariates,
                   linkinv = linkinv, nll = nll,
                   sm = sm, nx = nx, updateKnotExpr = updateKnotExpr,
@@ -556,7 +562,7 @@ frequencyFitRun <- function(sim) {
                   offset = offset,
                   userTags = c("fireSense_ignitionFit", "hessian"))
   } else {
-    hess <- Cache(numDeriv::hessian, func = objfun, x = out$par,
+    hess <- Cache(numDeriv::hessian, func = objfun, x = outBest$par,
                   mod_env = sim$fireSense_ignitionCovariates,
                   linkinv = linkinv, nll = nll,
                   sm = sm, nx = nx, mm = mm,
@@ -586,9 +592,9 @@ frequencyFitRun <- function(sim) {
 
   convergence <- TRUE
 
-  if (out$convergence) {
+  if (outBest$convergence) {
     convergence <- FALSE
-    convergDiagnostic <- paste0("nlminb optimizer did not converge (", out$message, ")")
+    convergDiagnostic <- paste0("nlminb optimizer did not converge (", outBest$message, ")")
     warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
   } else if (anyNA(se)) {
     ## Negative values in the Hessian matrix suggest that the algorithm did not converge
@@ -596,30 +602,30 @@ frequencyFitRun <- function(sim) {
     convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
     warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
   } else {
-    convergDiagnostic <- out$message
+    convergDiagnostic <- outBest$message
   }
 
   ## Parameters scaling: Revert back estimated coefficients to their original scale
-  out$par <- drop(out$par %*% sm)
+  outBest$par <- drop(outBest$par %*% sm)
 
   l <- list(formula = as.formula(fireSense_ignitionFormula),
             family = family,
-            coef = setNames(out$par[1:nx], colnames(mm)),
+            coef = setNames(outBest$par[1:nx], colnames(mm)),
             coef.se = setNames(se[1:nx], colnames(mm)),
-            LL = -out$objective,
-            AIC = 2 * length(out$par) + 2 * out$objective,
+            LL = -outBest$objective,
+            AIC = 2 * length(outBest$par) + 2 * outBest$objective,
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic)
 
   if (hvPW) {
-    l$knots <- setNames(out$par[(nx + 1L):(nx + nk)], kNames)
+    l$knots <- setNames(outBest$par[(nx + 1L):(nx + nk)], kNames)
     l$knots.se <- setNames(se[(nx + 1L):(nx + nk)], kNames)
   }
 
   if (isFamilyNB) {
     ## Update the NB family template with the estimated theta
-    l$family <- MASS::negative.binomial(theta = out$par[length(out$par)], link = family$link)
-    l$theta <- out$par[length(out$par)]
+    l$family <- MASS::negative.binomial(theta = outBest$par[length(outBest$par)], link = family$link)
+    l$theta <- outBest$par[length(outBest$par)]
     l$theta.se <- se[length(se)]
   }
 
