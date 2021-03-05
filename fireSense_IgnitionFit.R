@@ -624,6 +624,10 @@ frequencyFitRun <- function(sim) {
 
     convergence <- FALSE
     convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
+
+    message("It may also help to use Ben Bolker's approximation: sqrt(1/diag(hess)) mentioned here:")
+    message("https://cran.r-project.org/web/packages/bbmle/vignettes/mle2.pdf")
+    message("If there are Inf values, that indicates variables to remove")
     warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
   } else {
     convergDiagnostic <- outBest$message
