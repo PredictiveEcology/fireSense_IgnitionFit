@@ -168,6 +168,9 @@ frequencyFitRun <- function(sim) {
   if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula)))
     stop(moduleName, "> The formula describes an empty model.")
 
+  # Remove rows of data with no cover and no ignitions
+  whRowsHaveNoCover <- apply(as.data.frame(sim$fireSense_ignitionCovariates)[,c(2,4:8)], 1, sum) == 0
+  sim$fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates[!whRowsHaveNoCover,]
   fireSense_ignitionFormula <- as.formula(P(sim)$fireSense_ignitionFormula)
   terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
