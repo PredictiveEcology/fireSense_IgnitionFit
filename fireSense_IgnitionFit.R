@@ -162,8 +162,8 @@ frequencyFitRun <- function(sim) {
   sim$fireSense_ignitionCovariates[, MDC := MDC/1000]
   setDF(sim$fireSense_ignitionCovariates)
   # Redo parameter bounds after rescale
-  params(sim)[[currentModule(sim)]]$lb$knots <- quantile(sim$fireSense_ignitionCovariates$MDC, probs = 0.1)
-  params(sim)[[currentModule(sim)]]$ub$knots <- quantile(sim$fireSense_ignitionCovariates$MDC, probs = 0.9)
+  params(sim)[[currentModule(sim)]]$lb$knots <- quantile(sim$fireSense_ignitionCovariates$MDC, probs = 0.05)
+  params(sim)[[currentModule(sim)]]$ub$knots <- quantile(sim$fireSense_ignitionCovariates$MDC, probs = 0.95)
 
   if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula)))
     stop(moduleName, "> The formula describes an empty model.")
