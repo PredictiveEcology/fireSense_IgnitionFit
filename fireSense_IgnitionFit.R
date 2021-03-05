@@ -34,7 +34,7 @@ defineModule(sim, list(
     defineParameter("fireSense_ignitionFormula", "character", default = NA,
                     desc = paste("formula - as a character - describing the model to be fitted.",
                                  "Piece-wised terms can be specifed using `pw(variableName, knotName)`.")),
-    defineParameter("iterDEoptim", "integer", default = 2000,
+    defineParameter("iterDEoptim", "integer", default = 500,
                     desc = "maximum number of iterations allowed (DEoptim optimizer)."),
     defineParameter("iterNlminb", "integer", default = 500,
                     desc = paste("if start is not supplied, iterNlminb defines the number of trials,",
