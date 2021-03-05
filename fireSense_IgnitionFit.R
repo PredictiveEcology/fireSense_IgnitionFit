@@ -17,7 +17,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9042)"),
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9044)"),
   parameters = rbind(
     defineParameter("cores", "integer", default = 1,
                     desc = paste("non-negative integer. Defines the number of logical cores",
