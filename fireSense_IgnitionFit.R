@@ -486,7 +486,8 @@ frequencyFitRun <- function(sim) {
     # This is ELIOT's change March 5, 2021 -- simpler -- use more Information from DEoptim
     start <- split(DEout$member$pop, seq(NROW(DEout$member$pop)))
 
-    if (FALSE) { # This allows a faster estimate, but fewer different starting values
+    if (TRUE) { # This allows a faster estimate, but fewer different starting values
+      message("Subsetting for nlminb -- only running ", length(cl), " of the DEoptim pops")
       subset <- sample(NROW(start), size = length(cl))
       start <- start[subset]
     }
@@ -517,17 +518,19 @@ frequencyFitRun <- function(sim) {
           sink(file.path(outputPath, paste0(basePattern, ".", Sys.getpid())))
         )
         pids <- unlist(clusterEvalQ(cl, Sys.getpid()))
+        message("These are the pids of the spawned cores: ")
         dput(pids)
 
       }
       message("Starting nlminb ... ")
       out <- Cache(clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
-                            lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                            linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
-                            mod_env = sim$fireSense_ignitionCovariates, offset = offset,
-                            formula = P(sim)$fireSense_ignitionFormula,
-                            updateKnotExpr = updateKnotExpr,
-                            control = c(P(sim)$nlminb.control, list(trace = trace)))
+                   lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                   linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                   mod_env = sim$fireSense_ignitionCovariates, offset = offset,
+                   formula = P(sim)$fireSense_ignitionFormula,
+                   omitArgs = c("x"), # don't need to know the random sample... the mm is enough
+                   updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
+                   control = c(P(sim)$nlminb.control, list(trace = trace)))
 
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
         #  MUST MANUALLY IDENTIFY THE PIDS
@@ -552,6 +555,7 @@ frequencyFitRun <- function(sim) {
 
       if (trace) clusterEvalQ(cl, sink())
     } else {
+      warning("This is not tested by Eliot as of March 4, 2021; please set parameter: cores > 1")
       out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                     mod_env = sim$fireSense_ignitionCovariates, offset = offset,
@@ -562,6 +566,7 @@ frequencyFitRun <- function(sim) {
 
     out
   } else {
+    warning("This is not tested by Eliot as of March 4, 2021; please run more than one start")
     list(objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace))))
   }
 
@@ -601,7 +606,7 @@ frequencyFitRun <- function(sim) {
 
     ndLong <- pwPlotData(bestParams = best,
                          formula = sim$fireSense_ignitionFormula,
-                         xColName = "MDC", nx = nx)
+                         xColName = "MDC", nx = nx, offset = offset, linkinv = linkinv)
     Plots(data = ndLong, fn = pwPlot, filename = "Ignition Rate per 100km2")#, types = "screen", .plotInitialTime = time(sim))
   }
 
@@ -641,12 +646,13 @@ frequencyFitRun <- function(sim) {
       }
     }
     convergence <- FALSE
-    convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
+    # convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
 
     message("It may also help to use Ben Bolker's approximation: sqrt(1/diag(hess)) mentioned here:")
     message("https://cran.r-project.org/web/packages/bbmle/vignettes/mle2.pdf")
-    message("If there are Inf values, that indicates variables to remove")
-    warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
+    message("If there are Inf values, that indicates variables to remove as they have",
+            "infinite variance at the solution")
+    # warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
   } else {
     convergDiagnostic <- outBest$message
   }
@@ -700,7 +706,7 @@ pwPlot <- function(d)  {
     theme_bw()
 }
 
-pwPlotData <- function(bestParams, formula, xColName = "MDC", nx) {
+pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv) {
 
   newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
                         nonForest_lowFlam = 0:1,
