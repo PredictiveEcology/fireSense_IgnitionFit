@@ -17,10 +17,13 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9048)"),
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9048)",
+                  "PredictiveEcology/SpaDES.core@development (>=1.0.6.9017)"), # need Plots stuff
   parameters = rbind(
-    defineParameter("autoRefit", "logical", default = TRUE,
-                    desc = paste("If the objective function results in a.")),
+    defineParameter("autoRefit", c("logical", "character"), default = TRUE,
+                    desc = paste("If the objective function results in a singularity or non-convergence with full ",
+                                 "model, should the module cull all effects that are causing the problem and ",
+                                 "retry?")),
     defineParameter("cores", "integer", default = 1,
                     desc = paste("non-negative integer. Defines the number of logical cores",
                                  "to be used for parallel computation.",
@@ -169,13 +172,6 @@ frequencyFitRun <- function(sim) {
   ub <- P(sim)$ub
   lb$knots <- lb$knots/rescaleMDCFactor
   ub$knots <- ub$knots/rescaleMDCFactor
-
-  on.exit({
-    setDT(fireSense_ignitionCovariates)
-    fireSense_ignitionCovariates[, MDC := MDC*rescaleMDCFactor]
-    setDF(fireSense_ignitionCovariates)
-
-  }, add = TRUE)
 
   # Redo parameter bounds after rescale
 
@@ -731,11 +727,12 @@ frequencyFitSave <- function(sim) {
   invisible(sim)
 }
 
-pwPlot <- function(d, lci, uci)  {
-
-  ggplot(d,  aes(x=MDC, y=mu, group=Type, color=Type)) +
-    geom_line() +
-    geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity") +
+pwPlot <- function(d)  {
+  gg <- ggplot(d,  aes(x=MDC, y=mu, group=Type, color=Type)) +
+    geom_line()
+  if (!anyNA(d$lci))
+    gg <- gg + geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity")
+  gg <- gg +
     labs(y = "Igntion rate per 100km2", title = "Ignition Rate per 100km2") +
     theme_bw()
 }
