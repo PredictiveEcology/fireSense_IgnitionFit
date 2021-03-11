@@ -18,7 +18,7 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
                   "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9048)",
-                  "PredictiveEcology/SpaDES.core@development (>=1.0.6.9017)"), # need Plots stuff
+                  "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
                     desc = paste("If the objective function results in a singularity or non-convergence with full ",
@@ -624,6 +624,7 @@ frequencyFitRun <- function(sim) {
                          xColName = "MDC", nx = nx, offset = offset, linkinv = linkinv)
 
     Plots(data = ndLong, fn = pwPlot,
+          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
    #TODO unresolved bug in Plot triggered by spaces
   }
@@ -729,13 +730,13 @@ frequencyFitSave <- function(sim) {
   invisible(sim)
 }
 
-pwPlot <- function(d)  {
+pwPlot <- function(d, ggTitle)  {
   gg <- ggplot(d,  aes(x=MDC, y=mu, group=Type, color=Type)) +
     geom_line()
   if (!anyNA(d$lci))
     gg <- gg + geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity")
   gg <- gg +
-    labs(y = "Igntion rate per 100 km2", title = "fireSense_IgnitionFit") +
+    labs(y = "Igntion rate per 100 km2", title = ggTitle) +
     theme_bw()
 }
 
