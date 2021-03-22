@@ -532,7 +532,7 @@ frequencyFitRun <- function(sim) {
         dput(pids)
       }
       message("Starting nlminb ... ")
-      out <- Cache(clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
+      out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                    lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                    linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                    mod_env = fireSense_ignitionCovariates, offset = offset,
