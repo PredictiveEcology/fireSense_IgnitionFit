@@ -497,7 +497,7 @@ frequencyFitRun <- function(sim) {
     start <- split(DEout$member$pop, seq(NROW(DEout$member$pop)))
 
     if (TRUE) { # This allows a faster estimate, but fewer different starting values
-      pop <- if(exists("cl", inherits = FALSE)) length(cl) else 1
+      pop <- if (exists("cl", inherits = FALSE)) length(cl) else 1
       message("Subsetting for nlminb -- only running ", pop, " of the DEoptim pops")
       subset <- sample(NROW(start), size = pop)
       start <- start[subset]
@@ -516,7 +516,6 @@ frequencyFitRun <- function(sim) {
   }
 
   outNlminb <- if (is.list(start)) {
-
     if (P(sim)$cores > 1) {
       outputPath <- outputPath(sim)
       basePattern <- paste(moduleName, Sys.info()[["nodename"]], format(Sys.time(), "%Y%m%d"), "trace", sep = "_")
@@ -531,7 +530,6 @@ frequencyFitRun <- function(sim) {
         pids <- unlist(clusterEvalQ(cl, Sys.getpid()))
         message("These are the pids of the spawned cores: ")
         dput(pids)
-
       }
       message("Starting nlminb ... ")
       out <- Cache(clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
