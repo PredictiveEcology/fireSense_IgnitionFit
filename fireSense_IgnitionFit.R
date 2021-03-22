@@ -415,18 +415,18 @@ frequencyFitRun <- function(sim) {
                 parse(text = paste0("-sum(dnbinom(x=", y, ", mu = mu, size = params[length(params)], log = TRUE))")))
 
   trace <- P(sim)$trace
-
   if (P(sim)$cores > 1) {
     if (.Platform$OS.type == "unix") {
       mkCluster <- parallel::makeForkCluster
     } else {
-      mkCluster <- parallel::makePSOCKcluster
+      #mkCluster <- parallel::makePSOCKcluster ## TODO: this attaches `snow` and breaks the module
+      ## see warning: https://www.rdocumentation.org/packages/secr/versions/4.3.3/topics/Parallel
     }
 
     message("Creating cluster")
     cl <- mkCluster(P(sim)$cores)
-    on.exit(stopCluster(cl), add = TRUE)
-    clusterEvalQ(cl, library("MASS"))
+    on.exit(parallel::stopCluster(cl), add = TRUE)
+    parallel::clusterEvalQ(cl, library("MASS"))
     # assign("mod_env", fireSense_ignitionCovariates, envir = .GlobalEnv)
     # clusterExport(cl, varlist = list("mod_env"), envir = environment()) # it is faster to "get" it internally
   }
