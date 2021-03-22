@@ -521,13 +521,13 @@ frequencyFitRun <- function(sim) {
       basePattern <- paste(moduleName, Sys.info()[["nodename"]], format(Sys.time(), "%Y%m%d"), "trace", sep = "_")
 
       if (trace) {
-        clusterExport(cl, c("outputPath", "basePattern"), envir = environment())
+        parallel::clusterExport(cl, c("outputPath", "basePattern"), envir = environment())
 
-        clusterEvalQ(
+        parallel::clusterEvalQ(
           cl,
           sink(file.path(outputPath, paste0(basePattern, ".", Sys.getpid())))
         )
-        pids <- unlist(clusterEvalQ(cl, Sys.getpid()))
+        pids <- unlist(parallel::clusterEvalQ(cl, Sys.getpid()))
         message("These are the pids of the spawned cores: ")
         dput(pids)
       }
@@ -562,7 +562,7 @@ frequencyFitRun <- function(sim) {
       }
       message("... Done")
 
-      if (trace) clusterEvalQ(cl, sink())
+      if (trace) parallel::clusterEvalQ(cl, sink())
     } else {
       warning("This is not tested by Eliot as of March 4, 2021; please set parameter: cores > 1")
       out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
