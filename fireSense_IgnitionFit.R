@@ -17,8 +17,13 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9048)"),
-  parameters = rbind(
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9048)",
+                  "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
+  parameters = bindrows(
+    defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
+                    desc = paste("If the objective function results in a singularity or non-convergence with full ",
+                                 "model, should the module cull all effects that are causing the problem and ",
+                                 "retry?")),
     defineParameter("cores", "integer", default = 1,
                     desc = paste("non-negative integer. Defines the number of logical cores",
                                  "to be used for parallel computation.",
@@ -154,19 +159,24 @@ frequencyFitRun <- function(sim) {
 
   moduleName <- current(sim)$moduleName
 
-  setDT(sim$fireSense_ignitionCovariates)
-  sim$fireSense_ignitionCovariates[, MDC := MDC/1000]
-  setDF(sim$fireSense_ignitionCovariates)
+  rescaleMDCFactor <- 1000
+  fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
+  setDT(fireSense_ignitionCovariates)
+  fireSense_ignitionCovariates[, MDC := MDC/rescaleMDCFactor]
+  setDF(fireSense_ignitionCovariates)
+  lb <- P(sim)$lb
+  ub <- P(sim)$ub
+  lb$knots <- lb$knots/rescaleMDCFactor
+  ub$knots <- ub$knots/rescaleMDCFactor
+
   # Redo parameter bounds after rescale
-  params(sim)[[currentModule(sim)]]$lb$knots <- quantile(sim$fireSense_ignitionCovariates$MDC, probs = 0.05)
-  params(sim)[[currentModule(sim)]]$ub$knots <- quantile(sim$fireSense_ignitionCovariates$MDC, probs = 0.95)
 
   if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula)))
     stop(moduleName, "> The formula describes an empty model.")
 
   # Remove rows of data with no cover and no ignitions
-  whRowsHaveNoCover <- apply(as.data.frame(sim$fireSense_ignitionCovariates)[,c(2,4:8)], 1, sum) == 0
-  sim$fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates[!whRowsHaveNoCover,]
+  whRowsHaveNoCover <- apply(as.data.frame(fireSense_ignitionCovariates)[,c(2,4:8)], 1, sum) == 0
+  fireSense_ignitionCovariates <- fireSense_ignitionCovariates[!whRowsHaveNoCover,]
 
   # sim$fireSense_ignitionFormula <- paste0("ignitions ~ ",
   #                                         # "youngAge:MDC + ",
@@ -219,7 +229,7 @@ frequencyFitRun <- function(sim) {
     nk <- length(kNames)
     allx <- allxy[!allxy %in% c(y, kNames)]
 
-    missing <- !allxy[!allxy %in% kNames] %in% ls(sim$fireSense_ignitionCovariates, all.names = TRUE)
+    missing <- !allxy[!allxy %in% kNames] %in% ls(fireSense_ignitionCovariates, all.names = TRUE)
 
     if (s <- sum(missing))
       stop(moduleName, "> '", allxy[!allxy %in% kNames][missing][1L], "'",
@@ -229,31 +239,31 @@ frequencyFitRun <- function(sim) {
     ## Covariates that have a breakpoint
     pwVarNames <- sapply(specialsTerms, "[[", "variable", simplify = FALSE)
 
-    kUB <- if (is.null(P(sim)$ub$k)) {
-      lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else sim$fireSense_ignitionCovariates[[x]])) %>% unlist()
+    kUB <- if (is.null(ub$knots)) {
+      lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else fireSense_ignitionCovariates[[x]])) %>% unlist()
     } else {
-      rep_len(P(sim)$ub$k, nk) ## User-defined bounds (recycled if necessary)
+      rep_len(ub$knots, nk) ## User-defined bounds (recycled if necessary)
     }
 
-    kLB <- if (is.null(P(sim)$lb$k)) {
-      lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else sim$fireSense_ignitionCovariates[[x]])) %>% unlist()
+    kLB <- if (is.null(lb$knots)) {
+      lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else fireSense_ignitionCovariates[[x]])) %>% unlist()
     } else {
-      rep_len(P(sim)$lb$k, nk) ## User-defined bounds (recycled if necessary)
+      rep_len(lb$knots, nk) ## User-defined bounds (recycled if necessary)
     }
 
-    invisible(
-      mapply(
-        kNames,
-        z = pwVarNames,
-        FUN = function(w, z)
-          sim$fireSense_ignitionCovariates[[w]] <- mean(if (is(z, "AsIs")) z else sim$fireSense_ignitionCovariates[[z]]),
-        SIMPLIFY = FALSE
-      )
+    knots <- mapply(
+      kNames,
+      z = pwVarNames,
+      FUN = function(w, z)
+        #fireSense_ignitionCovariates[[w]] <-
+        mean(if (is(z, "AsIs")) z else fireSense_ignitionCovariates[[z]]),
+      SIMPLIFY = FALSE
     )
+    fireSense_ignitionCovariates <- data.frame(fireSense_ignitionCovariates, knots)
 
     updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse = "; "))
   } else {
-    missing <- !allxy %in% ls(sim$fireSense_ignitionCovariates, all.names = TRUE)
+    missing <- !allxy %in% ls(fireSense_ignitionCovariates, all.names = TRUE)
 
     if (s <- sum(missing))
       stop(moduleName, "> '", allxy[missing][1L], "'",
@@ -278,7 +288,7 @@ frequencyFitRun <- function(sim) {
           glm.nb(formula = fireSense_ignitionFormula,
                  y = FALSE,
                  model = FALSE,
-                 data = sim$fireSense_ignitionCovariates)[["theta"]]
+                 data = fireSense_ignitionCovariates)[["theta"]]
         )
       )
     )
@@ -297,10 +307,10 @@ frequencyFitRun <- function(sim) {
 
   linkinv <- family$linkinv
 
-  mm <- model.matrix(object = terms, data = sim$fireSense_ignitionCovariates)
+  mm <- model.matrix(object = terms, data = fireSense_ignitionCovariates)
 
   # Does the model formula contain an offset?
-  model_offset <- model.offset(model.frame(fireSense_ignitionFormula, sim$fireSense_ignitionCovariates))
+  model_offset <- model.offset(model.frame(fireSense_ignitionFormula, fireSense_ignitionCovariates))
   offset <- if (is.null(model_offset)) 0 else model_offset
 
   ## Define the scaling matrix. This is used later in the optimization process
@@ -316,7 +326,7 @@ frequencyFitRun <- function(sim) {
 
   ## Upper bounds
   DEoptimUB <- c(
-    if (is.null(P(sim)$ub[["coef"]])) {
+    if (is.null(ub[["coef"]])) {
       ## Automatically estimate an upper boundary for each parameter
       (suppressWarnings(
         tryCatch(
@@ -324,7 +334,7 @@ frequencyFitRun <- function(sim) {
             formula = fireSense_ignitionFormula,
             y = FALSE,
             model = FALSE,
-            data = sim$fireSense_ignitionCovariates,
+            data = fireSense_ignitionCovariates,
             family = poisson(link = family$link)
           ),
           error = function(e) stop(
@@ -342,7 +352,7 @@ frequencyFitRun <- function(sim) {
         ub
       }
     } else {
-      rep_len(P(sim)$ub[["coef"]], nx) ## User-defined bounds (recycled if necessary)
+      rep_len(ub[["coef"]], nx) ## User-defined bounds (recycled if necessary)
     },
     kUB
   )
@@ -351,35 +361,35 @@ frequencyFitRun <- function(sim) {
   DEoptimLB <- c({
     switch(family$link,
            log = {
-             if (is.null(P(sim)$lb[["coef"]])) {
+             if (is.null(lb[["coef"]])) {
                -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
              } else {
-               rep_len(P(sim)$lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
+               rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
 
            }, identity = {
-             if (is.null(P(sim)$lb[["coef"]])) {
+             if (is.null(lb[["coef"]])) {
                rep_len(1e-16, nx) ## Ensure non-negativity
              } else {
-               rep_len(P(sim)$lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
+               rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
            }, stop(moduleName, "> Link function ", family$link, " is not supported."))
   }, kLB)
 
   ## If negative.binomial family needs to add bounds for theta parameter
   if (isFamilyNB) {
-    DEoptimUB <- c(DEoptimUB, if (is.null(P(sim)$ub$t)) 2L * theta else P(sim)$ub$t)
-    DEoptimLB <- c(DEoptimLB, if (is.null(P(sim)$lb$t)) 1e-16 else P(sim)$lb$t) ## Enfore non-negativity
+    DEoptimUB <- c(DEoptimUB, if (is.null(ub$t)) 2L * theta else ub$t)
+    DEoptimLB <- c(DEoptimLB, if (is.null(lb$t)) 1e-16 else lb$t) ## Enfore non-negativity
   }
 
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
   ## Upper bounds
   nlminbUB <- DEoptimUB
-  if (is.null(P(sim)$ub[["coef"]]))
+  if (is.null(ub[["coef"]]))
     nlminbUB[1:nx] <- rep_len(Inf, nx)
 
   ## Lower bounds
-  nlminbLB <- if (is.null(P(sim)$lb[["coef"]])) {
+  nlminbLB <- if (is.null(lb[["coef"]])) {
     c(switch(family$link,
              log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
              identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
@@ -389,10 +399,10 @@ frequencyFitRun <- function(sim) {
   }
 
   ## If negative.binomial family add bounds for the theta parameter
-  if (isFamilyNB && is.null(P(sim)$lb$t)) {
+  if (isFamilyNB && is.null(lb$t)) {
     nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
   } else if (isFamilyNB) {
-    nlminbLB <- c(nlminbLB, P(sim)$lb$t)
+    nlminbLB <- c(nlminbLB, lb$t)
   }
 
   ## Define the log-likelihood function (objective function)
@@ -401,19 +411,19 @@ frequencyFitRun <- function(sim) {
                 parse(text = paste0("-sum(dnbinom(x=", y, ", mu = mu, size = params[length(params)], log = TRUE))")))
 
   trace <- P(sim)$trace
-
   if (P(sim)$cores > 1) {
     if (.Platform$OS.type == "unix") {
       mkCluster <- parallel::makeForkCluster
     } else {
-      mkCluster <- parallel::makePSOCKcluster
+      #mkCluster <- parallel::makePSOCKcluster ## TODO: this attaches `snow` and breaks the module
+      ## see warning: https://www.rdocumentation.org/packages/secr/versions/4.3.3/topics/Parallel
     }
 
     message("Creating cluster")
     cl <- mkCluster(P(sim)$cores)
-    on.exit(stopCluster(cl))
-    clusterEvalQ(cl, library("MASS"))
-    # assign("mod_env", sim$fireSense_ignitionCovariates, envir = .GlobalEnv)
+    on.exit(parallel::stopCluster(cl), add = TRUE)
+    parallel::clusterEvalQ(cl, library("MASS"))
+    # assign("mod_env", fireSense_ignitionCovariates, envir = .GlobalEnv)
     # clusterExport(cl, varlist = list("mod_env"), envir = environment()) # it is faster to "get" it internally
   }
 
@@ -432,7 +442,7 @@ frequencyFitRun <- function(sim) {
       DEout <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                      control = do.call("DEoptim.control", control),
                      formula = P(sim)$fireSense_ignitionFormula,
-                     mod_env = sim$fireSense_ignitionCovariates,
+                     mod_env = fireSense_ignitionCovariates,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx,
                      offset = offset, updateKnotExpr = updateKnotExpr,
                      userTags = c("ignitionFit", "DEoptim"))
@@ -441,7 +451,7 @@ frequencyFitRun <- function(sim) {
       DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
                               control = do.call("DEoptim.control", control),
                               formula = P(sim)$fireSense_ignitionFormula,
-                              mod_env = sim$fireSense_ignitionCovariates,
+                              mod_env = fireSense_ignitionCovariates,
                               linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
                               offset = offset,
                               userTags = c("ignitionFit", "DEoptim")) %>%
@@ -465,10 +475,10 @@ frequencyFitRun <- function(sim) {
 
       if (hvPW) {
         kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
-        nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$lb$k)) kLB else pmax(kLB, P(sim)$lb$k)
+        nlminbLB[(nx + 1L):(nx + nk)] <- if (is.null(lb$knots)) kLB else pmax(kLB, lb$knots)
 
         kUB <- DEoptimUB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
-        nlminbUB[(nx + 1L):(nx + nk)] <- if (is.null(P(sim)$ub$k)) kUB else pmin(kUB, P(sim)$ub$k)
+        nlminbUB[(nx + 1L):(nx + nk)] <- if (is.null(ub$knots)) kUB else pmin(kUB, ub$knots)
       }
 
       getRandomStarts <- function(.) {
@@ -483,8 +493,9 @@ frequencyFitRun <- function(sim) {
     start <- split(DEout$member$pop, seq(NROW(DEout$member$pop)))
 
     if (TRUE) { # This allows a faster estimate, but fewer different starting values
-      message("Subsetting for nlminb -- only running ", length(cl), " of the DEoptim pops")
-      subset <- sample(NROW(start), size = length(cl))
+      pop <- if (exists("cl", inherits = FALSE)) length(cl) else 1
+      message("Subsetting for nlminb -- only running ", pop, " of the DEoptim pops")
+      subset <- sample(NROW(start), size = pop)
       start <- start[subset]
     }
   } else {
@@ -501,28 +512,26 @@ frequencyFitRun <- function(sim) {
   }
 
   outNlminb <- if (is.list(start)) {
-
     if (P(sim)$cores > 1) {
       outputPath <- outputPath(sim)
       basePattern <- paste(moduleName, Sys.info()[["nodename"]], format(Sys.time(), "%Y%m%d"), "trace", sep = "_")
 
       if (trace) {
-        clusterExport(cl, c("outputPath", "basePattern"), envir = environment())
+        parallel::clusterExport(cl, c("outputPath", "basePattern"), envir = environment())
 
-        clusterEvalQ(
+        parallel::clusterEvalQ(
           cl,
           sink(file.path(outputPath, paste0(basePattern, ".", Sys.getpid())))
         )
-        pids <- unlist(clusterEvalQ(cl, Sys.getpid()))
+        pids <- unlist(parallel::clusterEvalQ(cl, Sys.getpid()))
         message("These are the pids of the spawned cores: ")
         dput(pids)
-
       }
       message("Starting nlminb ... ")
-      out <- Cache(clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
+      out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                    lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                    linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
-                   mod_env = sim$fireSense_ignitionCovariates, offset = offset,
+                   mod_env = fireSense_ignitionCovariates, offset = offset,
                    formula = P(sim)$fireSense_ignitionFormula,
                    omitArgs = c("x"), # don't need to know the random sample... the mm is enough
                    updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
@@ -531,7 +540,7 @@ frequencyFitRun <- function(sim) {
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
         #  MUST MANUALLY IDENTIFY THE PIDS
         if (exists("pids")) {
-          aa <- lapply(paste0("~/GitHub/WBI_fireSense/outputs/NT/fireSense_IgnitionFit_spades189_20210305_trace.", pids), readLines)
+          aa <- lapply(paste0("~/GitHub/WBI_fireSense/outputs/AB/fireSense_IgnitionFit_spades189_20210308_trace.", pids), readLines)
           bb <- lapply(aa, function(bb) {
             bb <- gsub("^ +", "", bb)
             vals <- strsplit(bb, split = ":* +")
@@ -549,15 +558,15 @@ frequencyFitRun <- function(sim) {
       }
       message("... Done")
 
-      if (trace) clusterEvalQ(cl, sink())
+      if (trace) parallel::clusterEvalQ(cl, sink())
     } else {
       warning("This is not tested by Eliot as of March 4, 2021; please set parameter: cores > 1")
-      out <- lapply(start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+      out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
-                    mod_env = sim$fireSense_ignitionCovariates, offset = offset,
+                    mod_env = fireSense_ignitionCovariates, offset = offset,
                     formula = P(sim)$fireSense_ignitionFormula,
-                    updateKnotExpr = updateKnotExpr,
-                    control = c(P(sim)$nlminb.control, list(trace = trace)))
+                    updateKnotExpr = updateKnotExpr, omitArgs = "X",
+                    control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
     }
 
     out
@@ -570,9 +579,10 @@ frequencyFitRun <- function(sim) {
   outBest <- outNlminb[[which.min(sapply(outNlminb, "[[", "objective"))]]
 
   ## Compute the standard errors around the estimates
+  message("Computing hessian by numerical derivation")
   if (hvPW) {
     hess <- Cache(numDeriv::hessian, func = objfun, x = outBest$par,
-                  mod_env = sim$fireSense_ignitionCovariates,
+                  mod_env = fireSense_ignitionCovariates,
                   linkinv = linkinv, nll = nll,
                   sm = sm, nx = nx, updateKnotExpr = updateKnotExpr,
                   formula = P(sim)$fireSense_ignitionFormula,
@@ -580,14 +590,16 @@ frequencyFitRun <- function(sim) {
                   userTags = c("fireSense_ignitionFit", "hessian"))
   } else {
     hess <- Cache(numDeriv::hessian, func = objfun, x = outBest$par,
-                  mod_env = sim$fireSense_ignitionCovariates,
+                  mod_env = fireSense_ignitionCovariates,
                   linkinv = linkinv, nll = nll,
                   sm = sm, nx = nx, mm = mm,
                   offset = offset,
                   userTags = c("fireSense_ignitionFit", "hessian"))
   }
 
-  se <- suppressWarnings(tryCatch(drop(sqrt(diag(solve(hess))) %*% sm), error = function(e) NA))
+  solvedHess <- tryCatch(solve(hess), error = function(e) NA)
+  se <- suppressWarnings(tryCatch(drop(sqrt(diag(solvedHess)) %*% sm), error = function(e) NA))
+  message("... Done")
 
   if (!exists("outBest", inherits = FALSE)) {
     best <- drop(as.matrix(dd[1, -(1:2)]))
@@ -601,21 +613,20 @@ frequencyFitRun <- function(sim) {
   if (anyPlotting(P(sim)$.plots)) {
 
     ndLong <- pwPlotData(bestParams = best,
-                         formula = sim$fireSense_ignitionFormula,
+                         ses = se, solvedHess = solvedHess,
+                         formula = P(sim)$fireSense_ignitionFormula,
                          xColName = "MDC", nx = nx, offset = offset, linkinv = linkinv)
-    Plots(data = ndLong, fn = pwPlot, filename = "Ignition Rate per 100km2")#, types = "screen", .plotInitialTime = time(sim))
+
+    Plots(data = ndLong, fn = pwPlot,
+          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
+          filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
+   #TODO unresolved bug in Plot triggered by spaces
   }
 
 
   convergence <- TRUE
 
-  if (outBest$convergence) {
-    convergence <- FALSE
-    convergDiagnostic <- paste0("nlminb optimizer did not converge (", outBest$message, ")")
-    warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
-  } else if (anyNA(se)) {
-    ## Negative values in the Hessian matrix suggest that the algorithm did not converge
-
+  if (outBest$convergence || anyNA(se)) {
     tooClose <- 0.00001
     closeToBounds <- abs(drop((best - DEoptimLB)/ (DEoptimUB - DEoptimLB))) < tooClose |
       best < tooClose
@@ -624,7 +635,7 @@ frequencyFitRun <- function(sim) {
                       lowerBoundary = DEoptimLB,
                       closeToBounds = closeToBounds)[closeToBounds]
     possTerms <- attr(terms, "term.labels")[1:nx][!closeToBounds[1:nx]]
-    possForm <- paste0(terms[[2]], " ~ ", paste(possTerms, collapse = " + "))
+    possForm <- paste0(terms[[2]], " ~ ", paste(possTerms, collapse = " + "), " -1")
 
 
     message("--------------------------------------------------")
@@ -633,22 +644,39 @@ frequencyFitRun <- function(sim) {
             "from sim$fireSense_ignitionFormula may help with convergence or invertability... e.g.")
     message("sim$fireSense_ignitionFormula <- \"", possForm, "\"")
     messageDF(ctb)
-
-    if (interactive())  {
-      out <- readline("Would you like to restart this IgnitionFit event with that new formula (Y or N)? ")
-      if (identical(tolower(out), "y")) {
-        sim$fireSense_ignitionFormula <- possForm
-        sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run", eventPriority = 1)
-      }
-    }
-    convergence <- FALSE
-    # convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
-
     message("It may also help to use Ben Bolker's approximation: sqrt(1/diag(hess)) mentioned here:")
     message("https://cran.r-project.org/web/packages/bbmle/vignettes/mle2.pdf")
     message("If there are Inf values, that indicates variables to remove as they have",
             "infinite variance at the solution")
-    # warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
+
+    if (!isFALSE(P(sim)$autoRefit))  {
+      outRL <- if (isTRUE(P(sim)$autoRefit)) {
+        message("Automatically refitting with simpler model becaues P(sim)$autoRefit is TRUE")
+        "y"
+      } else if (isFALSE(P(sim)$autoRefit)) {
+        "n"
+      } else {
+        readline("Would you like to restart this IgnitionFit event with that new formula (Y or N or interactive)? ")
+      }
+      if (identical(tolower(outRL), "y")) {
+        params(sim)[[currentModule(sim)]]$fireSense_ignitionFormula <- possForm
+        sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run", eventPriority = 1)
+      } else if (isTRUE(startsWith(outRL, "i"))) {
+        browser()
+      }
+    }
+
+    if (outBest$convergence) {
+      convergence <- FALSE
+      convergDiagnostic <- paste0("nlminb optimizer did not converge (", outBest$message, ")")
+      warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
+    } else if (anyNA(se)) {
+      ## Negative values in the Hessian matrix suggest that the algorithm did not converge
+
+      convergence <- FALSE
+      convergDiagnostic <- "nlminb optimizer reached relative convergence, saddle point?"
+      # warning(moduleName, "> ", convergDiagnostic, immediate. = TRUE)
+    }
   } else {
     convergDiagnostic <- outBest$message
   }
@@ -663,7 +691,8 @@ frequencyFitRun <- function(sim) {
             LL = -outBest$objective,
             AIC = 2 * length(outBest$par) + 2 * outBest$objective,
             convergence = convergence,
-            convergenceDiagnostic = convergDiagnostic)
+            convergenceDiagnostic = convergDiagnostic,
+            rescales = list(MDC = paste0("MDC / ", rescaleMDCFactor)))
 
   if (hvPW) {
     l$knots <- setNames(outBest$par[(nx + 1L):(nx + nk)], kNames)
@@ -695,14 +724,18 @@ frequencyFitSave <- function(sim) {
   invisible(sim)
 }
 
-pwPlot <- function(d)  {
-  ggplot(d,  aes(x=MDC, y=mu, group=Type, color=Type)) +
-    geom_line() +
-    labs(y = "Igntion rate per 100km2") + #, title = "Ignition Rate per 100km2") +
+pwPlot <- function(d, ggTitle)  {
+  gg <- ggplot(d,  aes(x=MDC, y=mu, group=Type, color=Type)) +
+    geom_line()
+  if (!anyNA(d$lci))
+    gg <- gg + geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity")
+  gg <- gg +
+    labs(y = "Igntion rate per 100 km2", title = ggTitle) +
     theme_bw()
 }
 
-pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv) {
+pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
+                       solvedHess, ses) {
 
   newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
                         nonForest_lowFlam = 0:1,
@@ -720,15 +753,25 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   keepers <- apply(newDat[, ..cns], 1, function(x) sum(x) > 0)
   newDat <- newDat[keepers]
 
-  # setnames(newDat, old = grep("V", colnames(newDat), value = TRUE), new = colnms[11:15+2])
   mm <- model.matrix(as.formula(formula)[-2], newDat)
   mu <- drop(mm %*% bestParams[1:nx]) + offset
+  if (!all(is.na(solvedHess))) {
+    # https://biologyforfun.wordpress.com/2015/06/17/confidence-intervals-for-prediction-in-glmms/
+    pvar1 <- diag(mm %*% tcrossprod(solvedHess[1:nx, 1:nx], mm))
+
+    uci <- mu + sqrt(pvar1) * 1.96 + offset
+    lci <- mu - sqrt(pvar1) * 1.96 + offset
+  } else {
+    uci <- NA_real_
+    lci <- NA_real_
+  }
 
   ## link implementation
   mu <- linkinv(mu)
   newDat$mu <- mu
   newDat <- newDat[, !..keep]
   newDat[, MDC := MDC * 1000]
+  newDat[, `:=`(lci  = lci, uci = uci)]
   setkeyv(newDat, "MDC")
   ndLong <- data.table::melt(newDat, measure.vars = 2:6, variable.name = "Type")
   ndLong <- ndLong[value > 0]
