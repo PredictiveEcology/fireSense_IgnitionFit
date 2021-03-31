@@ -555,14 +555,13 @@ frequencyFitRun <- function(sim) {
                      userTags = c("ignitionFit", "DEoptim"))
       DEoptimBestMem <- DEout %>%  `[[`("optim") %>% `[[`("bestmem")
     } else {
-      DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
-                              control = do.call("DEoptim.control", control),
-                              formula = P(sim)$fireSense_ignitionFormula,
-                              mod_env = fireSense_ignitionCovariates,
-                              linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
-                              offset = offset,
-                              userTags = c("ignitionFit", "DEoptim")) %>%
-        `[[`("optim") %>% `[[`("bestmem")
+      DEout <- Cache(DEoptim, fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
+                     control = do.call("DEoptim.control", control),
+                     mod_env = fireSense_ignitionCovariates,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
+                     offset = offset,
+                     userTags = c("ignitionFit", "DEoptim"))
+      DEoptimBestMem <- DEout %>% `[[`("optim") %>% `[[`("bestmem")
     }
 
     if (FALSE) { # THIS IS ELIOT BLOCKING THIS -- I DON"T THINK IT IS NECESSARY
