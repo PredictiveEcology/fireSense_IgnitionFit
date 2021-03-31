@@ -546,7 +546,7 @@ frequencyFitRun <- function(sim) {
 
     # control$cluster <- NULL #when debugging DEoptim
     if (hvPW) {
-      DEout <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
+      DEout <- Cache(DEoptim, fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
                      control = do.call("DEoptim.control", control),
                      formula = P(sim)$fireSense_ignitionFormula,
                      mod_env = fireSense_ignitionCovariates,
@@ -589,11 +589,11 @@ frequencyFitRun <- function(sim) {
       }
 
       getRandomStarts <- function(.) {
-       pmin(pmax(rnorm(length(DEoptimBestMem), 0L, 2L) / 40 +
-                   unname(DEoptimBestMem / oom(DEoptimBestMem)), nlminbLB), nlminbUB)
+        pmin(pmax(rnorm(length(DEoptimBestMem), 0L, 2L) / 40 +
+                    unname(DEoptimBestMem / oom(DEoptimBestMem)), nlminbLB), nlminbUB)
       }
       start <- c(lapply(1:P(sim)$iterNlminb, getRandomStarts),
-                list(unname(DEoptimBestMem / oom(DEoptimBestMem))))
+                 list(unname(DEoptimBestMem / oom(DEoptimBestMem))))
     }
 
     # This is ELIOT's change March 5, 2021 -- simpler -- use more Information from DEoptim
@@ -635,6 +635,7 @@ frequencyFitRun <- function(sim) {
         dput(pids)
       }
       message("Starting nlminb ... ")
+
       out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                    lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                    linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
@@ -669,11 +670,11 @@ frequencyFitRun <- function(sim) {
     } else {
       warning("This is not tested by Eliot as of March 4, 2021; please set parameter: cores > 1")
       out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                    linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
-                    mod_env = fireSense_ignitionCovariates, offset = offset,
-                    formula = P(sim)$fireSense_ignitionFormula,
-                    updateKnotExpr = updateKnotExpr, omitArgs = "X",
-                    control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
+                   linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                   mod_env = fireSense_ignitionCovariates, offset = offset,
+                   formula = P(sim)$fireSense_ignitionFormula,
+                   updateKnotExpr = updateKnotExpr, omitArgs = "X",
+                   control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
     }
 
     out
@@ -718,6 +719,7 @@ frequencyFitRun <- function(sim) {
   }
 
   if (anyPlotting(P(sim)$.plots)) {
+    message("Plotting has not been tested thoroughly")
 
     ## TODO: this is not working if using formula/data different from Ian's/Tati's
     ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
@@ -732,7 +734,6 @@ frequencyFitRun <- function(sim) {
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
   }
-
 
   convergence <- TRUE
 
@@ -750,7 +751,7 @@ frequencyFitRun <- function(sim) {
 
     message("--------------------------------------------------")
     message("It is possible that parameters are too close to their boundary values (or zero). ",
-            "The following are within ",tooClose*100,"% of their boundary and removing them ",
+            "The following are within ", tooClose*100, "% of their boundary and removing them ",
             "from sim$fireSense_ignitionFormula may help with convergence or invertability... e.g.")
     message("sim$fireSense_ignitionFormula <- \"", possForm, "\"")
     messageDF(ctb)
