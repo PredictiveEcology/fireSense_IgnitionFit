@@ -723,6 +723,7 @@ frequencyFitRun <- function(sim) {
 
   if (anyPlotting(P(sim)$.plots)) {
     message("Plotting has not been tested thoroughly")
+    colName <- unique(rbindlist(specialsTerms)$variable)   ## added by Ceres to avoid hardcoding, but not necessary with suggested solution
 
     ## TODO: this is not working if using formula/data different from Ian's/Tati's
     ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
@@ -730,7 +731,7 @@ frequencyFitRun <- function(sim) {
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
-                         xColName = "MDC", nx = nx, offset = offset, linkinv = linkinv)
+                         xColName = colName, nx = nx, offset = offset, linkinv = linkinv)
 
     Plots(data = ndLong, fn = pwPlot,
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
