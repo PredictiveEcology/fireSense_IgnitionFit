@@ -713,7 +713,11 @@ frequencyFitRun <- function(sim) {
   } else {
     best <- outBest$par
     colnms <- c(attr(terms, "term.labels"),
-                unlist(lapply(updateKnotExpr, function(x) x[[2]][[3]])), "NB_theta")
+                unlist(lapply(updateKnotExpr, function(x) x[[2]][[3]])))
+    if (isFamilyNB) {
+      colnms <- c(colnms, "NB_theta")
+    }
+
     names(best) <- colnms
   }
 
