@@ -798,6 +798,16 @@ frequencyFitRun <- function(sim) {
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   outBest$par <- drop(outBest$par %*% sm)
 
+  rescales <- if (is.null(P(sim)$rescalers)) {
+    sapply(needRescale, FUN = function(x){
+      paste0("LandR::rescale(", x, ", to = c(0,1))")
+    }, USE.NAMES = TRUE, simplify = FALSE)
+  } else {
+    sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
+      paste(x, "/", vec[x])
+    }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
+  }
+
   l <- list(formula = as.formula(fireSense_ignitionFormula),
             family = family,
             coef = setNames(outBest$par[1:nx], colnames(mm)),
@@ -806,7 +816,7 @@ frequencyFitRun <- function(sim) {
             AIC = 2 * length(outBest$par) + 2 * outBest$objective,
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
-            rescales = list(MDC = paste0("MDC / ", rescaleMDCFactor)))
+            rescales = rescales)
 
   if (hvPW) {
     l$knots <- setNames(outBest$par[(nx + 1L):(nx + nk)], kNames)
