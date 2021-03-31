@@ -278,9 +278,6 @@ frequencyFitRun <- function(sim) {
   #                                         # "nonForest_highFlam:pw(MDC, k_NFHF) + class2:pw(MDC, k_class2) + ",
   #                                         "class3:pw(MDC, k_class3) - 1")
   # params(sim)[[currentModule(sim)]]$fireSense_ignitionFormula <- sim$fireSense_ignitionFormula
-  #
-  fireSense_ignitionFormula <- as.formula(P(sim)$fireSense_ignitionFormula)
-  terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
   if (attr(terms, "response")) {
     y <- fireSense_ignitionFormula[[2L]]
