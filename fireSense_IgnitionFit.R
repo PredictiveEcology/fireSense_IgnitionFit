@@ -51,6 +51,13 @@ defineModule(sim, list(
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
                                  "the `nlminb` optimizer. See `?nlminb`.")),
+    defineParameter("rescaleVars", "logical", default = TRUE,
+                    desc = paste("Attempt to rescale variables to [0,1]? Only applied to variables not within this range.",
+                                 "If P(sim)$rescalers is defined it will used it to rescale variables as var/rescaler['var']")),
+    defineParameter("rescalers", "numeric", c("MDC" = 1000),
+                    desc = "OPTIONAL. A named vector of rescaling factors for each predictor variable.",
+                    "If not NULL, it will be used to rescale the variables as var/rescaler['var'].",
+                    "If NULL see P(sim)$rescaleVars"),
     defineParameter("plot", "logical", default = TRUE,
                     desc = "logical. Plot model fit against the data. Prediction interval"),
     defineParameter("start", "numeric, list", default = NULL,
@@ -159,20 +166,102 @@ frequencyFitRun <- function(sim) {
 
   moduleName <- current(sim)$moduleName
 
-  rescaleMDCFactor <- 1000
+  if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula))) {
+    stop(moduleName, "> The formula describes an empty model.")
+  }
+
+  fireSense_ignitionFormula <- as.formula(P(sim)$fireSense_ignitionFormula)
+  terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
+
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
   setDT(fireSense_ignitionCovariates)
-  fireSense_ignitionCovariates[, MDC := MDC/rescaleMDCFactor]
-  setDF(fireSense_ignitionCovariates)
+
   lb <- P(sim)$lb
   ub <- P(sim)$ub
-  lb$knots <- lb$knots/rescaleMDCFactor
-  ub$knots <- ub$knots/rescaleMDCFactor
 
-  # Redo parameter bounds after rescale
+  ## rescale variable and knots.
+  if (P(sim)$rescaleVars) {
+    if (is.null(P(sim)$rescalers)) {
+      message("Variables outside of [0,1] range will be rescaled to [0,1]")
 
-  if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula)))
-    stop(moduleName, "> The formula describes an empty model.")
+      ## extract variable names
+      specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
+      notSpecialVars <- colnames(attr(terms, "factor"))
+      for (x in specialVars) {
+        notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
+      }
+      notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
+
+      needRescale <- fireSense_ignitionCovariates[, vapply(.SD, FUN = function(x) all(inrange(na.omit(x), 0, 1)),
+                                                           FUN.VALUE = logical(1)),
+                                                  .SDcols = notSpecialVars]
+      needRescale <- names(needRescale)[which(!needRescale)]
+
+      message(paste("rescaling", needRescale))
+      ## knots need to be added for rescaling
+      rescaleDT <- fireSense_ignitionCovariates[, ..needRescale]
+      knotsDT <- rbind(as.data.table(lb$knots), as.data.table(ub$knots), idcol = "knotType")
+      if (sum(dim(knotsDT)) ==  0) {
+        vars <- c(needRescale, "knotType")
+        knotsDT[, (vars) := numeric(0)]
+      } else {
+        knotsDT[, knotType := ifelse(knotType == 1, "lb", "ub")]
+      }
+
+      rescaleDT <- rbind(rescaleDT, knotsDT, fill = TRUE)
+
+      rescaleDT[, (needRescale) := lapply(.SD, FUN = function(x) {
+        fireSenseUtils::rescale(x, to = c(0,1))
+      }), .SDcols = needRescale]
+
+      fireSense_ignitionCovariates[, (needRescale) := rescaleDT[is.na(knotType), .SD, .SDcols = needRescale]]
+
+      if (nrow(knotsDT)) {
+        lb$knots <- as.list(rescaleDT[knotType == "lb", ..needRescale])
+        ub$knots <- as.list(rescaleDT[knotType == "ub", ..needRescale])
+      }
+    } else {
+      ## checks
+      if (is.null(names(lb$knots))) {
+        stop("P(sim)$lb$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
+      }
+
+      if (is.null(names(ub$knots))) {
+        stop("P(sim)$ub$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
+      }
+
+      if (is.null(names(P(sim)$rescalers))) {
+        stop("P(sim)$rescalers must be a named vector")
+      }
+
+      if (!all(names(P(sim)$rescalers) %in% names(fireSense_ignitionCovariates))) {
+        stop("names(P(sim)$rescalers) doesn't match variable names in fireSense_ignitionCovariates")
+      }
+
+      if (!all(names(P(sim)$rescalers) %in% names(lb$knots))) {
+        stop("names(P(sim)$rescalers) doesn't match variable names in lb$knots")
+      }
+
+      if (!all(names(P(sim)$rescalers) %in% names(ub$knots))) {
+        stop("names(P(sim)$rescalers) doesn't match variable names in ub$knots")
+      }
+
+      cols <- names(P(sim)$rescalers)
+      fireSense_ignitionCovariates[, (cols) := mapply(FUN = function(x, vec) {x / vec},
+                                                      x = .SD, vec = P(sim)$rescalers,
+                                                      SIMPLIFY = FALSE),
+                                   .SDcols = cols]
+
+      # Redo parameter bounds after rescale
+      lb$knots <- sapply(names(P(sim)$rescalers), FUN = function(x, knots, vec) {
+        knots[[x]]/vec[x]
+      }, knots = lb$knots, vec = P(sim)$rescalers, simplify = FALSE, USE.NAMES = TRUE)
+
+      ub$knots <- sapply(names(P(sim)$rescalers), FUN = function(x, knots, vec) {
+        knots[[x]]/vec[x]
+      }, knots = ub$knots, vec = P(sim)$rescalers, simplify = FALSE, USE.NAMES = TRUE)
+    }
+  }
 
   # Remove rows of data with no cover and no ignitions
   whRowsHaveNoCover <- apply(as.data.frame(fireSense_ignitionCovariates)[,c(2,4:8)], 1, sum) == 0
