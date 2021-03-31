@@ -457,6 +457,7 @@ frequencyFitRun <- function(sim) {
         ub
       }
     } else {
+      ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
       rep_len(ub[["coef"]], nx) ## User-defined bounds (recycled if necessary)
     },
     kUB
@@ -718,6 +719,9 @@ frequencyFitRun <- function(sim) {
 
   if (anyPlotting(P(sim)$.plots)) {
 
+    ## TODO: this is not working if using formula/data different from Ian's/Tati's
+    ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
+    ## generate new data from it.
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
@@ -726,7 +730,7 @@ frequencyFitRun <- function(sim) {
     Plots(data = ndLong, fn = pwPlot,
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
-   #TODO unresolved bug in Plot triggered by spaces
+    #TODO: unresolved bug in Plot triggered by spaces
   }
 
 
