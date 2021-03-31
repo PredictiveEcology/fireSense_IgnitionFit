@@ -42,11 +42,13 @@ defineModule(sim, list(
                                  "or searches, to be performed by the nlminb optimizer in order to",
                                  "find the best solution.")),
     defineParameter("lb", "list", default = NULL,
-                    desc = paste("optional named list with up to three elements,",
+                    desc = paste("optional named list of vectors or lists with up to three elements,",
                                  "'coef', 'theta' and 'knots', specifying lower bounds",
                                  "for coefficients to be estimated.",
                                  "These must be finite and will be recycled if necessary to match",
-                                 "`length(coefficients)`.")),
+                                 "`length(coefficients)`. When rescaling, (see P(sim)$rescaleVars and",
+                                 "P(sim)$rescalers) the 'knots' needs to be named list of knot values",
+                                 "matching the variable names in P(sim)$rescalers")),
     defineParameter("nlminb.control", "numeric",
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
@@ -78,7 +80,9 @@ defineModule(sim, list(
                                  "'coef', 'theta' and 'knots', specifying upper bounds",
                                  "for coefficients to be estimated.",
                                  "These must be finite and will be recycled if necessary to match",
-                                 "`length(coefficients)`.")),
+                                 "`length(coefficients)`. When rescaling, (see P(sim)$rescaleVars and",
+                                 "P(sim)$rescalers) the 'knots' needs to be named list of knot values",
+                                 "matching the variable names in P(sim)$rescalers")),
     defineParameter(".plots", "character", default = "screen",
                     desc = "See ?Plots. There are a few plots that are made within this module, if set."),
     defineParameter(".plotInitialTime", "numeric", default = start(sim),
@@ -331,13 +335,25 @@ frequencyFitRun <- function(sim) {
     kUB <- if (is.null(ub$knots)) {
       lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else fireSense_ignitionCovariates[[x]])) %>% unlist()
     } else {
-      rep_len(ub$knots, nk) ## User-defined bounds (recycled if necessary)
+      if (is.list(ub$knots) & !is.null(names(ub$knots))) {
+        ## TODO: Ceres: this needs to be tested/revised if different knots are supplied for the SAME variable.
+        ## TODO: Ceres: clarify doc. only one knot per variable as of now.
+        lapply(pwVarNames, function(x) ub$knots[[x]]) %>% unlist()
+      } else {
+        rep_len(ub$knots, nk) ## User-defined bounds (recycled if necessary)
+      }
     }
 
     kLB <- if (is.null(lb$knots)) {
       lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else fireSense_ignitionCovariates[[x]])) %>% unlist()
     } else {
-      rep_len(lb$knots, nk) ## User-defined bounds (recycled if necessary)
+      if (is.list(lb$knots) & !is.null(names(lb$knots))) {
+        ## TODO: Ceres: this needs to be tested/revised if different  knots are supplied for the same variable.
+        ## TODO: Ceres: clarify doc. only one knot per variable as of now.
+        lapply(pwVarNames, function(x) lb$knots[[x]]) %>% unlist()
+      } else {
+        rep_len(lb$knots, nk) ## User-defined bounds (recycled if necessary)
+      }
     }
 
     knots <- mapply(
