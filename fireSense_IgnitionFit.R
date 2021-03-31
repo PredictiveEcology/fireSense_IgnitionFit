@@ -17,7 +17,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9048)",
+                  "parallelly",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
@@ -415,7 +415,8 @@ frequencyFitRun <- function(sim) {
     if (.Platform$OS.type == "unix") {
       mkCluster <- parallel::makeForkCluster
     } else {
-      #mkCluster <- parallel::makePSOCKcluster ## TODO: this attaches `snow` and breaks the module
+      mkCluster <- parallelly::makeClusterPSOCK
+      # mkCluster <- parallel::makePSOCKcluster ## TODO: this attaches `snow` and breaks the module
       ## see warning: https://www.rdocumentation.org/packages/secr/versions/4.3.3/topics/Parallel
     }
 
