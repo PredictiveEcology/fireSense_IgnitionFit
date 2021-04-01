@@ -778,8 +778,8 @@ frequencyFitRun <- function(sim) {
 
 
     message("--------------------------------------------------")
-    message("It is possible that parameters are too close to their boundary values (or zero). ",
-            "The following are within ", tooClose*100, "% of their boundary and removing them ",
+    message("It is possible that parameters are too close to their lower boundary values (or zero). ",
+            "The following are within ", tooClose*100, "% of their lower boundary and removing them ",
             "from sim$fireSense_ignitionFormula may help with convergence or invertability... e.g.")
     message("sim$fireSense_ignitionFormula <- \"", possForm, "\"")
     messageDF(ctb)
