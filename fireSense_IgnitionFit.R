@@ -29,13 +29,18 @@ defineModule(sim, list(
                     desc = paste("non-negative integer. Defines the number of logical cores",
                                  "to be used for parallel computation.",
                                  "The default value is 1, which disables parallel computing.")),
-    defineParameter("family", "function, character", default = quote(poisson(link = "identity")),
+    # defineParameter("family", "function, character", default = quote(poisson(link = "identity")),
+    defineParameter("family", "function, character", default = quote(MASS::negative.binomial(theta = 1, link = 'identity')),
                     desc = paste("a family function (must be wrapped with `quote()`) or a",
-                                 "character string naming a family function.",
+                                 "character string naming a family function. Only the negative binomial has been implemented",
                                  "For additional details see `?family`.")),
     defineParameter("fireSense_ignitionFormula", "character", default = NA,
                     desc = paste("formula - as a character - describing the model to be fitted.",
-                                 "Piece-wised terms can be specifed using `pw(variableName, knotName)`.")),
+                                 "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
+                                 "Note that when using PW terms, these will be dropped (if autoRefit == TRUE)",
+                                 "if their *coefficients* are too close to 0, or lower boundary. Also note that",
+                                 "actual knot values are estimated/optimised, but knot lower/upper boundaries",
+                                 "can be supplied in lb and ub.")),
     defineParameter("iterDEoptim", "integer", default = 500,
                     desc = "maximum number of iterations allowed (DEoptim optimizer)."),
     defineParameter("iterNlminb", "integer", default = 500,
@@ -404,6 +409,12 @@ frequencyFitRun <- function(sim) {
 
   # Check ff family is negative.binomial
   isFamilyNB <- grepl(x = family$family, pattern = "Negative Binomial")
+
+  ## TODO: Ceres: using a Poisson needs more testing so it's prevented for now
+  if (grepl(x = tolower(family$family), pattern = "poisson")) {
+    stop("The Poisson implementation has not been thoroughly tested and is not ready to use.
+         Please use default P(sim)$family")
+  }
 
   # Extract starting value for theta
   if (isFamilyNB) {
