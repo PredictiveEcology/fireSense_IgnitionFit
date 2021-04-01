@@ -117,7 +117,10 @@ defineModule(sim, list(
   outputObjects = createsOutput(
     objectName = "fireSense_IgnitionFitted",
     objectClass = "fireSense_IgnitionFit",
-    desc = "A fitted model object of class fireSense_IgnitionFit."
+                  desc = "A fitted model object of class fireSense_IgnitionFit."),
+    createsOutput(objectName = "covMinMax",
+                  objectClass = "data.table",
+                  desc = "Table of the original ranges (min and max) of covariates")
   )
 ))
 
@@ -191,16 +194,19 @@ frequencyFitRun <- function(sim) {
 
   ## rescale variable and knots.
   if (P(sim)$rescaleVars) {
+    ## save covariate original ranges first
+    ## extract variable names
+    specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
+    notSpecialVars <- colnames(attr(terms, "factor"))
+    for (x in specialVars) {
+      notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
+    }
+    notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
+
+    sim$covMinMax <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
+
     if (is.null(P(sim)$rescalers)) {
       message("Variables outside of [0,1] range will be rescaled to [0,1]")
-
-      ## extract variable names
-      specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
-      notSpecialVars <- colnames(attr(terms, "factor"))
-      for (x in specialVars) {
-        notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
-      }
-      notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
 
       needRescale <- fireSense_ignitionCovariates[, vapply(.SD, FUN = function(x) all(inrange(na.omit(x), 0, 1)),
                                                            FUN.VALUE = logical(1)),
@@ -271,6 +277,8 @@ frequencyFitRun <- function(sim) {
         knots[[x]]/vec[x]
       }, knots = ub$knots, vec = P(sim)$rescalers, simplify = FALSE, USE.NAMES = TRUE)
     }
+  } else {
+    sim$covMinMax <- NULL
   }
 
   # Remove rows of data with no cover and no ignitions
