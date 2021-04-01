@@ -749,7 +749,7 @@ frequencyFitRun <- function(sim) {
     message("Plotting has not been tested thoroughly")
     colName <- unique(rbindlist(specialsTerms)$variable)   ## added by Ceres to avoid hardcoding, but not necessary with suggested solution
 
-    ## TODO: this is not working if using formula/data different from Ian's/Tati's
+    ## TODO: Ceres: this is not working if using formula/data different from Ian's/Tati's
     ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
     ## generate new data from it.
     ndLong <- pwPlotData(bestParams = best,
@@ -767,7 +767,7 @@ frequencyFitRun <- function(sim) {
 
   if (outBest$convergence || anyNA(se)) {
     tooClose <- 0.00001
-    closeToBounds <- abs(drop((best - DEoptimLB)/ (DEoptimUB - DEoptimLB))) < tooClose |
+    closeToBounds <- abs(drop((best - DEoptimLB) / (DEoptimUB - DEoptimLB))) < tooClose |
       best < tooClose
     ctb <- data.table(term = names(closeToBounds), best = best,
                       upperBoundary = DEoptimUB,
