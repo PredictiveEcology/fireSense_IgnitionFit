@@ -659,14 +659,23 @@ frequencyFitRun <- function(sim) {
       }
       message("Starting nlminb ... ")
 
-      out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
-                   lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                   linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
-                   mod_env = fireSense_ignitionCovariates, offset = offset,
-                   formula = P(sim)$fireSense_ignitionFormula,
-                   omitArgs = c("x"), # don't need to know the random sample... the mm is enough
-                   updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
-                   control = c(P(sim)$nlminb.control, list(trace = trace)))
+      if (hvPW) {
+        out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
+                     lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     mod_env = fireSense_ignitionCovariates, offset = offset,
+                     formula = P(sim)$fireSense_ignitionFormula,
+                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
+                     updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
+                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+      } else {
+        out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
+                     lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     mod_env = fireSense_ignitionCovariates, offset = offset,
+                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
+                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+      }
 
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
         #  MUST MANUALLY IDENTIFY THE PIDS
@@ -692,12 +701,21 @@ frequencyFitRun <- function(sim) {
       if (trace) parallel::clusterEvalQ(cl, sink())
     } else {
       warning("This is not tested by Eliot as of March 4, 2021; please set parameter: cores > 1")
-      out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                   linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
-                   mod_env = fireSense_ignitionCovariates, offset = offset,
-                   formula = P(sim)$fireSense_ignitionFormula,
-                   updateKnotExpr = updateKnotExpr, omitArgs = "X",
-                   control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
+      if (hvPW) {
+        out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     mod_env = fireSense_ignitionCovariates, offset = offset,
+                     formula = P(sim)$fireSense_ignitionFormula,
+                     updateKnotExpr = updateKnotExpr, omitArgs = "X",
+                     control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
+      } else {
+        out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     mod_env = fireSense_ignitionCovariates, offset = offset,
+                     omitArgs = "X",
+                     control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
+      }
+
     }
 
     out
@@ -736,8 +754,10 @@ frequencyFitRun <- function(sim) {
     best <- drop(as.matrix(dd[1, -(1:2)]))
   } else {
     best <- outBest$par
-    colnms <- c(attr(terms, "term.labels"),
-                unlist(lapply(updateKnotExpr, function(x) x[[2]][[3]])))
+    colnms <- c(attr(terms, "term.labels"))
+    if (hvPW) {
+      colnms <- c(colnms, unlist(lapply(updateKnotExpr, function(x) x[[2]][[3]])))
+    }
     if (isFamilyNB) {
       colnms <- c(colnms, "NB_theta")
     }
