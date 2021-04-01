@@ -73,7 +73,7 @@ defineModule(sim, list(
                                  Those are passed to `nlminb` and can be a single vector, or a list of vectors.",
                                  "In the latter case, only the best solution, that is,",
                                  "the one which minimizes the most the objective function, is kept.")),
-    defineParameter("trace", "numeric", default = 1,
+    defineParameter("trace", "numeric", default = 0,
                     desc = paste("non-negative integer. If > 0, tracing information on the progress",
                                  "of the optimization are printed every `trace` iteration.",
                                  "If parallel computing is enable, nlminb trace logs are written",
