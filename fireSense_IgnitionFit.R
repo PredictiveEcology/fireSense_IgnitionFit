@@ -492,6 +492,7 @@ frequencyFitRun <- function(sim) {
              if (is.null(lb[["coef"]])) {
                -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
              } else {
+               ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
                rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
 
@@ -499,6 +500,7 @@ frequencyFitRun <- function(sim) {
              if (is.null(lb[["coef"]])) {
                rep_len(1e-16, nx) ## Ensure non-negativity
              } else {
+               ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
                rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
            }, stop(moduleName, "> Link function ", family$link, " is not supported."))
