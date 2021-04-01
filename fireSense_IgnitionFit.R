@@ -819,14 +819,18 @@ frequencyFitRun <- function(sim) {
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   outBest$par <- drop(outBest$par %*% sm)
 
-  rescales <- if (is.null(P(sim)$rescalers)) {
-    sapply(needRescale, FUN = function(x){
-      paste0("LandR::rescale(", x, ", to = c(0,1))")
-    }, USE.NAMES = TRUE, simplify = FALSE)
+  rescales <- if (P(sim)$rescaleVars) {
+    if (is.null(P(sim)$rescalers)) {
+      sapply(needRescale, FUN = function(x){
+        paste0("LandR::rescale(", x, ", to = c(0,1))")
+      }, USE.NAMES = TRUE, simplify = FALSE)
+    } else {
+      sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
+        paste(x, "/", vec[x])
+      }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
+    }
   } else {
-    sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
-      paste(x, "/", vec[x])
-    }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
+    rescales <- NULL
   }
 
   l <- list(formula = as.formula(fireSense_ignitionFormula),
