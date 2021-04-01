@@ -108,15 +108,15 @@ defineModule(sim, list(
                                  "This is generally intended for data-type modules,",
                                  "where stochasticity and time are not relevant."))
   ),
-  inputObjects = expectsInput(
-    objectName = "fireSense_ignitionCovariates",
-    objectClass = "data.frame",
-    desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
-    sourceURL = NA_character_
+  inputObjects = bindrows(
+    expectsInput(objectName = "fireSense_ignitionCovariates",
+                 objectClass = "data.frame",
+                 desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
+                 sourceURL = NA_character_)
   ),
-  outputObjects = createsOutput(
-    objectName = "fireSense_IgnitionFitted",
-    objectClass = "fireSense_IgnitionFit",
+  outputObjects = bindrows(
+    createsOutput(objectName = "fireSense_IgnitionFitted",
+                  objectClass = "fireSense_IgnitionFit",
                   desc = "A fitted model object of class fireSense_IgnitionFit."),
     createsOutput(objectName = "covMinMax",
                   objectClass = "data.table",
