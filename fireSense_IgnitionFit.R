@@ -172,6 +172,33 @@ frequencyFitInit <- function(sim) {
   stopifnot(P(sim)$iterDEoptim >= 1)
   stopifnot(P(sim)$iterNlminb >= 1)
 
+  if (!is.null(P(sim)$rescalers)) {
+    ## checks
+    if (is.null(names(P(sim)$lb$knots))) {
+      stop("P(sim)$lb$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
+    }
+
+    if (is.null(names(P(sim)$ub$knots))) {
+      stop("P(sim)$ub$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
+    }
+
+    if (is.null(names(P(sim)$rescalers))) {
+      stop("P(sim)$rescalers must be a named vector")
+    }
+
+    if (!all(names(P(sim)$rescalers) %in% names(sim$fireSense_ignitionCovariates))) {
+      stop("names(P(sim)$rescalers) doesn't match variable names in fireSense_ignitionCovariates")
+    }
+
+    if (!all(names(P(sim)$rescalers) %in% names(P(sim)$lb$knots))) {
+      stop("names(P(sim)$rescalers) doesn't match variable names in lb$knots")
+    }
+
+    if (!all(names(P(sim)$rescalers) %in% names(P(sim)$ub$knots))) {
+      stop("names(P(sim)$rescalers) doesn't match variable names in ub$knots")
+    }
+  }
+
   return(invisible(sim))
 }
 
@@ -237,31 +264,6 @@ frequencyFitRun <- function(sim) {
         ub$knots <- as.list(rescaleDT[knotType == "ub", ..needRescale])
       }
     } else {
-      ## checks
-      if (is.null(names(lb$knots))) {
-        stop("P(sim)$lb$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
-      }
-
-      if (is.null(names(ub$knots))) {
-        stop("P(sim)$ub$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
-      }
-
-      if (is.null(names(P(sim)$rescalers))) {
-        stop("P(sim)$rescalers must be a named vector")
-      }
-
-      if (!all(names(P(sim)$rescalers) %in% names(fireSense_ignitionCovariates))) {
-        stop("names(P(sim)$rescalers) doesn't match variable names in fireSense_ignitionCovariates")
-      }
-
-      if (!all(names(P(sim)$rescalers) %in% names(lb$knots))) {
-        stop("names(P(sim)$rescalers) doesn't match variable names in lb$knots")
-      }
-
-      if (!all(names(P(sim)$rescalers) %in% names(ub$knots))) {
-        stop("names(P(sim)$rescalers) doesn't match variable names in ub$knots")
-      }
-
       cols <- names(P(sim)$rescalers)
       fireSense_ignitionCovariates[, (cols) := mapply(FUN = function(x, vec) {x / vec},
                                                       x = .SD, vec = P(sim)$rescalers,
