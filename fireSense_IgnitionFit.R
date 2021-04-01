@@ -214,7 +214,7 @@ frequencyFitRun <- function(sim) {
   terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
-  setDT(fireSense_ignitionCovariates)
+  fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))   ## make sure the "link" between the two "copies" is broken in case it was a DT to start with
 
   lb <- P(sim)$lb
   ub <- P(sim)$ub
