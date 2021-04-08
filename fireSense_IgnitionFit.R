@@ -232,6 +232,11 @@ frequencyFitRun <- function(sim) {
 
     sim$covMinMax_ignition <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
 
+    ## check for NAs
+    if (any(is.na(sim$covMinMax_ignition))) {
+      stop("There are NAs in fireSense_ignitionCovariates' variables used for model. Please remove NAs")
+    }
+
     if (is.null(P(sim)$rescalers)) {
       message("Variables outside of [0,1] range will be rescaled to [0,1]")
 
