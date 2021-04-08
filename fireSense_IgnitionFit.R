@@ -203,7 +203,6 @@ frequencyFitInit <- function(sim) {
 }
 
 frequencyFitRun <- function(sim) {
-
   moduleName <- current(sim)$moduleName
 
   if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula))) {
@@ -806,7 +805,7 @@ frequencyFitRun <- function(sim) {
     message("It is possible that parameters are too close to their lower boundary values (or zero). ",
             "The following are within ", tooClose*100, "% of their lower boundary and removing them ",
             "from sim$fireSense_ignitionFormula may help with convergence or invertability... e.g.")
-    message("sim$fireSense_ignitionFormula <- \"", possForm, "\"")
+    message("P(sim)$fireSense_ignitionFit$fireSense_ignitionFormula <- \"", possForm, "\"")
     messageDF(ctb)
     message("It may also help to use Ben Bolker's approximation: sqrt(1/diag(hess)) mentioned here:")
     message("https://cran.r-project.org/web/packages/bbmle/vignettes/mle2.pdf")
@@ -815,7 +814,7 @@ frequencyFitRun <- function(sim) {
 
     if (!isFALSE(P(sim)$autoRefit))  {
       outRL <- if (isTRUE(P(sim)$autoRefit)) {
-        message("Automatically refitting with simpler model becaues P(sim)$autoRefit is TRUE")
+        message("Automatically refitting with simpler model because P(sim)$autoRefit is TRUE")
         "y"
       } else if (isFALSE(P(sim)$autoRefit)) {
         "n"
