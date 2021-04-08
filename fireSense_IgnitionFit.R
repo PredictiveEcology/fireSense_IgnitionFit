@@ -800,6 +800,15 @@ frequencyFitRun <- function(sim) {
     possTerms <- attr(terms, "term.labels")[1:nx][!closeToBounds[1:nx]]
     possForm <- paste0(terms[[2]], " ~ ", paste(possTerms, collapse = " + "), " -1")
 
+    tryRefit <- TRUE
+    ## TODO: this may not be the best way for checking if the formulas are identical.
+    if (identical(parse(text = P(sim)$fireSense_ignitionFormula),
+                  parse(text = possForm))) {
+      tryRefit <- FALSE
+      message("Can't find a simpler model to refit automatically. Will use the current formula:")
+      message(possForm)
+      message("but note that there are convergence or invertability issues preventing calculation of std errors.")
+    }
 
     message("--------------------------------------------------")
     message("It is possible that parameters are too close to their lower boundary values (or zero). ",
@@ -812,7 +821,7 @@ frequencyFitRun <- function(sim) {
     message("If there are Inf values, that indicates variables to remove as they have",
             "infinite variance at the solution")
 
-    if (!isFALSE(P(sim)$autoRefit))  {
+    if (!isFALSE(P(sim)$autoRefit) & tryRefit)  {
       outRL <- if (isTRUE(P(sim)$autoRefit)) {
         message("Automatically refitting with simpler model because P(sim)$autoRefit is TRUE")
         "y"
