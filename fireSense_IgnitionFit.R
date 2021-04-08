@@ -118,7 +118,7 @@ defineModule(sim, list(
     createsOutput(objectName = "fireSense_IgnitionFitted",
                   objectClass = "fireSense_IgnitionFit",
                   desc = "A fitted model object of class fireSense_IgnitionFit."),
-    createsOutput(objectName = "covMinMax",
+    createsOutput(objectName = "covMinMax_ignition",
                   objectClass = "data.table",
                   desc = "Table of the original ranges (min and max) of covariates")
   )
@@ -230,7 +230,7 @@ frequencyFitRun <- function(sim) {
     }
     notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
 
-    sim$covMinMax <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
+    sim$covMinMax_ignition <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
 
     if (is.null(P(sim)$rescalers)) {
       message("Variables outside of [0,1] range will be rescaled to [0,1]")
@@ -280,7 +280,7 @@ frequencyFitRun <- function(sim) {
       }, knots = ub$knots, vec = P(sim)$rescalers, simplify = FALSE, USE.NAMES = TRUE)
     }
   } else {
-    sim$covMinMax <- NULL
+    sim$covMinMax_ignition <- NULL
   }
 
   # Remove rows of data with no cover and no ignitions
