@@ -474,13 +474,13 @@ frequencyFitRun <- function(sim) {
             "the 'ub' parameter."
           )
         )
-      ) %>% coef() %>% oom(.)) * 10L -> ub
+      ) %>% coef() %>% oom(.)) * 10L -> ub2
 
-      if (anyNA(ub)) {
+      if (anyNA(ub2)) {
         stop(moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
              "please set the 'coef' element of the 'ub' parameter.")
       } else {
-        ub
+        ub2
       }
     } else {
       ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
