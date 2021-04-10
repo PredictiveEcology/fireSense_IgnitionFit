@@ -802,8 +802,8 @@ frequencyFitRun <- function(sim) {
 
     tryRefit <- TRUE
     ## TODO: this may not be the best way for checking if the formulas are identical.
-    if (identical(parse(text = P(sim)$fireSense_ignitionFormula),
-                  parse(text = possForm))) {
+    if (identical(as.character(parse(text = P(sim)$fireSense_ignitionFormula)),
+                  as.character(parse(text = possForm)))) {
       tryRefit <- FALSE
       message("Can't find a simpler model to refit automatically. Will use the current formula:")
       message(possForm)
