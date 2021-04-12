@@ -91,7 +91,7 @@ defineModule(sim, list(
                                  "matching the variable names in P(sim)$rescalers")),
     defineParameter(".plots", "character", default = "screen",
                     desc = "See ?Plots. There are a few plots that are made within this module, if set."),
-    defineParameter(".plotInitialTime", "numeric", default = start(sim),
+    defineParameter(".plotInitialTime", "numeric", default = NA,
                     desc = "when to do plot"),
     defineParameter(".runInitialTime", "numeric", default = start(sim),
                     desc = "when to start this module? By default, the start time of the simulation."),
