@@ -17,7 +17,8 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9048)",
+                  "parallelly",
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9070)",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
@@ -28,17 +29,18 @@ defineModule(sim, list(
                     desc = paste("non-negative integer. Defines the number of logical cores",
                                  "to be used for parallel computation.",
                                  "The default value is 1, which disables parallel computing.")),
-    defineParameter("data", "character", default = "fireSense_ignitionCovariates",
-                    desc = paste("a character vector indicating the names of objects in the",
-                                 "`simList` environment in which to look for variables present",
-                                 "in the model formula. `data` objects should be data.frames.")),
-    defineParameter("family", "function, character", default = quote(poisson(link = "identity")),
+    # defineParameter("family", "function, character", default = quote(poisson(link = "identity")),
+    defineParameter("family", "function, character", default = quote(MASS::negative.binomial(theta = 1, link = 'identity')),
                     desc = paste("a family function (must be wrapped with `quote()`) or a",
-                                 "character string naming a family function.",
+                                 "character string naming a family function. Only the negative binomial has been implemented",
                                  "For additional details see `?family`.")),
     defineParameter("fireSense_ignitionFormula", "character", default = NA,
                     desc = paste("formula - as a character - describing the model to be fitted.",
-                                 "Piece-wised terms can be specifed using `pw(variableName, knotName)`.")),
+                                 "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
+                                 "Note that when using PW terms, these will be dropped (if autoRefit == TRUE)",
+                                 "if their *coefficients* are too close to 0, or lower boundary. Also note that",
+                                 "actual knot values are estimated/optimised, but knot lower/upper boundaries",
+                                 "can be supplied in lb and ub.")),
     defineParameter("iterDEoptim", "integer", default = 500,
                     desc = "maximum number of iterations allowed (DEoptim optimizer)."),
     defineParameter("iterNlminb", "integer", default = 500,
@@ -46,15 +48,24 @@ defineModule(sim, list(
                                  "or searches, to be performed by the nlminb optimizer in order to",
                                  "find the best solution.")),
     defineParameter("lb", "list", default = NULL,
-                    desc = paste("optional named list with up to three elements,",
-                                 "'coef', 'theta' and 'knots', specifying lower bounds",
-                                 "for coefficients to be estimated.",
+                    desc = paste("optional named list of vectors or lists with up to three elements,",
+                                 "'coef', 'theta' and 'knots', specifying lower bounds for coefficients",
+                                 "theta and knots to be estimated.",
                                  "These must be finite and will be recycled if necessary to match",
-                                 "`length(coefficients)`.")),
+                                 "`length(coefficients)`. When rescaling, (see P(sim)$rescaleVars and",
+                                 "P(sim)$rescalers) the 'knots' needs to be named list of knot values",
+                                 "matching the variable names in P(sim)$rescalers")),
     defineParameter("nlminb.control", "numeric",
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
                                  "the `nlminb` optimizer. See `?nlminb`.")),
+    defineParameter("rescaleVars", "logical", default = TRUE,
+                    desc = paste("Attempt to rescale variables to [0,1]? Only applied to variables not within this range.",
+                                 "If P(sim)$rescalers is defined it will use it to rescale variables as var/rescaler['var']")),
+    defineParameter("rescalers", "numeric", c("MDC" = 1000),
+                    desc = "OPTIONAL. A named vector of rescaling factors for each predictor variable.",
+                    "If not NULL, it will be used to rescale the variables as var/rescaler['var'].",
+                    "If NULL see P(sim)$rescaleVars"),
     defineParameter("plot", "logical", default = TRUE,
                     desc = "logical. Plot model fit against the data. Prediction interval"),
     defineParameter("start", "numeric, list", default = NULL,
@@ -62,7 +73,7 @@ defineModule(sim, list(
                                  Those are passed to `nlminb` and can be a single vector, or a list of vectors.",
                                  "In the latter case, only the best solution, that is,",
                                  "the one which minimizes the most the objective function, is kept.")),
-    defineParameter("trace", "numeric", default = 1,
+    defineParameter("trace", "numeric", default = 0,
                     desc = paste("non-negative integer. If > 0, tracing information on the progress",
                                  "of the optimization are printed every `trace` iteration.",
                                  "If parallel computing is enable, nlminb trace logs are written",
@@ -73,9 +84,11 @@ defineModule(sim, list(
     defineParameter("ub", "numeric", default = NULL,
                     desc = paste("optional named list with up to three elements,",
                                  "'coef', 'theta' and 'knots', specifying upper bounds",
-                                 "for coefficients to be estimated.",
+                                 "for coefficients theta and knots to be estimated.",
                                  "These must be finite and will be recycled if necessary to match",
-                                 "`length(coefficients)`.")),
+                                 "`length(coefficients)`. When rescaling, (see P(sim)$rescaleVars and",
+                                 "P(sim)$rescalers) the 'knots' needs to be named list of knot values",
+                                 "matching the variable names in P(sim)$rescalers")),
     defineParameter(".plots", "character", default = "screen",
                     desc = "See ?Plots. There are a few plots that are made within this module, if set."),
     defineParameter(".plotInitialTime", "numeric", default = start(sim),
@@ -95,16 +108,19 @@ defineModule(sim, list(
                                  "This is generally intended for data-type modules,",
                                  "where stochasticity and time are not relevant."))
   ),
-  inputObjects = expectsInput(
-    objectName = "fireSense_ignitionCovariates",
-    objectClass = "data.frame",
-    desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
-    sourceURL = NA_character_
+  inputObjects = bindrows(
+    expectsInput(objectName = "fireSense_ignitionCovariates",
+                 objectClass = "data.frame",
+                 desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
+                 sourceURL = NA_character_)
   ),
-  outputObjects = createsOutput(
-    objectName = "fireSense_IgnitionFitted",
-    objectClass = "fireSense_IgnitionFit",
-    desc = "A fitted model object of class fireSense_IgnitionFit."
+  outputObjects = bindrows(
+    createsOutput(objectName = "fireSense_IgnitionFitted",
+                  objectClass = "fireSense_IgnitionFit",
+                  desc = "A fitted model object of class fireSense_IgnitionFit."),
+    createsOutput(objectName = "covMinMax_ignition",
+                  objectClass = "data.table",
+                  desc = "Table of the original ranges (min and max) of covariates")
   )
 ))
 
@@ -156,31 +172,127 @@ frequencyFitInit <- function(sim) {
   stopifnot(P(sim)$iterDEoptim >= 1)
   stopifnot(P(sim)$iterNlminb >= 1)
 
+  if (!is.null(P(sim)$rescalers)) {
+    ## checks
+    if (is.null(names(P(sim)$lb$knots))) {
+      stop("P(sim)$lb$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
+    }
+
+    if (is.null(names(P(sim)$ub$knots))) {
+      stop("P(sim)$ub$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
+    }
+
+    if (is.null(names(P(sim)$rescalers))) {
+      stop("P(sim)$rescalers must be a named vector")
+    }
+
+    if (!all(names(P(sim)$rescalers) %in% names(sim$fireSense_ignitionCovariates))) {
+      stop("names(P(sim)$rescalers) doesn't match variable names in fireSense_ignitionCovariates")
+    }
+
+    if (!all(names(P(sim)$rescalers) %in% names(P(sim)$lb$knots))) {
+      stop("names(P(sim)$rescalers) doesn't match variable names in lb$knots")
+    }
+
+    if (!all(names(P(sim)$rescalers) %in% names(P(sim)$ub$knots))) {
+      stop("names(P(sim)$rescalers) doesn't match variable names in ub$knots")
+    }
+  }
+
   return(invisible(sim))
 }
 
 frequencyFitRun <- function(sim) {
-
   moduleName <- current(sim)$moduleName
 
-  rescaleMDCFactor <- 1000
+  if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula))) {
+    stop(moduleName, "> The formula describes an empty model.")
+  }
+
+  fireSense_ignitionFormula <- as.formula(P(sim)$fireSense_ignitionFormula)
+  terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
+
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
-  setDT(fireSense_ignitionCovariates)
-  fireSense_ignitionCovariates[, MDC := MDC/rescaleMDCFactor]
-  setDF(fireSense_ignitionCovariates)
+  fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))   ## make sure the "link" between the two "copies" is broken in case it was a DT to start with
+
   lb <- P(sim)$lb
   ub <- P(sim)$ub
-  lb$knots <- lb$knots/rescaleMDCFactor
-  ub$knots <- ub$knots/rescaleMDCFactor
 
-  # Redo parameter bounds after rescale
+  ## rescale variable and knots.
+  if (P(sim)$rescaleVars) {
+    ## save covariate original ranges first
+    ## extract variable names
+    specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
+    notSpecialVars <- colnames(attr(terms, "factor"))
+    for (x in specialVars) {
+      notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
+    }
+    notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
 
-  if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula)))
-    stop(moduleName, "> The formula describes an empty model.")
+    sim$covMinMax_ignition <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
+
+    ## check for NAs
+    if (any(is.na(sim$covMinMax_ignition))) {
+      stop("There are NAs in fireSense_ignitionCovariates' variables used for model. Please remove NAs")
+    }
+
+    if (is.null(P(sim)$rescalers)) {
+      message("Variables outside of [0,1] range will be rescaled to [0,1]")
+
+      needRescale <- fireSense_ignitionCovariates[, vapply(.SD, FUN = function(x) all(inrange(na.omit(x), 0, 1)),
+                                                           FUN.VALUE = logical(1)),
+                                                  .SDcols = notSpecialVars]
+      needRescale <- names(needRescale)[which(!needRescale)]
+
+      message(paste("rescaling", needRescale))
+      ## knots need to be added for rescaling
+      rescaleDT <- fireSense_ignitionCovariates[, ..needRescale]
+      knotsDT <- rbind(as.data.table(lb$knots), as.data.table(ub$knots), idcol = "knotType")
+      if (sum(dim(knotsDT)) ==  0) {
+        vars <- c(needRescale, "knotType")
+        knotsDT[, (vars) := numeric(0)]
+      } else {
+        knotsDT[, knotType := ifelse(knotType == 1, "lb", "ub")]
+      }
+
+      rescaleDT <- rbind(rescaleDT, knotsDT, fill = TRUE)
+
+      rescaleDT[, (needRescale) := lapply(.SD, FUN = function(x) {
+        fireSenseUtils::rescale(x, to = c(0,1))
+      }), .SDcols = needRescale]
+
+      fireSense_ignitionCovariates[, (needRescale) := rescaleDT[is.na(knotType), .SD, .SDcols = needRescale]]
+
+      if (nrow(knotsDT)) {
+        lb$knots <- as.list(rescaleDT[knotType == "lb", ..needRescale])
+        ub$knots <- as.list(rescaleDT[knotType == "ub", ..needRescale])
+      }
+    } else {
+      cols <- names(P(sim)$rescalers)
+      fireSense_ignitionCovariates[, (cols) := mapply(FUN = function(x, vec) {x / vec},
+                                                      x = .SD, vec = P(sim)$rescalers,
+                                                      SIMPLIFY = FALSE),
+                                   .SDcols = cols]
+
+      # Redo parameter bounds after rescale
+      lb$knots <- sapply(names(P(sim)$rescalers), FUN = function(x, knots, vec) {
+        knots[[x]]/vec[x]
+      }, knots = lb$knots, vec = P(sim)$rescalers, simplify = FALSE, USE.NAMES = TRUE)
+
+      ub$knots <- sapply(names(P(sim)$rescalers), FUN = function(x, knots, vec) {
+        knots[[x]]/vec[x]
+      }, knots = ub$knots, vec = P(sim)$rescalers, simplify = FALSE, USE.NAMES = TRUE)
+    }
+  } else {
+    sim$covMinMax_ignition <- NULL
+  }
 
   # Remove rows of data with no cover and no ignitions
-  whRowsHaveNoCover <- apply(as.data.frame(fireSense_ignitionCovariates)[,c(2,4:8)], 1, sum) == 0
-  fireSense_ignitionCovariates <- fireSense_ignitionCovariates[!whRowsHaveNoCover,]
+  if (FALSE) {
+    ## TODO: Ceres: this can't be here. needs to go to data prep - what if our model has no cover?
+    whRowsHaveNoCover <- apply(as.data.frame(fireSense_ignitionCovariates)[,c(2,4:8)], 1, sum) == 0
+    fireSense_ignitionCovariates <- fireSense_ignitionCovariates[!whRowsHaveNoCover,]
+  }
 
   # sim$fireSense_ignitionFormula <- paste0("ignitions ~ ",
   #                                         # "youngAge:MDC + ",
@@ -190,9 +302,6 @@ frequencyFitRun <- function(sim) {
   #                                         # "nonForest_highFlam:pw(MDC, k_NFHF) + class2:pw(MDC, k_class2) + ",
   #                                         "class3:pw(MDC, k_class3) - 1")
   # params(sim)[[currentModule(sim)]]$fireSense_ignitionFormula <- sim$fireSense_ignitionFormula
-  #
-  fireSense_ignitionFormula <- as.formula(P(sim)$fireSense_ignitionFormula)
-  terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
   if (attr(terms, "response")) {
     y <- fireSense_ignitionFormula[[2L]]
@@ -246,13 +355,25 @@ frequencyFitRun <- function(sim) {
     kUB <- if (is.null(ub$knots)) {
       lapply(pwVarNames, function(x) max(if (is(x, "AsIs")) x else fireSense_ignitionCovariates[[x]])) %>% unlist()
     } else {
-      rep_len(ub$knots, nk) ## User-defined bounds (recycled if necessary)
+      if (is.list(ub$knots) & !is.null(names(ub$knots))) {
+        ## TODO: Ceres: this needs to be tested/revised if different knots are supplied for the SAME variable.
+        ## TODO: Ceres: clarify doc. only one knot per variable as of now.
+        lapply(pwVarNames, function(x) ub$knots[[x]]) %>% unlist()
+      } else {
+        rep_len(ub$knots, nk) ## User-defined bounds (recycled if necessary)
+      }
     }
 
     kLB <- if (is.null(lb$knots)) {
       lapply(pwVarNames, function(x) min(if (is(x, "AsIs")) x else fireSense_ignitionCovariates[[x]])) %>% unlist()
     } else {
-      rep_len(lb$knots, nk) ## User-defined bounds (recycled if necessary)
+      if (is.list(lb$knots) & !is.null(names(lb$knots))) {
+        ## TODO: Ceres: this needs to be tested/revised if different  knots are supplied for the same variable.
+        ## TODO: Ceres: clarify doc. only one knot per variable as of now.
+        lapply(pwVarNames, function(x) lb$knots[[x]]) %>% unlist()
+      } else {
+        rep_len(lb$knots, nk) ## User-defined bounds (recycled if necessary)
+      }
     }
 
     knots <- mapply(
@@ -303,6 +424,12 @@ frequencyFitRun <- function(sim) {
   # Check ff family is negative.binomial
   isFamilyNB <- grepl(x = family$family, pattern = "Negative Binomial")
 
+  ## TODO: Ceres: using a Poisson needs more testing so it's prevented for now
+  if (grepl(x = tolower(family$family), pattern = "poisson")) {
+    stop("The Poisson implementation has not been thoroughly tested and is not ready to use.
+         Please use default P(sim)$family")
+  }
+
   # Extract starting value for theta
   if (isFamilyNB) {
     theta <- as.numeric(gsub(x = regmatches(family$family, gregexpr("\\(.*?\\)", family$family))[[1L]],
@@ -347,15 +474,16 @@ frequencyFitRun <- function(sim) {
             "the 'ub' parameter."
           )
         )
-      ) %>% coef() %>% oom(.)) * 10L -> ub
+      ) %>% coef() %>% oom(.)) * 10L -> ub2
 
-      if (anyNA(ub)) {
+      if (anyNA(ub2)) {
         stop(moduleName, "> Automated estimation of upper bounds (coefs) failed, ",
              "please set the 'coef' element of the 'ub' parameter.")
       } else {
-        ub
+        ub2
       }
     } else {
+      ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
       rep_len(ub[["coef"]], nx) ## User-defined bounds (recycled if necessary)
     },
     kUB
@@ -368,6 +496,7 @@ frequencyFitRun <- function(sim) {
              if (is.null(lb[["coef"]])) {
                -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
              } else {
+               ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
                rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
 
@@ -375,6 +504,7 @@ frequencyFitRun <- function(sim) {
              if (is.null(lb[["coef"]])) {
                rep_len(1e-16, nx) ## Ensure non-negativity
              } else {
+               ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
                rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
            }, stop(moduleName, "> Link function ", family$link, " is not supported."))
@@ -419,7 +549,8 @@ frequencyFitRun <- function(sim) {
     if (.Platform$OS.type == "unix") {
       mkCluster <- parallel::makeForkCluster
     } else {
-      #mkCluster <- parallel::makePSOCKcluster ## TODO: this attaches `snow` and breaks the module
+      mkCluster <- parallelly::makeClusterPSOCK
+      # mkCluster <- parallel::makePSOCKcluster ## TODO: this attaches `snow` and breaks the module
       ## see warning: https://www.rdocumentation.org/packages/secr/versions/4.3.3/topics/Parallel
     }
 
@@ -443,7 +574,7 @@ frequencyFitRun <- function(sim) {
 
     # control$cluster <- NULL #when debugging DEoptim
     if (hvPW) {
-      DEout <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
+      DEout <- Cache(DEoptim, fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
                      control = do.call("DEoptim.control", control),
                      formula = P(sim)$fireSense_ignitionFormula,
                      mod_env = fireSense_ignitionCovariates,
@@ -452,14 +583,13 @@ frequencyFitRun <- function(sim) {
                      userTags = c("ignitionFit", "DEoptim"))
       DEoptimBestMem <- DEout %>%  `[[`("optim") %>% `[[`("bestmem")
     } else {
-      DEoptimBestMem <- Cache(DEoptim, objfun, lower = DEoptimLB, upper = DEoptimUB,
-                              control = do.call("DEoptim.control", control),
-                              formula = P(sim)$fireSense_ignitionFormula,
-                              mod_env = fireSense_ignitionCovariates,
-                              linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
-                              offset = offset,
-                              userTags = c("ignitionFit", "DEoptim")) %>%
-        `[[`("optim") %>% `[[`("bestmem")
+      DEout <- Cache(DEoptim, fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
+                     control = do.call("DEoptim.control", control),
+                     mod_env = fireSense_ignitionCovariates,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
+                     offset = offset,
+                     userTags = c("ignitionFit", "DEoptim"))
+      DEoptimBestMem <- DEout %>% `[[`("optim") %>% `[[`("bestmem")
     }
 
     if (FALSE) { # THIS IS ELIOT BLOCKING THIS -- I DON"T THINK IT IS NECESSARY
@@ -486,11 +616,11 @@ frequencyFitRun <- function(sim) {
       }
 
       getRandomStarts <- function(.) {
-       pmin(pmax(rnorm(length(DEoptimBestMem), 0L, 2L) / 40 +
-                   unname(DEoptimBestMem / oom(DEoptimBestMem)), nlminbLB), nlminbUB)
+        pmin(pmax(rnorm(length(DEoptimBestMem), 0L, 2L) / 40 +
+                    unname(DEoptimBestMem / oom(DEoptimBestMem)), nlminbLB), nlminbUB)
       }
       start <- c(lapply(1:P(sim)$iterNlminb, getRandomStarts),
-                list(unname(DEoptimBestMem / oom(DEoptimBestMem))))
+                 list(unname(DEoptimBestMem / oom(DEoptimBestMem))))
     }
 
     # This is ELIOT's change March 5, 2021 -- simpler -- use more Information from DEoptim
@@ -532,14 +662,24 @@ frequencyFitRun <- function(sim) {
         dput(pids)
       }
       message("Starting nlminb ... ")
-      out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
-                   lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                   linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
-                   mod_env = fireSense_ignitionCovariates, offset = offset,
-                   formula = P(sim)$fireSense_ignitionFormula,
-                   omitArgs = c("x"), # don't need to know the random sample... the mm is enough
-                   updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
-                   control = c(P(sim)$nlminb.control, list(trace = trace)))
+
+      if (hvPW) {
+        out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
+                     lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     mod_env = fireSense_ignitionCovariates, offset = offset,
+                     formula = P(sim)$fireSense_ignitionFormula,
+                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
+                     updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
+                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+      } else {
+        out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
+                     lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     mod_env = fireSense_ignitionCovariates, offset = offset,
+                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
+                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+      }
 
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
         #  MUST MANUALLY IDENTIFY THE PIDS
@@ -565,12 +705,21 @@ frequencyFitRun <- function(sim) {
       if (trace) parallel::clusterEvalQ(cl, sink())
     } else {
       warning("This is not tested by Eliot as of March 4, 2021; please set parameter: cores > 1")
-      out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                    linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
-                    mod_env = fireSense_ignitionCovariates, offset = offset,
-                    formula = P(sim)$fireSense_ignitionFormula,
-                    updateKnotExpr = updateKnotExpr, omitArgs = "X",
-                    control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
+      if (hvPW) {
+        out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     mod_env = fireSense_ignitionCovariates, offset = offset,
+                     formula = P(sim)$fireSense_ignitionFormula,
+                     updateKnotExpr = updateKnotExpr, omitArgs = "X",
+                     control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
+      } else {
+        out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     mod_env = fireSense_ignitionCovariates, offset = offset,
+                     omitArgs = "X",
+                     control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
+      }
+
     }
 
     out
@@ -609,30 +758,40 @@ frequencyFitRun <- function(sim) {
     best <- drop(as.matrix(dd[1, -(1:2)]))
   } else {
     best <- outBest$par
-    colnms <- c(attr(terms, "term.labels"),
-                unlist(lapply(updateKnotExpr, function(x) x[[2]][[3]])), "NB_theta")
+    colnms <- c(attr(terms, "term.labels"))
+    if (hvPW) {
+      colnms <- c(colnms, unlist(lapply(updateKnotExpr, function(x) x[[2]][[3]])))
+    }
+    if (isFamilyNB) {
+      colnms <- c(colnms, "NB_theta")
+    }
+
     names(best) <- colnms
   }
 
   if (anyPlotting(P(sim)$.plots)) {
+    message("Plotting has not been tested thoroughly")
+    colName <- unique(rbindlist(specialsTerms)$variable)   ## added by Ceres to avoid hardcoding, but not necessary with suggested solution
 
+    ## TODO: Ceres: this is not working if using formula/data different from Ian's/Tati's
+    ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
+    ## generate new data from it.
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
-                         xColName = "MDC", nx = nx, offset = offset, linkinv = linkinv)
+                         xColName = colName, nx = nx, offset = offset, linkinv = linkinv)
 
     Plots(data = ndLong, fn = pwPlot,
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
-   #TODO unresolved bug in Plot triggered by spaces
+    #TODO: unresolved bug in Plot triggered by spaces
   }
-
 
   convergence <- TRUE
 
   if (outBest$convergence || anyNA(se)) {
     tooClose <- 0.00001
-    closeToBounds <- abs(drop((best - DEoptimLB)/ (DEoptimUB - DEoptimLB))) < tooClose |
+    closeToBounds <- abs(drop((best - DEoptimLB) / (DEoptimUB - DEoptimLB))) < tooClose |
       best < tooClose
     ctb <- data.table(term = names(closeToBounds), best = best,
                       upperBoundary = DEoptimUB,
@@ -641,21 +800,30 @@ frequencyFitRun <- function(sim) {
     possTerms <- attr(terms, "term.labels")[1:nx][!closeToBounds[1:nx]]
     possForm <- paste0(terms[[2]], " ~ ", paste(possTerms, collapse = " + "), " -1")
 
+    tryRefit <- TRUE
+    ## TODO: this may not be the best way for checking if the formulas are identical.
+    if (identical(as.character(parse(text = P(sim)$fireSense_ignitionFormula)),
+                  as.character(parse(text = possForm)))) {
+      tryRefit <- FALSE
+      message("Can't find a simpler model to refit automatically. Will use the current formula:")
+      message(possForm)
+      message("but note that there are convergence or invertability issues preventing calculation of std errors.")
+    }
 
     message("--------------------------------------------------")
-    message("It is possible that parameters are too close to their boundary values (or zero). ",
-            "The following are within ",tooClose*100,"% of their boundary and removing them ",
+    message("It is possible that parameters are too close to their lower boundary values (or zero). ",
+            "The following are within ", tooClose*100, "% of their lower boundary and removing them ",
             "from sim$fireSense_ignitionFormula may help with convergence or invertability... e.g.")
-    message("sim$fireSense_ignitionFormula <- \"", possForm, "\"")
+    message("P(sim)$fireSense_ignitionFit$fireSense_ignitionFormula <- \"", possForm, "\"")
     messageDF(ctb)
     message("It may also help to use Ben Bolker's approximation: sqrt(1/diag(hess)) mentioned here:")
     message("https://cran.r-project.org/web/packages/bbmle/vignettes/mle2.pdf")
     message("If there are Inf values, that indicates variables to remove as they have",
             "infinite variance at the solution")
 
-    if (!isFALSE(P(sim)$autoRefit))  {
+    if (!isFALSE(P(sim)$autoRefit) & tryRefit)  {
       outRL <- if (isTRUE(P(sim)$autoRefit)) {
-        message("Automatically refitting with simpler model becaues P(sim)$autoRefit is TRUE")
+        message("Automatically refitting with simpler model because P(sim)$autoRefit is TRUE")
         "y"
       } else if (isFALSE(P(sim)$autoRefit)) {
         "n"
@@ -688,6 +856,20 @@ frequencyFitRun <- function(sim) {
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   outBest$par <- drop(outBest$par %*% sm)
 
+  rescales <- if (P(sim)$rescaleVars) {
+    if (is.null(P(sim)$rescalers)) {
+      sapply(needRescale, FUN = function(x){
+        paste0("LandR::rescale(", x, ", to = c(0,1))")
+      }, USE.NAMES = TRUE, simplify = FALSE)
+    } else {
+      sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
+        paste(x, "/", vec[x])
+      }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
+    }
+  } else {
+    rescales <- NULL
+  }
+
   l <- list(formula = as.formula(fireSense_ignitionFormula),
             family = family,
             coef = setNames(outBest$par[1:nx], colnames(mm)),
@@ -696,7 +878,7 @@ frequencyFitRun <- function(sim) {
             AIC = 2 * length(outBest$par) + 2 * outBest$objective,
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
-            rescales = list(MDC = paste0("MDC / ", rescaleMDCFactor)))
+            rescales = rescales)
 
   if (hvPW) {
     l$knots <- setNames(outBest$par[(nx + 1L):(nx + nk)], kNames)
