@@ -821,7 +821,7 @@ frequencyFitRun <- function(sim) {
     message("If there are Inf values, that indicates variables to remove as they have",
             "infinite variance at the solution")
 
-    if (!isFALSE(P(sim)$autoRefit) & tryRefit)  {
+        if (!isFALSE(P(sim)$autoRefit) & tryRefit)  {
       outRL <- if (isTRUE(P(sim)$autoRefit)) {
         message("Automatically refitting with simpler model because P(sim)$autoRefit is TRUE")
         "y"
