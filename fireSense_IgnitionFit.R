@@ -287,13 +287,6 @@ frequencyFitRun <- function(sim) {
     sim$covMinMax_ignition <- NULL
   }
 
-  # Remove rows of data with no cover and no ignitions
-  if (FALSE) {
-    ## TODO: Ceres: this can't be here. needs to go to data prep - what if our model has no cover?
-    whRowsHaveNoCover <- apply(as.data.frame(fireSense_ignitionCovariates)[,c(2,4:8)], 1, sum) == 0
-    fireSense_ignitionCovariates <- fireSense_ignitionCovariates[!whRowsHaveNoCover,]
-  }
-
   # sim$fireSense_ignitionFormula <- paste0("ignitions ~ ",
   #                                         # "youngAge:MDC + ",
   #                                         "nonForest_highFlam:MDC + ",
