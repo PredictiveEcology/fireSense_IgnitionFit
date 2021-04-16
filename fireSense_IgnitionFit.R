@@ -17,7 +17,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "parallelly",
+                  "parallelly", "data.table",
                   "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9070)",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
@@ -771,7 +771,16 @@ frequencyFitRun <- function(sim) {
 
   if (anyPlotting(P(sim)$.plots)) {
     message("Plotting has not been tested thoroughly")
-    colName <- unique(rbindlist(specialsTerms)$variable)   ## added by Ceres to avoid hardcoding, but not necessary with suggested solution
+
+    ## Next line added by Ceres to avoid hardcoding,
+    ##  but not necessary with suggested solution
+    colName <- if (exists("specialsTerms", inherits = FALSE)) {
+      unique(rbindlist(specialsTerms)$variable)
+    } else {
+      tt <- terms(as.formula(P(sim)$fireSense_ignitionFormula)[-(2)])
+      facts <- attr(tt, "factors")
+      rownames(facts)[sapply(rownames(facts), function(v) length(grep(v, attr(tt, "term.labels"))) > 1)]
+    }
 
     ## TODO: Ceres: this is not working if using formula/data different from Ian's/Tati's
     ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
@@ -779,9 +788,11 @@ frequencyFitRun <- function(sim) {
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
-                         xColName = colName, nx = nx, offset = offset, linkinv = linkinv)
+                         xColName = colName, nx = nx, offset = offset,
+                         linkinv = linkinv)
 
-    Plots(data = ndLong, fn = pwPlot,
+    Plots(data = ndLong, fn = pwPlot, xColName = colName,
+          ggylab = "Igntion rate per 100 km2",
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
@@ -792,7 +803,7 @@ frequencyFitRun <- function(sim) {
   if (outBest$convergence || anyNA(se)) {
     tooClose <- 0.00001
     closeToBounds <- abs(drop((best - DEoptimLB) / (DEoptimUB - DEoptimLB))) < tooClose |
-      best < tooClose
+      abs(best) < tooClose
     ctb <- data.table(term = names(closeToBounds), best = best,
                       upperBoundary = DEoptimUB,
                       lowerBoundary = DEoptimLB,
@@ -910,23 +921,31 @@ frequencyFitSave <- function(sim) {
   invisible(sim)
 }
 
-pwPlot <- function(d, ggTitle)  {
-  gg <- ggplot(d,  aes(x=MDC, y=mu, group=Type, color=Type)) +
+pwPlot <- function(d, ggTitle, ggylab, xColName)  {
+  gg <- ggplot(d,  aes_string(x=xColName, y="mu", group="Type", color="Type")) +
     geom_line()
   if (!anyNA(d$lci))
     gg <- gg + geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity")
   gg <- gg +
-    labs(y = "Igntion rate per 100 km2", title = ggTitle) +
+    labs(y = ggylab, title = ggTitle) +
     theme_bw()
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
                        solvedHess, ses) {
 
-  newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
-                        nonForest_lowFlam = 0:1,
-                        class2 = 0:1, class3 = 0:1)
-  cns <- setdiff(colnames(newDat), xColName)
+  cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
+  cns <- setdiff(cns, xColName)
+  cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
+  names(cns) <- cns
+  ll <- lapply(cns, function(x) 0:1)
+  ll2 <- lapply(xColName, function(x) 1:100/100)
+  newDat <- do.call(expand.grid, append(ll2, ll))
+  colnames(newDat)[seq_along(xColName)] <- xColName
+  # newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
+  #                       nonForest_lowFlam = 0:1,
+  #                       class2 = 0:1, class3 = 0:1)
+  #cns <- setdiff(colnames(newDat), xColName)
 
   # bestParams <- drop(as.matrix(dd[1, -(1:2)]))
 
@@ -956,9 +975,14 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   mu <- linkinv(mu)
   newDat$mu <- mu
   newDat <- newDat[, !..keep]
-  newDat[, MDC := MDC * 1000]
+
+  # Start allowing more than one xColName -- though rest of this fn assumes only one exists
+  for (cn in xColName) {
+    newDat[, eval(cn) := get(cn) * 100]
+  }
+
   newDat[, `:=`(lci  = lci, uci = uci)]
-  setkeyv(newDat, "MDC")
-  ndLong <- data.table::melt(newDat, measure.vars = 2:6, variable.name = "Type")
+  setkeyv(newDat, xColName)
+  ndLong <- data.table::melt(newDat, measure.vars = cns, variable.name = "Type")
   ndLong <- ndLong[value > 0]
 }
