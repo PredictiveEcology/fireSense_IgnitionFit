@@ -113,6 +113,11 @@ defineModule(sim, list(
                  objectClass = "data.frame",
                  desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
                  sourceURL = NA_character_)
+    expectsInput(objectName = "ignitionFitRTM",
+                 objectClass = "RasterLayer",
+                 desc = paste("A (template) raster with information with regards to the spatial resolution and geographical extent of",
+                              "fireSense_ignitionCovariates. Used to pass this information onto fireSense_ignitionFitted",
+                              "Needs to have number of non-NA cells as attribute (ignitionFitRTM@data@attributes$nonNAs)"))
   ),
   outputObjects = bindrows(
     createsOutput(objectName = "fireSense_IgnitionFitted",
@@ -883,6 +888,7 @@ frequencyFitRun <- function(sim) {
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
             rescales = rescales)
+            fittingRes = raster::res(sim$ignitionFitRTM),
 
   if (hvPW) {
     l$knots <- setNames(outBest$par[(nx + 1L):(nx + nk)], kNames)
