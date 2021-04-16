@@ -111,8 +111,9 @@ defineModule(sim, list(
   inputObjects = bindrows(
     expectsInput(objectName = "fireSense_ignitionCovariates",
                  objectClass = "data.frame",
-                 desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
-                 sourceURL = NA_character_)
+                 desc = paste("One or more objects of class data.frame in which to look for variables present in the model formula.",
+                              "Needs to have a 'pixelID' column"),
+                 sourceURL = NA_character_),
     expectsInput(objectName = "ignitionFitRTM",
                  objectClass = "RasterLayer",
                  desc = paste("A (template) raster with information with regards to the spatial resolution and geographical extent of",
@@ -177,6 +178,10 @@ frequencyFitInit <- function(sim) {
   stopifnot(P(sim)$iterDEoptim >= 1)
   stopifnot(P(sim)$iterNlminb >= 1)
 
+  if (!"pixelID" %in% colnames(sim$fireSense_ignitionCovariates)) {
+    stop("fireSense_ignitionCovariates must have a 'pixelID' column")
+  }
+
   if (!is.null(P(sim)$rescalers)) {
     ## checks
     if (is.null(names(P(sim)$lb$knots))) {
@@ -203,6 +208,16 @@ frequencyFitInit <- function(sim) {
       stop("names(P(sim)$rescalers) doesn't match variable names in ub$knots")
     }
   }
+
+  ## TODO: added raster attributes may not be ideal to track number of non-NAs
+  origNoPix <- sim$ignitionFitRTM@data@attributes$nonNAs
+  finalNoPix <- length(unique(sim$fireSense_ignitionCovariates$pixelID))
+
+  if (is.null(origNoPix) | length(origNoPix) == 0) {
+    stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
+  }
+
+  mod$lambdaRescaleFactor <- finalNoPix/origNoPix
 
   return(invisible(sim))
 }
@@ -887,8 +902,9 @@ frequencyFitRun <- function(sim) {
             AIC = 2 * length(outBest$par) + 2 * outBest$objective,
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
-            rescales = rescales)
+            rescales = rescales,
             fittingRes = raster::res(sim$ignitionFitRTM),
+            lambdaRescaleFactor = mod$lambdaRescaleFactor)
 
   if (hvPW) {
     l$knots <- setNames(outBest$par[(nx + 1L):(nx + nk)], kNames)
