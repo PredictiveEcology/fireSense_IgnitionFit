@@ -679,7 +679,7 @@ frequencyFitRun <- function(sim) {
                      formula = P(sim)$fireSense_ignitionFormula,
                      omitArgs = c("x"), # don't need to know the random sample... the mm is enough
                      updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
-                     control = c(P(sim)$nlminb.control, list(trace = trace)), useCache = FALSE)
+                     control = c(P(sim)$nlminb.control, list(trace = trace)))
       } else {
         out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                      lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
