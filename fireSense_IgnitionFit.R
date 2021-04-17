@@ -921,7 +921,7 @@ frequencyFitRun <- function(sim) {
   sim$fireSense_IgnitionFitted <- l
   class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
 
-  invisible(sim)
+  return(invisible(sim))
 }
 
 frequencyFitSave <- function(sim) {
@@ -933,7 +933,7 @@ frequencyFitSave <- function(sim) {
     file = file.path(paths(sim)$out, paste0("fireSense_IgnitionFitted_", timeUnit, currentTime, ".rds"))
   )
 
-  invisible(sim)
+  return(invisible(sim))
 }
 
 pwPlot <- function(d, ggTitle, ggylab, xColName)  {
