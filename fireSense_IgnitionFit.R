@@ -210,14 +210,9 @@ frequencyFitInit <- function(sim) {
   }
 
   ## TODO: added raster attributes may not be ideal to track number of non-NAs
-  origNoPix <- sim$ignitionFitRTM@data@attributes$nonNAs
-  finalNoPix <- length(unique(sim$fireSense_ignitionCovariates$pixelID))
-
-  if (is.null(origNoPix) | length(origNoPix) == 0) {
+  if (is.null(sim$ignitionFitRTM@data@attributes$nonNAs) | length(sim$ignitionFitRTM@data@attributes$nonNAs) == 0) {
     stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
   }
-
-  mod$lambdaRescaleFactor <- finalNoPix/origNoPix
 
   return(invisible(sim))
 }
@@ -684,7 +679,7 @@ frequencyFitRun <- function(sim) {
                      formula = P(sim)$fireSense_ignitionFormula,
                      omitArgs = c("x"), # don't need to know the random sample... the mm is enough
                      updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
-                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+                     control = c(P(sim)$nlminb.control, list(trace = trace)), useCache = FALSE)
       } else {
         out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                      lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
@@ -894,6 +889,11 @@ frequencyFitRun <- function(sim) {
     rescales <- NULL
   }
 
+  ## TODO: added raster attributes may not be ideal to track number of non-NAs
+  origNoPix <- sim$ignitionFitRTM@data@attributes$nonNAs
+  finalNoPix <- nrow(sim$fireSense_ignitionCovariates)
+  lambdaRescaleFactor <- finalNoPix/origNoPix
+
   l <- list(formula = as.formula(fireSense_ignitionFormula),
             family = family,
             coef = setNames(outBest$par[1:nx], colnames(mm)),
@@ -903,8 +903,8 @@ frequencyFitRun <- function(sim) {
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
             rescales = rescales,
-            fittingRes = raster::res(sim$ignitionFitRTM),
-            lambdaRescaleFactor = mod$lambdaRescaleFactor)
+            fittingRes = raster::res(sim$ignitionFitRTM)[1],  ## TODO: this assumes square pixels, is this okay?
+            lambdaRescaleFactor = lambdaRescaleFactor)
 
   if (hvPW) {
     l$knots <- setNames(outBest$par[(nx + 1L):(nx + nk)], kNames)
