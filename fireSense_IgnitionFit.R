@@ -800,7 +800,7 @@ frequencyFitRun <- function(sim) {
                          linkinv = linkinv)
 
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
-          ggylab = "Igntion rate per 100 km2",
+          ggylab = "Ignition rate per 100 km2",
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
@@ -840,7 +840,7 @@ frequencyFitRun <- function(sim) {
     message("If there are Inf values, that indicates variables to remove as they have",
             "infinite variance at the solution")
 
-        if (!isFALSE(P(sim)$autoRefit) & tryRefit)  {
+    if (!isFALSE(P(sim)$autoRefit) & tryRefit)  {
       outRL <- if (isTRUE(P(sim)$autoRefit)) {
         message("Automatically refitting with simpler model because P(sim)$autoRefit is TRUE")
         "y"
@@ -890,8 +890,12 @@ frequencyFitRun <- function(sim) {
   }
 
   ## TODO: added raster attributes may not be ideal to track number of non-NAs
-  origNoPix <- sim$ignitionFitRTM@data@attributes$nonNAs
-  finalNoPix <- nrow(sim$fireSense_ignitionCovariates)
+  ## rationale for lambdaRescaleFactor:
+  ## original fire prob is sum(n_fires)/nrow(preSampleData),
+  ## the fitted one, imposed by sampling, becomes sum(n_fires)/nrow(postSampleData)
+  ## so to adjust predicted values, one needs to predVals * nrow(postSampleData)/nrow(preSampleData)
+  origNoPix <- sim$ignitionFitRTM@data@attributes$nonNAs   ## nrow(preSampleData) in eg above
+  finalNoPix <- nrow(sim$fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
   lambdaRescaleFactor <- finalNoPix/origNoPix
 
   l <- list(formula = as.formula(fireSense_ignitionFormula),
