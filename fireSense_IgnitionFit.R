@@ -941,6 +941,7 @@ frequencyFitRun <- function(sim) {
 
   l <- list(formula = as.formula(fireSense_ignitionFormula),
             family = family,
+            data = fireSense_ignitionCovariates,
             coef = setNames(outBest$par[1:nx], colnames(mm)),
             coef.se = setNames(se[1:nx], colnames(mm)),
             LL = -outBest$objective,
