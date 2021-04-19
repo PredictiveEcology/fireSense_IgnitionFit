@@ -983,8 +983,10 @@ frequencyFitSave <- function(sim) {
   return(invisible(sim))
 }
 
+
+## TODO: these functions should be moved to fireSenseUtils or R/ folder
 pwPlot <- function(d, ggTitle, ggylab, xColName)  {
-  gg <- ggplot(d,  aes_string(x=xColName, y="mu", group="Type", color="Type")) +
+  gg <- ggplot(d,  aes_string(x = xColName, y = "mu", group = "Type", color = "Type")) +
     geom_line()
   if (!anyNA(d$lci))
     gg <- gg + geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity")
