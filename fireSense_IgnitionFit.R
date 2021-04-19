@@ -636,6 +636,7 @@ frequencyFitRun <- function(sim) {
 
     if (TRUE) { # This allows a faster estimate, but fewer different starting values
       pop <- if (exists("cl", inherits = FALSE)) length(cl) else 1
+      if (pop < 20) pop <- 20
       message("Subsetting for nlminb -- only running ", pop, " of the DEoptim pops")
       subset <- sample(NROW(start), size = pop)
       start <- start[subset]
