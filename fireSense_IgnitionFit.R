@@ -66,8 +66,6 @@ defineModule(sim, list(
                     desc = "OPTIONAL. A named vector of rescaling factors for each predictor variable.",
                     "If not NULL, it will be used to rescale the variables as var/rescaler['var'].",
                     "If NULL see P(sim)$rescaleVars"),
-    defineParameter("plot", "logical", default = TRUE,
-                    desc = "logical. Plot model fit against the data. Prediction interval"),
     defineParameter("start", "numeric, list", default = NULL,
                     desc = paste("optional starting values for the parameters to be estimated.
                                  Those are passed to `nlminb` and can be a single vector, or a list of vectors.",
