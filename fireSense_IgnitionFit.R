@@ -17,8 +17,8 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "parallelly", "data.table",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9070)",
+                  "parallelly", "data.table", "ggpubr",
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9080)",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
@@ -805,6 +805,48 @@ frequencyFitRun <- function(sim) {
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
+    ## Ceres: Apr 19th - this is working for me, but is the label ("100km2") correct?
+
+    ## FITTED VS OBSERVED VALUES
+    ## any years in data?
+    if (any(c("year", "yr") %in% tolower(names(fireSense_ignitionCovariates)))) {
+      xvar <- intersect(c("year", "yr"), tolower(names(fireSense_ignitionCovariates)))
+    } else {
+      xvar <- rows
+    }
+
+    fittedVals <- predictIgnition(as.formula(fireSense_ignitionFormula),
+                                  fireSense_ignitionCovariates,
+                                  setNames(outBest$par[1:nx], colnames(mm)),
+                                  1,
+                                  1,
+                                  family$linkinv)
+
+    plotData <- data.table(fireSense_ignitionCovariates)
+    plotData[,  rows := 1:nrow(plotData)]
+    cols <- unique(c(paste(y), xvar, "rows"))
+    plotData <- plotData[, ..cols]
+    plotData <- cbind(plotData, fittedVals = fittedVals)
+
+    predDT <- rbindlist(lapply(1:100,  FUN = function(x, DT, theta) {
+      rnbinomPred <- rnbinom(nrow(DT), mu = DT$fittedVals,
+                             size = theta)
+      n <- rep(x, nrow(DT))
+      data.table(rnbinomPred = rnbinomPred, n = n, rows = DT$rows)
+    }, DT = plotData, theta = outBest$par[length(outBest$par)]))
+
+    plotData <- plotData[predDT, on = "rows"]
+
+    plotData <- plotData[, list(obsFires = sum(eval(y), na.rm = TRUE),
+                                predFires = sum(rnbinomPred, na.rm = TRUE)),
+                         by = c(xvar, "n")]
+    plotData <- melt(plotData, id.var = c(xvar, "n"))
+
+    Plots(data = plotData, fn = fittedVsObservedPlot,
+          xColName = xvar,
+          ggylab = "no. fires",
+          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit - observed vs. fitted values"),
+          filename = "ignitionNoFiresFitted")
   }
 
   convergence <- TRUE
@@ -1005,4 +1047,17 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   setkeyv(newDat, xColName)
   ndLong <- data.table::melt(newDat, measure.vars = cns, variable.name = "Type")
   ndLong <- ndLong[value > 0]
+}
+
+fittedVsObservedPlot <- function(d, ggTitle, ggylab, xColName)  {
+  ggplot <- ggplot(data = d, aes_string(x = xColName, y = "value", colour = "variable")) +
+    stat_summary(aes(fill = variable), fun.data = mean_ci,
+                 geom = "ribbon", alpha = 0.5, show.legend = FALSE) +
+    stat_summary(fun = mean, geom = "line", size = 1) +
+    scale_color_discrete(labels = c("obsFires" = "observed no. fires",
+                                    "predFires" = "fitted no. fires")) +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    labs(y = ggylab, x = xColName, title = ggTitle, colour = "")
+  ggplot
 }
