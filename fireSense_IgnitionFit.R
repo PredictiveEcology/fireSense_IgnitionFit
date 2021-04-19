@@ -936,7 +936,7 @@ frequencyFitRun <- function(sim) {
   ## the fitted one, imposed by sampling, becomes sum(n_fires)/nrow(postSampleData)
   ## so to adjust predicted values, one needs to predVals * nrow(postSampleData)/nrow(preSampleData)
   origNoPix <- sim$ignitionFitRTM@data@attributes$nonNAs   ## nrow(preSampleData) in eg above
-  finalNoPix <- nrow(sim$fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
+  finalNoPix <- nrow(fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
   lambdaRescaleFactor <- finalNoPix/origNoPix
 
   l <- list(formula = as.formula(fireSense_ignitionFormula),
