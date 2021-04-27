@@ -10,15 +10,15 @@ defineModule(sim, list(
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = c("ctb"))
   ),
   childModules = character(),
-  version = list(SpaDES.core = "0.1.0", fireSense_IgnitionFit = "0.0.1"),
+  version = list(SpaDES.core = "0.1.0", fireSense_IgnitionFit = "0.0.2"),
   spatialExtent = raster::extent(rep(NA_real_, 4)),
   timeframe = as.POSIXlt(c(NA, NA)),
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "parallelly",
-                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9070)",
+                  "parallelly", "data.table", "ggpubr",
+                  "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9080)",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
@@ -66,8 +66,6 @@ defineModule(sim, list(
                     desc = "OPTIONAL. A named vector of rescaling factors for each predictor variable.",
                     "If not NULL, it will be used to rescale the variables as var/rescaler['var'].",
                     "If NULL see P(sim)$rescaleVars"),
-    defineParameter("plot", "logical", default = TRUE,
-                    desc = "logical. Plot model fit against the data. Prediction interval"),
     defineParameter("start", "numeric, list", default = NULL,
                     desc = paste("optional starting values for the parameters to be estimated.
                                  Those are passed to `nlminb` and can be a single vector, or a list of vectors.",
@@ -111,8 +109,14 @@ defineModule(sim, list(
   inputObjects = bindrows(
     expectsInput(objectName = "fireSense_ignitionCovariates",
                  objectClass = "data.frame",
-                 desc = "One or more objects of class data.frame in which to look for variables present in the model formula.",
-                 sourceURL = NA_character_)
+                 desc = paste("One or more objects of class data.frame in which to look for variables present in the model formula.",
+                              "Needs to have a 'pixelID' column"),
+                 sourceURL = NA_character_),
+    expectsInput(objectName = "ignitionFitRTM",
+                 objectClass = "RasterLayer",
+                 desc = paste("A (template) raster with information with regards to the spatial resolution and geographical extent of",
+                              "fireSense_ignitionCovariates. Used to pass this information onto fireSense_ignitionFitted",
+                              "Needs to have number of non-NA cells as attribute (ignitionFitRTM@data@attributes$nonNAs)"))
   ),
   outputObjects = bindrows(
     createsOutput(objectName = "fireSense_IgnitionFitted",
@@ -172,6 +176,10 @@ frequencyFitInit <- function(sim) {
   stopifnot(P(sim)$iterDEoptim >= 1)
   stopifnot(P(sim)$iterNlminb >= 1)
 
+  if (!"pixelID" %in% colnames(sim$fireSense_ignitionCovariates)) {
+    stop("fireSense_ignitionCovariates must have a 'pixelID' column")
+  }
+
   if (!is.null(P(sim)$rescalers)) {
     ## checks
     if (is.null(names(P(sim)$lb$knots))) {
@@ -197,6 +205,11 @@ frequencyFitInit <- function(sim) {
     if (!all(names(P(sim)$rescalers) %in% names(P(sim)$ub$knots))) {
       stop("names(P(sim)$rescalers) doesn't match variable names in ub$knots")
     }
+  }
+
+  ## TODO: added raster attributes may not be ideal to track number of non-NAs
+  if (is.null(sim$ignitionFitRTM@data@attributes$nonNAs) | length(sim$ignitionFitRTM@data@attributes$nonNAs) == 0) {
+    stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
   }
 
   return(invisible(sim))
@@ -621,6 +634,7 @@ frequencyFitRun <- function(sim) {
 
     if (TRUE) { # This allows a faster estimate, but fewer different starting values
       pop <- if (exists("cl", inherits = FALSE)) length(cl) else 1
+      if (pop < 20) pop <- 20
       message("Subsetting for nlminb -- only running ", pop, " of the DEoptim pops")
       subset <- sample(NROW(start), size = pop)
       start <- start[subset]
@@ -764,7 +778,16 @@ frequencyFitRun <- function(sim) {
 
   if (anyPlotting(P(sim)$.plots)) {
     message("Plotting has not been tested thoroughly")
-    colName <- unique(rbindlist(specialsTerms)$variable)   ## added by Ceres to avoid hardcoding, but not necessary with suggested solution
+
+    ## Next line added by Ceres to avoid hardcoding,
+    ##  but not necessary with suggested solution
+    colName <- if (exists("specialsTerms", inherits = FALSE)) {
+      unique(rbindlist(specialsTerms)$variable)
+    } else {
+      tt <- terms(as.formula(P(sim)$fireSense_ignitionFormula)[-(2)])
+      facts <- attr(tt, "factors")
+      rownames(facts)[sapply(rownames(facts), function(v) length(grep(v, attr(tt, "term.labels"))) > 1)]
+    }
 
     ## TODO: Ceres: this is not working if using formula/data different from Ian's/Tati's
     ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
@@ -772,12 +795,56 @@ frequencyFitRun <- function(sim) {
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
-                         xColName = colName, nx = nx, offset = offset, linkinv = linkinv)
+                         xColName = colName, nx = nx, offset = offset,
+                         linkinv = linkinv)
 
-    Plots(data = ndLong, fn = pwPlot,
+    Plots(data = ndLong, fn = pwPlot, xColName = colName,
+          ggylab = "Ignition rate per 100 km2",
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
+    ## Ceres: Apr 19th - this is working for me, but is the label ("100km2") correct?
+
+    ## FITTED VS OBSERVED VALUES
+    ## any years in data?
+    if (any(c("year", "yr") %in% tolower(names(fireSense_ignitionCovariates)))) {
+      xvar <- intersect(c("year", "yr"), tolower(names(fireSense_ignitionCovariates)))
+    } else {
+      xvar <- rows
+    }
+
+    fittedVals <- predictIgnition(as.formula(fireSense_ignitionFormula),
+                                  fireSense_ignitionCovariates,
+                                  setNames(outBest$par[1:nx], colnames(mm)),
+                                  1,
+                                  1,
+                                  family$linkinv)
+
+    plotData <- data.table(fireSense_ignitionCovariates)
+    plotData[,  rows := 1:nrow(plotData)]
+    cols <- unique(c(paste(y), xvar, "rows"))
+    plotData <- plotData[, ..cols]
+    plotData <- cbind(plotData, fittedVals = fittedVals)
+
+    predDT <- rbindlist(lapply(1:100,  FUN = function(x, DT, theta) {
+      rnbinomPred <- rnbinom(nrow(DT), mu = DT$fittedVals,
+                             size = theta)
+      n <- rep(x, nrow(DT))
+      data.table(rnbinomPred = rnbinomPred, n = n, rows = DT$rows)
+    }, DT = plotData, theta = outBest$par[length(outBest$par)]))
+
+    plotData <- plotData[predDT, on = "rows"]
+
+    plotData <- plotData[, list(obsFires = sum(eval(y), na.rm = TRUE),
+                                predFires = sum(rnbinomPred, na.rm = TRUE)),
+                         by = c(xvar, "n")]
+    plotData <- melt(plotData, id.var = c(xvar, "n"))
+
+    Plots(data = plotData, fn = fittedVsObservedPlot,
+          xColName = xvar,
+          ggylab = "no. fires",
+          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit - observed vs. fitted values"),
+          filename = "ignitionNoFiresFitted")
   }
 
   convergence <- TRUE
@@ -785,7 +852,7 @@ frequencyFitRun <- function(sim) {
   if (outBest$convergence || anyNA(se)) {
     tooClose <- 0.00001
     closeToBounds <- abs(drop((best - DEoptimLB) / (DEoptimUB - DEoptimLB))) < tooClose |
-      best < tooClose
+      abs(best) < tooClose
     ctb <- data.table(term = names(closeToBounds), best = best,
                       upperBoundary = DEoptimUB,
                       lowerBoundary = DEoptimLB,
@@ -814,7 +881,7 @@ frequencyFitRun <- function(sim) {
     message("If there are Inf values, that indicates variables to remove as they have",
             "infinite variance at the solution")
 
-        if (!isFALSE(P(sim)$autoRefit) & tryRefit)  {
+    if (!isFALSE(P(sim)$autoRefit) & tryRefit)  {
       outRL <- if (isTRUE(P(sim)$autoRefit)) {
         message("Automatically refitting with simpler model because P(sim)$autoRefit is TRUE")
         "y"
@@ -863,15 +930,27 @@ frequencyFitRun <- function(sim) {
     rescales <- NULL
   }
 
+  ## TODO: added raster attributes may not be ideal to track number of non-NAs
+  ## rationale for lambdaRescaleFactor:
+  ## original fire prob is sum(n_fires)/nrow(preSampleData),
+  ## the fitted one, imposed by sampling, becomes sum(n_fires)/nrow(postSampleData)
+  ## so to adjust predicted values, one needs to predVals * nrow(postSampleData)/nrow(preSampleData)
+  origNoPix <- sim$ignitionFitRTM@data@attributes$nonNAs   ## nrow(preSampleData) in eg above
+  finalNoPix <- nrow(fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
+  lambdaRescaleFactor <- finalNoPix/origNoPix
+
   l <- list(formula = as.formula(fireSense_ignitionFormula),
             family = family,
+            data = fireSense_ignitionCovariates,
             coef = setNames(outBest$par[1:nx], colnames(mm)),
             coef.se = setNames(se[1:nx], colnames(mm)),
             LL = -outBest$objective,
             AIC = 2 * length(outBest$par) + 2 * outBest$objective,
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
-            rescales = rescales)
+            rescales = rescales,
+            fittingRes = raster::res(sim$ignitionFitRTM)[1],  ## TODO: this assumes square pixels, is this okay?
+            lambdaRescaleFactor = lambdaRescaleFactor)
 
   if (hvPW) {
     l$knots <- setNames(outBest$par[(nx + 1L):(nx + nk)], kNames)
@@ -888,7 +967,7 @@ frequencyFitRun <- function(sim) {
   sim$fireSense_IgnitionFitted <- l
   class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
 
-  invisible(sim)
+  return(invisible(sim))
 }
 
 frequencyFitSave <- function(sim) {
@@ -900,26 +979,36 @@ frequencyFitSave <- function(sim) {
     file = file.path(paths(sim)$out, paste0("fireSense_IgnitionFitted_", timeUnit, currentTime, ".rds"))
   )
 
-  invisible(sim)
+  return(invisible(sim))
 }
 
-pwPlot <- function(d, ggTitle)  {
-  gg <- ggplot(d,  aes(x=MDC, y=mu, group=Type, color=Type)) +
+
+## TODO: these functions should be moved to fireSenseUtils or R/ folder
+pwPlot <- function(d, ggTitle, ggylab, xColName)  {
+  gg <- ggplot(d,  aes_string(x = xColName, y = "mu", group = "Type", color = "Type")) +
     geom_line()
   if (!anyNA(d$lci))
     gg <- gg + geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity")
   gg <- gg +
-    labs(y = "Igntion rate per 100 km2", title = ggTitle) +
+    labs(y = ggylab, title = ggTitle) +
     theme_bw()
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
                        solvedHess, ses) {
 
-  newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
-                        nonForest_lowFlam = 0:1,
-                        class2 = 0:1, class3 = 0:1)
-  cns <- setdiff(colnames(newDat), xColName)
+  cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
+  cns <- setdiff(cns, xColName)
+  cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
+  names(cns) <- cns
+  ll <- lapply(cns, function(x) 0:1)
+  ll2 <- lapply(xColName, function(x) 1:100/100)
+  newDat <- do.call(expand.grid, append(ll2, ll))
+  colnames(newDat)[seq_along(xColName)] <- xColName
+  # newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
+  #                       nonForest_lowFlam = 0:1,
+  #                       class2 = 0:1, class3 = 0:1)
+  #cns <- setdiff(colnames(newDat), xColName)
 
   # bestParams <- drop(as.matrix(dd[1, -(1:2)]))
 
@@ -949,9 +1038,27 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   mu <- linkinv(mu)
   newDat$mu <- mu
   newDat <- newDat[, !..keep]
-  newDat[, MDC := MDC * 1000]
+
+  # Start allowing more than one xColName -- though rest of this fn assumes only one exists
+  for (cn in xColName) {
+    newDat[, eval(cn) := get(cn) * 100]
+  }
+
   newDat[, `:=`(lci  = lci, uci = uci)]
-  setkeyv(newDat, "MDC")
-  ndLong <- data.table::melt(newDat, measure.vars = 2:6, variable.name = "Type")
+  setkeyv(newDat, xColName)
+  ndLong <- data.table::melt(newDat, measure.vars = cns, variable.name = "Type")
   ndLong <- ndLong[value > 0]
+}
+
+fittedVsObservedPlot <- function(d, ggTitle, ggylab, xColName)  {
+  ggplot <- ggplot(data = d, aes_string(x = xColName, y = "value", colour = "variable")) +
+    stat_summary(aes(fill = variable), fun.data = mean_ci,
+                 geom = "ribbon", alpha = 0.5, show.legend = FALSE) +
+    stat_summary(fun = mean, geom = "line", size = 1) +
+    scale_color_discrete(labels = c("obsFires" = "observed no. fires",
+                                    "predFires" = "fitted no. fires")) +
+    theme_bw() +
+    theme(legend.position = "bottom") +
+    labs(y = ggylab, x = xColName, title = ggTitle, colour = "")
+  ggplot
 }
