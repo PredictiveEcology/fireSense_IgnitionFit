@@ -838,12 +838,13 @@ frequencyFitRun <- function(sim) {
     plotData <- plotData[, list(obsFires = sum(eval(y), na.rm = TRUE),
                                 predFires = sum(rnbinomPred, na.rm = TRUE)),
                          by = c(xvar, "n")]
+    plotData[, predFires := as.integer(predFires)]
     plotData <- melt(plotData, id.var = c(xvar, "n"))
 
     Plots(data = plotData, fn = fittedVsObservedPlot,
           xColName = xvar,
           ggylab = "no. fires",
-          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit - observed vs. fitted values"),
+          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit observed vs. fitted values"),
           filename = "ignitionNoFiresFitted")
   }
 
@@ -1040,6 +1041,7 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   newDat <- newDat[, !..keep]
 
   # Start allowing more than one xColName -- though rest of this fn assumes only one exists
+  #TODO: this 100 needs to be supplied by a rescale param or object.
   for (cn in xColName) {
     newDat[, eval(cn) := get(cn) * 100]
   }
