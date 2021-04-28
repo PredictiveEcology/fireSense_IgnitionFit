@@ -796,10 +796,14 @@ frequencyFitRun <- function(sim) {
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
                          xColName = colName, nx = nx, offset = offset,
-                         linkinv = linkinv)
+                         linkinv = linkinv,
+                         rescaler = P(sim)$rescalers,
+                         rescaleVar = P(sim)$rescaleVars)
 
+    resInKm2 <- res(sim$ignitionFitRTM)[1]^2/1e6 #1e6 m2 in km2
+    labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
-          ggylab = "Ignition rate per 100 km2",
+          ggylab = labelToUse,
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
@@ -996,7 +1000,7 @@ pwPlot <- function(d, ggTitle, ggylab, xColName)  {
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
-                       solvedHess, ses) {
+                       solvedHess, ses, rescaler, rescaleVar) {
 
   cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
   cns <- setdiff(cns, xColName)
@@ -1042,10 +1046,14 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
 
   # Start allowing more than one xColName -- though rest of this fn assumes only one exists
   #TODO: this 100 needs to be supplied by a rescale param or object.
-  for (cn in xColName) {
-    newDat[, eval(cn) := get(cn) * 100]
+  if (!is.null(rescaleVar) & rescaleVar) {
+    if (!is.null(rescaler)) {
+      toBeScaled <- xColName[xColName %in% names(rescaler)]
+      for (cn in toBeScaled) {
+        newDat[, eval(cn) := get(cn) * rescaler[cn]]
+      }
+    }
   }
-
   newDat[, `:=`(lci  = lci, uci = uci)]
   setkeyv(newDat, xColName)
   ndLong <- data.table::melt(newDat, measure.vars = cns, variable.name = "Type")
