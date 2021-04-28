@@ -792,13 +792,17 @@ frequencyFitRun <- function(sim) {
     ## TODO: Ceres: this is not working if using formula/data different from Ian's/Tati's
     ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
     ## generate new data from it.
+
+    xCeiling <- mean(sim$fireSense_ignitionCovariates[[colName]]) +
+      sd(sim$fireSense_ignitionCovariates[[colName]]) * 4
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
                          xColName = colName, nx = nx, offset = offset,
                          linkinv = linkinv,
                          rescaler = P(sim)$rescalers,
-                         rescaleVar = P(sim)$rescaleVars)
+                         rescaleVar = P(sim)$rescaleVars,
+                         xCeiling = xCeiling)
 
     resInKm2 <- res(sim$ignitionFitRTM)[1]^2/1e6 #1e6 m2 in km2
     labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
@@ -1000,7 +1004,7 @@ pwPlot <- function(d, ggTitle, ggylab, xColName)  {
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
-                       solvedHess, ses, rescaler, rescaleVar) {
+                       solvedHess, ses, rescaler, rescaleVar, xCeiling = NULL) {
 
   cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
   cns <- setdiff(cns, xColName)
@@ -1055,6 +1059,11 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
     }
   }
   newDat[, `:=`(lci  = lci, uci = uci)]
+
+  if (!is.null(xCeiling)) {
+    newDat <- newDat[get(xColName) < xCeiling,]
+  }
+
   setkeyv(newDat, xColName)
   ndLong <- data.table::melt(newDat, measure.vars = cns, variable.name = "Type")
   ndLong <- ndLong[value > 0]
