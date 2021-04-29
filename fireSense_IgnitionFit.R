@@ -793,8 +793,7 @@ frequencyFitRun <- function(sim) {
     ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
     ## generate new data from it.
 
-    xCeiling <- mean(sim$fireSense_ignitionCovariates[[colName]]) +
-      sd(sim$fireSense_ignitionCovariates[[colName]]) * 4
+    xCeiling <- max(sim$fireSense_ignitionCovariates[[colName]]) * 1.5 #subsets full 0-1 range
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
@@ -808,6 +807,7 @@ frequencyFitRun <- function(sim) {
     labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
           ggylab = labelToUse,
+          origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), #if supplied, adds bar to plot
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
           filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
@@ -993,7 +993,7 @@ frequencyFitSave <- function(sim) {
 
 
 ## TODO: these functions should be moved to fireSenseUtils or R/ folder
-pwPlot <- function(d, ggTitle, ggylab, xColName)  {
+pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
   gg <- ggplot(d,  aes_string(x = xColName, y = "mu", group = "Type", color = "Type")) +
     geom_line()
   if (!anyNA(d$lci))
@@ -1001,6 +1001,11 @@ pwPlot <- function(d, ggTitle, ggylab, xColName)  {
   gg <- gg +
     labs(y = ggylab, title = ggTitle) +
     theme_bw()
+  if (!is.null(origXmax)){
+    gg <- gg +
+     geom_vline(xintercept = origXmax, linetype = "dashed")
+  }
+  return(gg)
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
