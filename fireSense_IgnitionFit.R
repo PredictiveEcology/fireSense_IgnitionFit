@@ -675,16 +675,18 @@ frequencyFitRun <- function(sim) {
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      formula = P(sim)$fireSense_ignitionFormula,
-                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
                      updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
-                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+                     control = c(P(sim)$nlminb.control, list(trace = trace)),
+                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
+                     useCache = FALSE) ## temporary - bug in Cache is not digesting ...
       } else {
         out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                      lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
+                     control = c(P(sim)$nlminb.control, list(trace = trace)),
                      omitArgs = c("x"), # don't need to know the random sample... the mm is enough
-                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+                     useCache = FALSE) ## temporary - bug in Cache is not digesting ...
       }
 
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
