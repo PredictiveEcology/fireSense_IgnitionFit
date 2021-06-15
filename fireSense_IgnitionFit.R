@@ -525,8 +525,9 @@ frequencyFitRun <- function(sim) {
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
   ## Upper bounds
   nlminbUB <- DEoptimUB
-  if (is.null(ub[["coef"]]))
+  if (is.null(ub[["coef"]])) {
     nlminbUB[1:nx] <- rep_len(Inf, nx)
+  }
 
   ## Lower bounds
   nlminbLB <- if (is.null(lb[["coef"]])) {
@@ -535,11 +536,9 @@ frequencyFitRun <- function(sim) {
              identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
       , kLB)
 
-    #if nlminbLB <- DEoptimLB, it will already have lb$t
-    if (isFamilyNB && is.null(lb$t)) {
-      nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
-    } else if (isFamilyNB) {
-      nlminbLB <- c(nlminbLB, lb$t)
+    ## when not using DEoptimLB, theta bound must be added
+    if (isFamilyNB) {
+      nlminbLB <- c(nlminbLB, if (is.null(lb$t)) 1e-16 else lb$t)
     }
   } else {
     DEoptimLB ## User-defined lower bounds for parameters to be estimated
@@ -1003,7 +1002,7 @@ pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
     theme_bw()
   if (!is.null(origXmax)){
     gg <- gg +
-     geom_vline(xintercept = origXmax, linetype = "dashed")
+      geom_vline(xintercept = origXmax, linetype = "dashed")
   }
   return(gg)
 }
