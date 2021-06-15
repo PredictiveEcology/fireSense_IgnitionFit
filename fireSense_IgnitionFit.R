@@ -534,15 +534,15 @@ frequencyFitRun <- function(sim) {
              log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
              identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
       , kLB)
+
+    #if nlminbLB <- DEoptimLB, it will already have lb$t
+    if (isFamilyNB && is.null(lb$t)) {
+      nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
+    } else if (isFamilyNB) {
+      nlminbLB <- c(nlminbLB, lb$t)
+    }
   } else {
     DEoptimLB ## User-defined lower bounds for parameters to be estimated
-  }
-
-  ## If negative.binomial family add bounds for the theta parameter
-  if (isFamilyNB && is.null(lb$t)) {
-    nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
-  } else if (isFamilyNB) {
-    nlminbLB <- c(nlminbLB, lb$t)
   }
 
   ## Define the log-likelihood function (objective function)
