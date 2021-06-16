@@ -18,7 +18,7 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
                   "parallelly", "data.table", "ggpubr",
-                  "PredictiveEcology/reproducible@DotsBugFix",
+                  "PredictiveEcology/reproducible@DotsBugFix (>=1.2.7.9006)",
                   "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9080)",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
