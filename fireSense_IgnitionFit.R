@@ -18,6 +18,7 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
                   "parallelly", "data.table", "ggpubr",
+                  "PredictiveEcology/reproducible@DotsBugFix (>=1.2.7.9006)",
                   "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9080)",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
@@ -585,7 +586,8 @@ frequencyFitRun <- function(sim) {
                      mod_env = fireSense_ignitionCovariates,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx,
                      offset = offset, updateKnotExpr = updateKnotExpr,
-                     userTags = c("ignitionFit", "DEoptim"))
+                     userTags = c(currentModule(sim), "DEoptim"),
+                     omitArgs = c("userTags"))
       DEoptimBestMem <- DEout %>%  `[[`("optim") %>% `[[`("bestmem")
     } else {
       DEout <- Cache(DEoptim, fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
@@ -593,7 +595,8 @@ frequencyFitRun <- function(sim) {
                      mod_env = fireSense_ignitionCovariates,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
                      offset = offset,
-                     userTags = c("ignitionFit", "DEoptim"))
+                     userTags = c(currentModule(sim), "DEoptim"),
+                     omitArgs = c("userTags"))
       DEoptimBestMem <- DEout %>% `[[`("optim") %>% `[[`("bestmem")
     }
 
@@ -675,18 +678,19 @@ frequencyFitRun <- function(sim) {
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      formula = P(sim)$fireSense_ignitionFormula,
-                     updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
+                     updateKnotExpr = updateKnotExpr,# cacheId = "e016b5d728ed2b6a",
                      control = c(P(sim)$nlminb.control, list(trace = trace)),
-                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
-                     useCache = FALSE) ## temporary - bug in Cache is not digesting ...
+                     userTags = c(currentModule(sim), "objNlminb"),
+                     omitArgs = c("x", "userTags")) # don't need to know the random sample... the mm is enough
       } else {
         out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                      lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      control = c(P(sim)$nlminb.control, list(trace = trace)),
-                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
-                     useCache = FALSE) ## temporary - bug in Cache is not digesting ...
+                     userTags = c(currentModule(sim), "objNlminb"),
+                     omitArgs = c("x", "userTags")) # don't need to know the random sample... the mm is enough
+
       }
 
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
@@ -718,13 +722,16 @@ frequencyFitRun <- function(sim) {
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      formula = P(sim)$fireSense_ignitionFormula,
-                     updateKnotExpr = updateKnotExpr, omitArgs = "X",
+                     updateKnotExpr = updateKnotExpr,
+                     userTags = c(currentModule(sim), "objNlminb"),
+                     omitArgs = c("X", "userTags"),
                      control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
       } else {
         out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
-                     omitArgs = "X",
+                     userTags = c(currentModule(sim), "objNlminb"),
+                     omitArgs = c("X", "userTags"),
                      control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
       }
 
@@ -748,14 +755,16 @@ frequencyFitRun <- function(sim) {
                   sm = sm, nx = nx, updateKnotExpr = updateKnotExpr,
                   formula = P(sim)$fireSense_ignitionFormula,
                   offset = offset,
-                  userTags = c("fireSense_ignitionFit", "hessian"))
+                  userTags = c(currentModule(sim), "hessian"),
+                  omitArgs = c("userTags"))
   } else {
     hess <- Cache(numDeriv::hessian, func = objfun, x = outBest$par,
                   mod_env = fireSense_ignitionCovariates,
                   linkinv = linkinv, nll = nll,
                   sm = sm, nx = nx, mm = mm,
                   offset = offset,
-                  userTags = c("fireSense_ignitionFit", "hessian"))
+                  userTags = c(currentModule(sim), "hessian"),
+                  omitArgs = c("userTags"))
   }
 
   solvedHess <- tryCatch(solve(hess), error = function(e) NA)
