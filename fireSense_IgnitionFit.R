@@ -691,7 +691,7 @@ frequencyFitRun <- function(sim) {
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
         #  MUST MANUALLY IDENTIFY THE PIDS
         if (exists("pids")) {
-          aa <- lapply(paste0("~/GitHub/WBI_fireSense/outputs/AB/fireSense_IgnitionFit_spades189_20210308_trace.", pids), readLines)
+          aa <- lapply(paste0("~/GitHub/WBI_forecasts/outputs/AB/fireSense_IgnitionFit_spades189_20210308_trace.", pids), readLines)
           bb <- lapply(aa, function(bb) {
             bb <- gsub("^ +", "", bb)
             vals <- strsplit(bb, split = ":* +")
