@@ -815,15 +815,16 @@ frequencyFitRun <- function(sim) {
                          rescaleVar = P(sim)$rescaleVars,
                          xCeiling = xCeiling)
 
-    resInKm2 <- res(sim$ignitionFitRTM)[1]^2/1e6 #1e6 m2 in km2
+    #round to avoid silly decimal errors
+    resInKm2 <- round(res(sim$ignitionFitRTM)[1]^2/1e6) #1e6 m2 in km2
     labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
+    filenameToUse <- paste0("IgnitionRatePer", resInKm2)
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
           ggylab = labelToUse,
           origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), #if supplied, adds bar to plot
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
-          filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
+          filename = filenameToUse)#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
-    ## Ceres: Apr 19th - this is working for me, but is the label ("100km2") correct?
 
     ## FITTED VS OBSERVED VALUES
     ## any years in data?
