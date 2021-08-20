@@ -551,17 +551,19 @@ frequencyFitRun <- function(sim) {
                 parse(text = paste0("-sum(dnbinom(x=", y, ", mu = mu, size = params[length(params)], log = TRUE))")))
 
   trace <- P(sim)$trace
+  message("Creating cluster")
   if (P(sim)$cores > 1) {
     if (.Platform$OS.type == "unix") {
       mkCluster <- parallel::makeForkCluster
+      cl <- mkCluster(P(sim)$cores)
     } else {
       mkCluster <- parallelly::makeClusterPSOCK
+      cl <- mkCluster(P(sim)$cores, rscript_libs = .libPaths())
       # mkCluster <- parallel::makePSOCKcluster ## TODO: this attaches `snow` and breaks the module
       ## see warning: https://www.rdocumentation.org/packages/secr/versions/4.3.3/topics/Parallel
     }
 
-    message("Creating cluster")
-    cl <- mkCluster(P(sim)$cores)
+    # cl <- mkCluster(P(sim)$cores) #parallelly requires lib path to be set when cluster is created
     on.exit(parallel::stopCluster(cl), add = TRUE)
     parallel::clusterEvalQ(cl, library("MASS"))
     # assign("mod_env", fireSense_ignitionCovariates, envir = .GlobalEnv)
