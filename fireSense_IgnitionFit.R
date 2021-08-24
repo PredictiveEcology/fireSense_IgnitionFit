@@ -336,8 +336,7 @@ frequencyFitRun <- function(sim) {
         specialsCall[[1L]] <- quote(extractSpecial)
         eval(specialsCall)
       }
-    }
-    )
+    })
 
     specialsTerms <- specialsTerms[!unlist(lapply(specialsTerms, is.null))]
 
@@ -1004,7 +1003,6 @@ frequencyFitSave <- function(sim) {
   return(invisible(sim))
 }
 
-
 ## TODO: these functions should be moved to fireSenseUtils or R/ folder
 pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
   gg <- ggplot(d,  aes_string(x = xColName, y = "mu", group = "Type", color = "Type")) +
@@ -1014,7 +1012,7 @@ pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
   gg <- gg +
     labs(y = ggylab, title = ggTitle) +
     theme_bw()
-  if (!is.null(origXmax)){
+  if (!is.null(origXmax)) {
     gg <- gg +
       geom_vline(xintercept = origXmax, linetype = "dashed")
   }
