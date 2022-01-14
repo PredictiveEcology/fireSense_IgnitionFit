@@ -815,7 +815,7 @@ frequencyFitRun <- function(sim) {
                          xCeiling = xCeiling)
 
     #round to avoid silly decimal errors
-    resInKm2 <- round(res(sim$ignitionFitRTM)[1]^2/1e6) #1e6 m2 in km2
+    resInKm2 <- round(raster::res(sim$ignitionFitRTM)[1]^2/1e6) #1e6 m2 in km2
     labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
     filenameToUse <- paste0("IgnitionRatePer", resInKm2)
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
