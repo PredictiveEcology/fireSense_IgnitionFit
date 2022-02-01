@@ -16,8 +16,8 @@ defineModule(sim, list(
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
-  reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "parallelly", "data.table", "ggpubr",
+  reqdPkgs = list("data.table", "DEoptim", "dplyr", "ggplot2", "ggpubr", "MASS", "magrittr",
+                  "numDeriv", "parallel", "pemisc", "parallelly", "RhpcBLASctl",
                   "PredictiveEcology/reproducible@development (>=1.2.7.9010)",
                   "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9080)",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
