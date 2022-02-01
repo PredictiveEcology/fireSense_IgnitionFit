@@ -564,7 +564,14 @@ frequencyFitRun <- function(sim) {
 
     # cl <- mkCluster(P(sim)$cores) #parallelly requires lib path to be set when cluster is created
     on.exit(parallel::stopCluster(cl), add = TRUE)
-    parallel::clusterEvalQ(cl, library("MASS"))
+    parallel::clusterEvalQ(cl, {
+      library("MASS")
+
+      ## limit spawning of additional threads from workers
+      data.table::setDTthreads(1)
+      RhpcBLASctl::blas_set_num_threads(1)
+      RhpcBLASctl::omp_set_num_threads(1)
+    })
     # assign("mod_env", fireSense_ignitionCovariates, envir = .GlobalEnv)
     # clusterExport(cl, varlist = list("mod_env"), envir = environment()) # it is faster to "get" it internally
   }
