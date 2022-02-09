@@ -777,6 +777,14 @@ frequencyFitRun <- function(sim) {
 
   solvedHess <- tryCatch(solve(hess), error = function(e) NA)
   se <- suppressWarnings(tryCatch(drop(sqrt(diag(solvedHess)) %*% sm), error = function(e) NA))
+  if (all(is.na(se))) {
+    seSimple <- sqrt(1/diag(hess))
+    if (all(!is.infinite(seSimple))) {
+      warning("The hessian could not be inverted; but the 'crude estimate' of Bolker",
+              " sqrt(1/diag(hess)) can and will be used.")
+      se <- seSimple
+    }
+  }
   message("... Done")
 
   if (!exists("outBest", inherits = FALSE)) {
