@@ -887,13 +887,24 @@ frequencyFitRun <- function(sim) {
 
   if (outBest$convergence || anyNA(se)) {
     tooClose <- 0.00001
+
+    # This includes the pw terms on their own -- but if a pw term is not estimable, we need
+    #   to remove the interaction term too
     closeToBounds <- abs(drop((best - DEoptimLB) / (DEoptimUB - DEoptimLB))) < tooClose |
       abs(best) < tooClose
     ctb <- data.table(term = names(closeToBounds), best = best,
                       upperBoundary = DEoptimUB,
                       lowerBoundary = DEoptimLB,
                       closeToBounds = closeToBounds)[closeToBounds]
-    possTerms <- attr(terms, "term.labels")[1:nx][!closeToBounds[1:nx]]
+
+    closeToBoundsOnlyCovariates <- closeToBounds[1:nx]
+    # This only has terms with covariates (including pw in interaction), not pw terms on their own
+    possTerms <- attr(terms, "term.labels")[1:nx]
+    toRemove <- do.call(rbind, lapply(ctb$term, function(trm) grepl(trm, possTerms)))
+    toRemove <- apply(toRemove, 2, any)
+    toRemove <- toRemove | closeToBoundsOnlyCovariates
+
+    possTerms <- possTerms[!toRemove]
     possForm <- paste0(terms[[2]], " ~ ", paste(possTerms, collapse = " + "), " -1")
 
     tryRefit <- TRUE
