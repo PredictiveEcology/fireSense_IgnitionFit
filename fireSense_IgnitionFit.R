@@ -227,7 +227,7 @@ frequencyFitRun <- function(sim) {
   terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
-  fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))   ## make sure the "link" between the two "copies" is broken in case it was a DT to start with
+  fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))
 
   lb <- P(sim)$lb
   ub <- P(sim)$ub
@@ -1023,7 +1023,7 @@ frequencyFitSave <- function(sim) {
 
   saveRDS(
     sim$fireSense_IgnitionFitted,
-    file = file.path(paths(sim)$out, paste0("fireSense_IgnitionFitted_", timeUnit, currentTime, ".rds"))
+    file = file.path(outputPath(sim), paste0("fireSense_IgnitionFitted_", timeUnit, currentTime, ".rds"))
   )
 
   return(invisible(sim))
@@ -1031,11 +1031,10 @@ frequencyFitSave <- function(sim) {
 
 ## TODO: these functions should be moved to fireSenseUtils or R/ folder
 pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
+  #browser()
   gg <- ggplot(d,  aes_string(x = xColName, y = "mu", group = "Type", color = "Type")) +
-    geom_line()
-  if (!anyNA(d$lci))
-    gg <- gg + geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity")
-  gg <- gg +
+    geom_line() +
+    geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity", na.rm = TRUE) +
     labs(y = ggylab, title = ggTitle) +
     theme_bw()
   if (!is.null(origXmax)) {
@@ -1047,7 +1046,6 @@ pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
                        solvedHess, ses, rescaler, rescaleVar, xCeiling = NULL) {
-
   cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
   cns <- setdiff(cns, xColName)
   cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
