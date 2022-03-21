@@ -16,8 +16,9 @@ defineModule(sim, list(
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
-  reqdPkgs = list("DEoptim", "dplyr", "ggplot2", "MASS", "magrittr", "numDeriv", "parallel", "pemisc",
-                  "parallelly", "data.table", "ggpubr",
+  reqdPkgs = list("data.table", "DEoptim", "dplyr", "ggplot2", "ggpubr", "MASS", "magrittr",
+                  "numDeriv", "parallel", "pemisc", "parallelly", "RhpcBLASctl",
+                  "PredictiveEcology/reproducible@development (>=1.2.7.9010)",
                   "PredictiveEcology/fireSenseUtils@development (>=0.0.4.9080)",
                   "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
   parameters = bindrows(
@@ -226,7 +227,7 @@ frequencyFitRun <- function(sim) {
   terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
-  fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))   ## make sure the "link" between the two "copies" is broken in case it was a DT to start with
+  fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))
 
   lb <- P(sim)$lb
   ub <- P(sim)$ub
@@ -335,8 +336,7 @@ frequencyFitRun <- function(sim) {
         specialsCall[[1L]] <- quote(extractSpecial)
         eval(specialsCall)
       }
-    }
-    )
+    })
 
     specialsTerms <- specialsTerms[!unlist(lapply(specialsTerms, is.null))]
 
@@ -525,8 +525,9 @@ frequencyFitRun <- function(sim) {
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
   ## Upper bounds
   nlminbUB <- DEoptimUB
-  if (is.null(ub[["coef"]]))
+  if (is.null(ub[["coef"]])) {
     nlminbUB[1:nx] <- rep_len(Inf, nx)
+  }
 
   ## Lower bounds
   nlminbLB <- if (is.null(lb[["coef"]])) {
@@ -534,15 +535,13 @@ frequencyFitRun <- function(sim) {
              log = rep_len(-Inf, nx),       ## log-link, default: -Inf for terms and 0 for breakpoints/knots
              identity = rep_len(1e-16, nx)) ## identity link, default: enforce non-negativity
       , kLB)
+
+    ## when not using DEoptimLB, theta bound must be added
+    if (isFamilyNB) {
+      nlminbLB <- c(nlminbLB, if (is.null(lb$t)) 1e-16 else lb$t)
+    }
   } else {
     DEoptimLB ## User-defined lower bounds for parameters to be estimated
-  }
-
-  ## If negative.binomial family add bounds for the theta parameter
-  if (isFamilyNB && is.null(lb$t)) {
-    nlminbLB <- c(nlminbLB, 1e-16) ## Enforce non-negativity
-  } else if (isFamilyNB) {
-    nlminbLB <- c(nlminbLB, lb$t)
   }
 
   ## Define the log-likelihood function (objective function)
@@ -551,19 +550,28 @@ frequencyFitRun <- function(sim) {
                 parse(text = paste0("-sum(dnbinom(x=", y, ", mu = mu, size = params[length(params)], log = TRUE))")))
 
   trace <- P(sim)$trace
+  message("Creating cluster")
   if (P(sim)$cores > 1) {
     if (.Platform$OS.type == "unix") {
       mkCluster <- parallel::makeForkCluster
+      cl <- mkCluster(P(sim)$cores)
     } else {
       mkCluster <- parallelly::makeClusterPSOCK
+      cl <- mkCluster(P(sim)$cores, rscript_libs = .libPaths())
       # mkCluster <- parallel::makePSOCKcluster ## TODO: this attaches `snow` and breaks the module
       ## see warning: https://www.rdocumentation.org/packages/secr/versions/4.3.3/topics/Parallel
     }
 
-    message("Creating cluster")
-    cl <- mkCluster(P(sim)$cores)
+    # cl <- mkCluster(P(sim)$cores) #parallelly requires lib path to be set when cluster is created
     on.exit(parallel::stopCluster(cl), add = TRUE)
-    parallel::clusterEvalQ(cl, library("MASS"))
+    parallel::clusterEvalQ(cl, {
+      library("MASS")
+
+      ## limit spawning of additional threads from workers
+      data.table::setDTthreads(1)
+      RhpcBLASctl::blas_set_num_threads(1)
+      RhpcBLASctl::omp_set_num_threads(1)
+    })
     # assign("mod_env", fireSense_ignitionCovariates, envir = .GlobalEnv)
     # clusterExport(cl, varlist = list("mod_env"), envir = environment()) # it is faster to "get" it internally
   }
@@ -586,7 +594,8 @@ frequencyFitRun <- function(sim) {
                      mod_env = fireSense_ignitionCovariates,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx,
                      offset = offset, updateKnotExpr = updateKnotExpr,
-                     userTags = c("ignitionFit", "DEoptim"))
+                     userTags = c(currentModule(sim), "DEoptim"),
+                     omitArgs = c("userTags"))
       DEoptimBestMem <- DEout %>%  `[[`("optim") %>% `[[`("bestmem")
     } else {
       DEout <- Cache(DEoptim, fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
@@ -594,7 +603,8 @@ frequencyFitRun <- function(sim) {
                      mod_env = fireSense_ignitionCovariates,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm,
                      offset = offset,
-                     userTags = c("ignitionFit", "DEoptim"))
+                     userTags = c(currentModule(sim), "DEoptim"),
+                     omitArgs = c("userTags"))
       DEoptimBestMem <- DEout %>% `[[`("optim") %>% `[[`("bestmem")
     }
 
@@ -676,22 +686,25 @@ frequencyFitRun <- function(sim) {
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      formula = P(sim)$fireSense_ignitionFormula,
-                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
-                     updateKnotExpr = updateKnotExpr, # cacheId = "e016b5d728ed2b6a",
-                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+                     updateKnotExpr = updateKnotExpr,# cacheId = "e016b5d728ed2b6a",
+                     control = c(P(sim)$nlminb.control, list(trace = trace)),
+                     userTags = c(currentModule(sim), "objNlminb"),
+                     omitArgs = c("x", "userTags")) # don't need to know the random sample... the mm is enough
       } else {
         out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                      lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
-                     omitArgs = c("x"), # don't need to know the random sample... the mm is enough
-                     control = c(P(sim)$nlminb.control, list(trace = trace)))
+                     control = c(P(sim)$nlminb.control, list(trace = trace)),
+                     userTags = c(currentModule(sim), "objNlminb"),
+                     omitArgs = c("x", "userTags")) # don't need to know the random sample... the mm is enough
+
       }
 
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
         #  MUST MANUALLY IDENTIFY THE PIDS
         if (exists("pids")) {
-          aa <- lapply(paste0("~/GitHub/WBI_fireSense/outputs/AB/fireSense_IgnitionFit_spades189_20210308_trace.", pids), readLines)
+          aa <- lapply(paste0("~/GitHub/WBI_forecasts/outputs/AB/fireSense_IgnitionFit_spades189_20210308_trace.", pids), readLines)
           bb <- lapply(aa, function(bb) {
             bb <- gsub("^ +", "", bb)
             vals <- strsplit(bb, split = ":* +")
@@ -717,13 +730,16 @@ frequencyFitRun <- function(sim) {
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      formula = P(sim)$fireSense_ignitionFormula,
-                     updateKnotExpr = updateKnotExpr, omitArgs = "X",
+                     updateKnotExpr = updateKnotExpr,
+                     userTags = c(currentModule(sim), "objNlminb"),
+                     omitArgs = c("X", "userTags"),
                      control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
       } else {
         out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
-                     omitArgs = "X",
+                     userTags = c(currentModule(sim), "objNlminb"),
+                     omitArgs = c("X", "userTags"),
                      control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
       }
 
@@ -747,18 +763,28 @@ frequencyFitRun <- function(sim) {
                   sm = sm, nx = nx, updateKnotExpr = updateKnotExpr,
                   formula = P(sim)$fireSense_ignitionFormula,
                   offset = offset,
-                  userTags = c("fireSense_ignitionFit", "hessian"))
+                  userTags = c(currentModule(sim), "hessian"),
+                  omitArgs = c("userTags"))
   } else {
     hess <- Cache(numDeriv::hessian, func = objfun, x = outBest$par,
                   mod_env = fireSense_ignitionCovariates,
                   linkinv = linkinv, nll = nll,
                   sm = sm, nx = nx, mm = mm,
                   offset = offset,
-                  userTags = c("fireSense_ignitionFit", "hessian"))
+                  userTags = c(currentModule(sim), "hessian"),
+                  omitArgs = c("userTags"))
   }
 
   solvedHess <- tryCatch(solve(hess), error = function(e) NA)
   se <- suppressWarnings(tryCatch(drop(sqrt(diag(solvedHess)) %*% sm), error = function(e) NA))
+  if (all(is.na(se))) {
+    seSimple <- sqrt(1/diag(hess))
+    if (all(!is.infinite(seSimple))) {
+      warning("The hessian could not be inverted; but the 'crude estimate' of Bolker",
+              " sqrt(1/diag(hess)) can and will be used.")
+      se <- seSimple
+    }
+  }
   message("... Done")
 
   if (!exists("outBest", inherits = FALSE)) {
@@ -792,18 +818,27 @@ frequencyFitRun <- function(sim) {
     ## TODO: Ceres: this is not working if using formula/data different from Ian's/Tati's
     ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
     ## generate new data from it.
+
+    xCeiling <- max(sim$fireSense_ignitionCovariates[[colName]]) * 1.5 #subsets full 0-1 range
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
                          formula = P(sim)$fireSense_ignitionFormula,
                          xColName = colName, nx = nx, offset = offset,
-                         linkinv = linkinv)
+                         linkinv = linkinv,
+                         rescaler = P(sim)$rescalers,
+                         rescaleVar = P(sim)$rescaleVars,
+                         xCeiling = xCeiling)
 
+    #round to avoid silly decimal errors
+    resInKm2 <- round(raster::res(sim$ignitionFitRTM)[1]^2/1e6) #1e6 m2 in km2
+    labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
+    filenameToUse <- paste0("IgnitionRatePer", resInKm2)
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
-          ggylab = "Ignition rate per 100 km2",
+          ggylab = labelToUse,
+          origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), #if supplied, adds bar to plot
           ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
-          filename = "IgnitionRatePer100km2")#, types = "screen", .plotInitialTime = time(sim))
+          filename = filenameToUse)#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
-    ## Ceres: Apr 19th - this is working for me, but is the label ("100km2") correct?
 
     ## FITTED VS OBSERVED VALUES
     ## any years in data?
@@ -838,12 +873,13 @@ frequencyFitRun <- function(sim) {
     plotData <- plotData[, list(obsFires = sum(eval(y), na.rm = TRUE),
                                 predFires = sum(rnbinomPred, na.rm = TRUE)),
                          by = c(xvar, "n")]
+    plotData[, predFires := as.integer(predFires)]
     plotData <- melt(plotData, id.var = c(xvar, "n"))
 
     Plots(data = plotData, fn = fittedVsObservedPlot,
           xColName = xvar,
           ggylab = "no. fires",
-          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit - observed vs. fitted values"),
+          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit observed vs. fitted values"),
           filename = "ignitionNoFiresFitted")
   }
 
@@ -851,13 +887,24 @@ frequencyFitRun <- function(sim) {
 
   if (outBest$convergence || anyNA(se)) {
     tooClose <- 0.00001
+
+    # This includes the pw terms on their own -- but if a pw term is not estimable, we need
+    #   to remove the interaction term too
     closeToBounds <- abs(drop((best - DEoptimLB) / (DEoptimUB - DEoptimLB))) < tooClose |
       abs(best) < tooClose
     ctb <- data.table(term = names(closeToBounds), best = best,
                       upperBoundary = DEoptimUB,
                       lowerBoundary = DEoptimLB,
                       closeToBounds = closeToBounds)[closeToBounds]
-    possTerms <- attr(terms, "term.labels")[1:nx][!closeToBounds[1:nx]]
+
+    closeToBoundsOnlyCovariates <- closeToBounds[1:nx]
+    # This only has terms with covariates (including pw in interaction), not pw terms on their own
+    possTerms <- attr(terms, "term.labels")[1:nx]
+    toRemove <- do.call(rbind, lapply(ctb$term, function(trm) grepl(trm, possTerms)))
+    toRemove <- apply(toRemove, 2, any)
+    toRemove <- toRemove | closeToBoundsOnlyCovariates
+
+    possTerms <- possTerms[!toRemove]
     possForm <- paste0(terms[[2]], " ~ ", paste(possTerms, collapse = " + "), " -1")
 
     tryRefit <- TRUE
@@ -976,27 +1023,29 @@ frequencyFitSave <- function(sim) {
 
   saveRDS(
     sim$fireSense_IgnitionFitted,
-    file = file.path(paths(sim)$out, paste0("fireSense_IgnitionFitted_", timeUnit, currentTime, ".rds"))
+    file = file.path(outputPath(sim), paste0("fireSense_IgnitionFitted_", timeUnit, currentTime, ".rds"))
   )
 
   return(invisible(sim))
 }
 
-
 ## TODO: these functions should be moved to fireSenseUtils or R/ folder
-pwPlot <- function(d, ggTitle, ggylab, xColName)  {
+pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
+  #browser()
   gg <- ggplot(d,  aes_string(x = xColName, y = "mu", group = "Type", color = "Type")) +
-    geom_line()
-  if (!anyNA(d$lci))
-    gg <- gg + geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity")
-  gg <- gg +
+    geom_line() +
+    geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity", na.rm = TRUE) +
     labs(y = ggylab, title = ggTitle) +
     theme_bw()
+  if (!is.null(origXmax)) {
+    gg <- gg +
+      geom_vline(xintercept = origXmax, linetype = "dashed")
+  }
+  return(gg)
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
-                       solvedHess, ses) {
-
+                       solvedHess, ses, rescaler, rescaleVar, xCeiling = NULL) {
   cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
   cns <- setdiff(cns, xColName)
   cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
@@ -1040,11 +1089,21 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   newDat <- newDat[, !..keep]
 
   # Start allowing more than one xColName -- though rest of this fn assumes only one exists
-  for (cn in xColName) {
-    newDat[, eval(cn) := get(cn) * 100]
+  #TODO: this 100 needs to be supplied by a rescale param or object.
+  if (!is.null(rescaleVar) & rescaleVar) {
+    if (!is.null(rescaler)) {
+      toBeScaled <- xColName[xColName %in% names(rescaler)]
+      for (cn in toBeScaled) {
+        newDat[, eval(cn) := get(cn) * rescaler[cn]]
+      }
+    }
+  }
+  newDat[, `:=`(lci  = lci, uci = uci)]
+
+  if (!is.null(xCeiling)) {
+    newDat <- newDat[get(xColName) < xCeiling,]
   }
 
-  newDat[, `:=`(lci  = lci, uci = uci)]
   setkeyv(newDat, xColName)
   ndLong <- data.table::melt(newDat, measure.vars = cns, variable.name = "Type")
   ndLong <- ndLong[value > 0]
