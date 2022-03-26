@@ -161,7 +161,7 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
   )
 
-  invisible(sim)
+  return(invisible(sim))
 }
 
 ## event functions
