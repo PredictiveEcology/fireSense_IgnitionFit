@@ -900,8 +900,12 @@ frequencyFitRun <- function(sim) {
     closeToBoundsOnlyCovariates <- closeToBounds[1:nx]
     # This only has terms with covariates (including pw in interaction), not pw terms on their own
     possTerms <- attr(terms, "term.labels")[1:nx]
-    toRemove <- do.call(rbind, lapply(ctb$term, function(trm) grepl(trm, possTerms)))
-    toRemove <- apply(toRemove, 2, any)
+    if (nrow(ctb)) {
+      toRemove <- do.call(rbind, lapply(ctb$term, function(trm) grepl(trm, possTerms)))
+      toRemove <- apply(toRemove, 2, any)
+    } else {
+      toRemove <- sapply(closeToBoundsOnlyCovariates, function(x) FALSE)
+    }
     toRemove <- toRemove | closeToBoundsOnlyCovariates
 
     possTerms <- possTerms[!toRemove]
