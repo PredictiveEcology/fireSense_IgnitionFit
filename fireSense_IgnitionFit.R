@@ -724,9 +724,13 @@ frequencyFitRun <- function(sim) {
 
       if (trace) parallel::clusterEvalQ(cl, sink())
     } else {
+      ## TODO: Ceres, I have tested the results in parallel mode with 1 core and using lapply with
+      ## LIM data. The results are identical, despite the lapply option printing the error message (not for every start pop, though):
+      # Error in optim(par = x, fn = objective, lower = lower, upper = upper,  :
+      #                  L-BFGS-B needs finite values of 'fn'
       warning("This is not tested by Eliot as of March 4, 2021; please set parameter: cores > 1")
       if (hvPW) {
-        out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+        out <- Cache(lapply, start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      formula = P(sim)$fireSense_ignitionFormula,
@@ -735,7 +739,7 @@ frequencyFitRun <- function(sim) {
                      omitArgs = c("X", "userTags"),
                      control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
       } else {
-        out <- Cache(lapply, start[1], objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+        out <- Cache(lapply, start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      userTags = c(currentModule(sim), "objNlminb"),
