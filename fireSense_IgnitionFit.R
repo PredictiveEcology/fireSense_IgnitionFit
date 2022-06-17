@@ -849,11 +849,14 @@ frequencyFitRun <- function(sim) {
     resInKm2 <- round(raster::res(sim$ignitionFitRTM)[1]^2/1e6) #1e6 m2 in km2
     labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
     filenameToUse <- paste0("IgnitionRatePer", resInKm2)
-    Plots(data = ndLong, fn = pwPlot, xColName = colName,
-          ggylab = labelToUse,
-          origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), #if supplied, adds bar to plot
-          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
-          filename = filenameToUse)#, types = "screen", .plotInitialTime = time(sim))
+
+    ## TODO: Ceres: added the try workaround bc Plots is erroring inn this line `sim@outputs <- outputsAppend ...`
+    tryCatch(Plots(data = ndLong, fn = pwPlot, xColName = colName,
+                   ggylab = labelToUse,
+                   origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), #if supplied, adds bar to plot
+                   ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
+                   filename = filenameToUse),
+             error = function(e) print(e))#, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
 
     ## FITTED VS OBSERVED VALUES
@@ -892,11 +895,13 @@ frequencyFitRun <- function(sim) {
     plotData[, predFires := as.integer(predFires)]
     plotData <- melt(plotData, id.var = c(xvar, "n"))
 
-    Plots(data = plotData, fn = fittedVsObservedPlot,
-          xColName = xvar,
-          ggylab = "no. fires",
-          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit observed vs. fitted values"),
-          filename = "ignitionNoFiresFitted")
+    ## TODO: Ceres: added the try workaround bc Plots is erroring inn this line `sim@outputs <- outputsAppend ...`
+    tryCatch(Plots(data = plotData, fn = fittedVsObservedPlot,
+                   xColName = xvar,
+                   ggylab = "no. fires",
+                   ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit observed vs. fitted values"),
+                   filename = "ignitionNoFiresFitted"),
+             error = function(e) print(e))
   }
 
   convergence <- TRUE
