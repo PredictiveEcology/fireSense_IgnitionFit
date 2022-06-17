@@ -301,6 +301,21 @@ frequencyFitRun <- function(sim) {
     sim$covMinMax_ignition <- NULL
   }
 
+  ## save for later
+  mod$rescales <- if (P(sim)$rescaleVars) {
+    if (is.null(P(sim)$rescalers)) {
+      sapply(needRescale, FUN = function(x){
+        paste0("LandR::rescale(", x, ", to = c(0,1))")
+      }, USE.NAMES = TRUE, simplify = FALSE)
+    } else {
+      sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
+        paste(x, "/", vec[x])
+      }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
+    }
+  } else {
+    NULL
+  }
+
   # sim$fireSense_ignitionFormula <- paste0("ignitions ~ ",
   #                                         # "youngAge:MDC + ",
   #                                         "nonForest_highFlam:MDC + ",
@@ -829,7 +844,7 @@ frequencyFitRun <- function(sim) {
                          formula = P(sim)$fireSense_ignitionFormula,
                          xColName = colName, nx = nx, offset = offset,
                          linkinv = linkinv,
-                         rescaler = P(sim)$rescalers,
+                         rescaler = mod$rescales,
                          rescaleVar = P(sim)$rescaleVars,
                          xCeiling = xCeiling)
 
@@ -971,20 +986,6 @@ frequencyFitRun <- function(sim) {
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   outBest$par <- drop(outBest$par %*% sm)
 
-  rescales <- if (P(sim)$rescaleVars) {
-    if (is.null(P(sim)$rescalers)) {
-      sapply(needRescale, FUN = function(x){
-        paste0("LandR::rescale(", x, ", to = c(0,1))")
-      }, USE.NAMES = TRUE, simplify = FALSE)
-    } else {
-      sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
-        paste(x, "/", vec[x])
-      }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
-    }
-  } else {
-    rescales <- NULL
-  }
-
   ## TODO: added raster attributes may not be ideal to track number of non-NAs
   ## rationale for lambdaRescaleFactor:
   ## original fire prob is sum(n_fires)/nrow(preSampleData),
@@ -1003,7 +1004,7 @@ frequencyFitRun <- function(sim) {
             AIC = 2 * length(outBest$par) + 2 * outBest$objective,
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
-            rescales = rescales,
+            rescales = mod$rescales,
             fittingRes = raster::res(sim$ignitionFitRTM)[1],  ## TODO: this assumes square pixels, is this okay?
             lambdaRescaleFactor = lambdaRescaleFactor)
 
