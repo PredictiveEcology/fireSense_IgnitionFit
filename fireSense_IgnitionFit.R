@@ -846,6 +846,7 @@ frequencyFitRun <- function(sim) {
                          linkinv = linkinv,
                          rescaler = mod$rescales,
                          rescaleVar = P(sim)$rescaleVars,
+                         covMinMax_ignition = sim$covMinMax_ignition,
                          xCeiling = xCeiling)
 
     #round to avoid silly decimal errors
@@ -1054,7 +1055,8 @@ pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
-                       solvedHess, ses, rescaler, rescaleVar, xCeiling = NULL) {
+                       solvedHess, ses, rescaler, rescaleVar, xCeiling = NULL,
+                       covMinMax_ignition = sim$covMinMax_ignition) {
   cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
   cns <- setdiff(cns, xColName)
   cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
@@ -1103,10 +1105,16 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
     if (!is.null(rescaler)) {
       toBeScaled <- xColName[xColName %in% names(rescaler)]
       for (cn in toBeScaled) {
-        newDat[, eval(cn) := get(cn) * rescaler[cn]]
+        if (grepl("rescale", rescaler[[cn]])) {
+          cmm <- covMinMax_ignition[[cn]]
+          newDat[, eval(cn) := LandR::rescale(get(cn), to = c(min(cmm), max(cmm)))]
+        } else {
+          ## TO DO. if users past custom scaling functions, back transforming may be tricky
+        }
       }
     }
   }
+
   newDat[, `:=`(lci  = lci, uci = uci)]
 
   if (!is.null(xCeiling)) {
