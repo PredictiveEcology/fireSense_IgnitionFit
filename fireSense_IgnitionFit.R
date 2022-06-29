@@ -301,6 +301,21 @@ frequencyFitRun <- function(sim) {
     sim$covMinMax_ignition <- NULL
   }
 
+  ## save for later
+  mod$rescales <- if (P(sim)$rescaleVars) {
+    if (is.null(P(sim)$rescalers)) {
+      sapply(needRescale, FUN = function(x){
+        paste0("LandR::rescale(", x, ", to = c(0,1))")
+      }, USE.NAMES = TRUE, simplify = FALSE)
+    } else {
+      sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
+        paste(x, "/", vec[x])
+      }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
+    }
+  } else {
+    NULL
+  }
+
   # sim$fireSense_ignitionFormula <- paste0("ignitions ~ ",
   #                                         # "youngAge:MDC + ",
   #                                         "nonForest_highFlam:MDC + ",
@@ -829,19 +844,21 @@ frequencyFitRun <- function(sim) {
                          formula = P(sim)$fireSense_ignitionFormula,
                          xColName = colName, nx = nx, offset = offset,
                          linkinv = linkinv,
-                         rescaler = P(sim)$rescalers,
+                         rescaler = mod$rescales,
                          rescaleVar = P(sim)$rescaleVars,
+                         covMinMax_ignition = sim$covMinMax_ignition,
                          xCeiling = xCeiling)
 
     #round to avoid silly decimal errors
     resInKm2 <- round(raster::res(sim$ignitionFitRTM)[1]^2/1e6) #1e6 m2 in km2
     labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
     filenameToUse <- paste0("IgnitionRatePer", resInKm2)
+
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
-          ggylab = labelToUse,
-          origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), #if supplied, adds bar to plot
-          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
-          filename = filenameToUse)#, types = "screen", .plotInitialTime = time(sim))
+                   ggylab = labelToUse,
+                   origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), #if supplied, adds bar to plot
+                   ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
+                   filename = filenameToUse) #, types = "screen", .plotInitialTime = time(sim))
     #TODO: unresolved bug in Plot triggered by spaces
 
     ## FITTED VS OBSERVED VALUES
@@ -881,10 +898,10 @@ frequencyFitRun <- function(sim) {
     plotData <- melt(plotData, id.var = c(xvar, "n"))
 
     Plots(data = plotData, fn = fittedVsObservedPlot,
-          xColName = xvar,
-          ggylab = "no. fires",
-          ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit observed vs. fitted values"),
-          filename = "ignitionNoFiresFitted")
+                   xColName = xvar,
+                   ggylab = "no. fires",
+                   ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit observed vs. fitted values"),
+                   filename = "ignitionNoFiresFitted")
   }
 
   convergence <- TRUE
@@ -971,20 +988,6 @@ frequencyFitRun <- function(sim) {
   ## Parameters scaling: Revert back estimated coefficients to their original scale
   outBest$par <- drop(outBest$par %*% sm)
 
-  rescales <- if (P(sim)$rescaleVars) {
-    if (is.null(P(sim)$rescalers)) {
-      sapply(needRescale, FUN = function(x){
-        paste0("LandR::rescale(", x, ", to = c(0,1))")
-      }, USE.NAMES = TRUE, simplify = FALSE)
-    } else {
-      sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
-        paste(x, "/", vec[x])
-      }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
-    }
-  } else {
-    rescales <- NULL
-  }
-
   ## TODO: added raster attributes may not be ideal to track number of non-NAs
   ## rationale for lambdaRescaleFactor:
   ## original fire prob is sum(n_fires)/nrow(preSampleData),
@@ -1003,7 +1006,7 @@ frequencyFitRun <- function(sim) {
             AIC = 2 * length(outBest$par) + 2 * outBest$objective,
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
-            rescales = rescales,
+            rescales = mod$rescales,
             fittingRes = raster::res(sim$ignitionFitRTM)[1],  ## TODO: this assumes square pixels, is this okay?
             lambdaRescaleFactor = lambdaRescaleFactor)
 
@@ -1053,7 +1056,8 @@ pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
-                       solvedHess, ses, rescaler, rescaleVar, xCeiling = NULL) {
+                       solvedHess, ses, rescaler, rescaleVar, xCeiling = NULL,
+                       covMinMax_ignition = sim$covMinMax_ignition) {
   cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
   cns <- setdiff(cns, xColName)
   cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
@@ -1102,10 +1106,16 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
     if (!is.null(rescaler)) {
       toBeScaled <- xColName[xColName %in% names(rescaler)]
       for (cn in toBeScaled) {
-        newDat[, eval(cn) := get(cn) * rescaler[cn]]
+        if (grepl("rescale", rescaler[[cn]])) {
+          cmm <- covMinMax_ignition[[cn]]
+          newDat[, eval(cn) := LandR::rescale(get(cn), to = c(min(cmm), max(cmm)))]
+        } else {
+          ## TO DO. if users past custom scaling functions, back transforming may be tricky
+        }
       }
     }
   }
+
   newDat[, `:=`(lci  = lci, uci = uci)]
 
   if (!is.null(xCeiling)) {
