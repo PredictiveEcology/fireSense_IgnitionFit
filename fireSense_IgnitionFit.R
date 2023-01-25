@@ -6,7 +6,7 @@ defineModule(sim, list(
                "negative binomial", "fireSense"),
   authors = c(
     person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre")),
-    person("Ian", "Eddy", email = "ian.eddy@canada.ca", role = c("aut")),
+    person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca", role = c("aut")),
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = c("ctb"))
   ),
   childModules = character(),
@@ -21,9 +21,9 @@ defineModule(sim, list(
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
                   "PredictiveEcology/pemisc@development",
-                  "PredictiveEcology/reproducible@development (>=1.2.7.9010)",
+                  "PredictiveEcology/reproducible@development (>= 1.2.16.9023)",
                   "RhpcBLASctl",
-                  "PredictiveEcology/SpaDES.core@development (>=1.0.6.9019)"), # need Plots stuff
+                  "PredictiveEcology/SpaDES.core@development (>= 1.0.6.9019)"),
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
                     desc = paste("If the objective function results in a singularity or non-convergence with full ",
