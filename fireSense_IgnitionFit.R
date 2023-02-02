@@ -41,7 +41,7 @@ defineModule(sim, list(
     defineParameter("fireSense_ignitionFormula", "character", default = NA,
                     desc = paste("formula - as a character - describing the model to be fitted.",
                                  "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
-                                 "Note that when using PW terms, these will be dropped (if autoRefit == TRUE)",
+                                 "Note that when using PW terms, these will be dropped (if `autoRefit == TRUE`)",
                                  "if their *coefficients* are too close to 0, or lower boundary. Also note that",
                                  "actual knot values are estimated/optimised, but knot lower/upper boundaries",
                                  "can be supplied in lb and ub.")),
@@ -56,20 +56,22 @@ defineModule(sim, list(
                                  "'coef', 'theta' and 'knots', specifying lower bounds for coefficients",
                                  "theta and knots to be estimated.",
                                  "These must be finite and will be recycled if necessary to match",
-                                 "`length(coefficients)`. When rescaling, (see P(sim)$rescaleVars and",
-                                 "P(sim)$rescalers) the 'knots' needs to be named list of knot values",
-                                 "matching the variable names in P(sim)$rescalers")),
+                                 "`length(coefficients)`. When rescaling, (see `P(sim)$rescaleVars` and",
+                                 "`P(sim)$rescalers)` the 'knots' needs to be named list of knot values",
+                                 "matching the variable names in `P(sim)$rescalers`")),
     defineParameter("nlminb.control", "numeric",
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
                                  "the `nlminb` optimizer. See `?nlminb`.")),
-    defineParameter("rescaleVars", "logical", default = TRUE,
-                    desc = paste("Attempt to rescale variables to [0,1]? Only applied to variables not within this range.",
-                                 "If P(sim)$rescalers is defined it will use it to rescale variables as var/rescaler['var']")),
     defineParameter("rescalers", "numeric", c("MDC" = 1000),
-                    desc = "OPTIONAL. A named vector of rescaling factors for each predictor variable.",
-                    "If not NULL, it will be used to rescale the variables as var/rescaler['var'].",
-                    "If NULL see P(sim)$rescaleVars"),
+                    desc = paste("`NA` or a named vector of rescaling factors (numeric/integer values) for each predictor variable.",
+                                 "If not `NA`, it will be used to rescale the variables as `var / rescalers['var']`.",
+                                 "If `NA` and `rescaleVars == TRUE`, variables will be scaled to `[0,1]`.")),
+    defineParameter("rescaleVars", "logical", default = FALSE,
+                    desc = paste("Attempt to rescale variables? If `rescalers` is defined,",
+                                 "use it to rescale variables as `var / rescalers['var']`. ",
+                                 "Otherwise, `scale()` will be used to rescale variables to `[0,1]`,",
+                                 "if they are not already within this range.")),
     defineParameter("start", "numeric, list", default = NULL,
                     desc = paste("optional starting values for the parameters to be estimated.
                                  Those are passed to `nlminb` and can be a single vector, or a list of vectors.",
@@ -80,17 +82,17 @@ defineModule(sim, list(
                                  "of the optimization are printed every `trace` iteration.",
                                  "If parallel computing is enable, nlminb trace logs are written",
                                  "into the working directory.",
-                                 "Log files are prefixed with 'fireSense_IgnitionFit_trace'",
-                                 "followed by the nodename (see ?Sys.info) and the subprocess pid.",
+                                 "Log files are prefixed with `'fireSense_IgnitionFit_trace'`",
+                                 "followed by the nodename (see `?Sys.info`) and the subprocess pid.",
                                  "Default is 0, which turns off tracing.")),
     defineParameter("ub", "numeric", default = NULL,
                     desc = paste("optional named list with up to three elements,",
                                  "'coef', 'theta' and 'knots', specifying upper bounds",
                                  "for coefficients theta and knots to be estimated.",
                                  "These must be finite and will be recycled if necessary to match",
-                                 "`length(coefficients)`. When rescaling, (see P(sim)$rescaleVars and",
-                                 "P(sim)$rescalers) the 'knots' needs to be named list of knot values",
-                                 "matching the variable names in P(sim)$rescalers")),
+                                 "`length(coefficients)`. When rescaling, (see `rescaleVars` and",
+                                 "`rescalers`) the 'knots' needs to be named list of knot values",
+                                 "matching the variable names in `rescalers`")),
     defineParameter(".plots", "character", default = "screen",
                     desc = "See ?Plots. There are a few plots that are made within this module, if set."),
     defineParameter(".plotInitialTime", "numeric", default = NA,
@@ -107,8 +109,10 @@ defineModule(sim, list(
                     desc = "optional. Interval between save events."),
     defineParameter(".seed", "list", NULL, NA, NA,
                     paste("Named list of seeds to use for each event (names). E.g., `list('init' = 123)` will `set.seed(123)`",
-                          "at the start of the init event and unset it at the end. Defaults to `NULL`, meaning that",
-                          "no seeds will be set")),
+                          "at the start of the init event and unset it at the end.",
+                          "Defaults to `NULL`, meaning that no seeds will be set.")),
+    defineParameter(".studyAreaName", "character", NA, NA, NA,
+                    "Human-readable name for the study area used. If NA, a hash of `studyAreaLarge` will be used."),
     defineParameter(".useCache", "logical", FALSE, NA, NA,
                     desc = paste("Should this entire module be run with caching activated?",
                                  "This is generally intended for data-type modules,",
@@ -118,21 +122,21 @@ defineModule(sim, list(
     expectsInput(objectName = "fireSense_ignitionCovariates",
                  objectClass = "data.frame",
                  desc = paste("One or more objects of class data.frame in which to look for variables present in the model formula.",
-                              "Needs to have a 'pixelID' column"),
+                              "Needs to have a `pixelID` column"),
                  sourceURL = NA_character_),
     expectsInput(objectName = "ignitionFitRTM",
                  objectClass = "RasterLayer",
                  desc = paste("A (template) raster with information with regards to the spatial resolution and geographical extent of",
-                              "fireSense_ignitionCovariates. Used to pass this information onto fireSense_ignitionFitted",
-                              "Needs to have number of non-NA cells as attribute (ignitionFitRTM@data@attributes$nonNAs)"))
+                              "`fireSense_ignitionCovariates.` Used to pass this information onto `fireSense_ignitionFitted`",
+                              "Needs to have number of non-NA cells as attribute (`ignitionFitRTM@data@attributes$nonNAs`)"))
   ),
   outputObjects = bindrows(
-    createsOutput(objectName = "fireSense_IgnitionFitted",
-                  objectClass = "fireSense_IgnitionFit",
-                  desc = "A fitted model object of class fireSense_IgnitionFit."),
     createsOutput(objectName = "covMinMax_ignition",
                   objectClass = "data.table",
-                  desc = "Table of the original ranges (min and max) of covariates")
+                  desc = "Table of the original ranges (min and max) of covariates"),
+    createsOutput(objectName = "fireSense_IgnitionFitted",
+                  objectClass = "fireSense_IgnitionFit",
+                  desc = "A fitted model object of class `fireSense_IgnitionFit`.")
   )
 ))
 
@@ -188,7 +192,7 @@ frequencyFitInit <- function(sim) {
     stop("fireSense_ignitionCovariates must have a 'pixelID' column")
   }
 
-  if (!is.null(P(sim)$rescalers)) {
+  if (!is.na(P(sim)$rescalers)) {
     ## checks
     if (is.null(names(P(sim)$lb$knots))) {
       stop("P(sim)$lb$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
@@ -199,7 +203,7 @@ frequencyFitInit <- function(sim) {
     }
 
     if (is.null(names(P(sim)$rescalers))) {
-      stop("P(sim)$rescalers must be a named vector")
+      stop("P(sim)$rescalers must be a named vector or NA.")
     }
 
     if (!all(names(P(sim)$rescalers) %in% names(sim$fireSense_ignitionCovariates))) {
@@ -239,25 +243,25 @@ frequencyFitRun <- function(sim) {
   lb <- P(sim)$lb
   ub <- P(sim)$ub
 
+  ## save covariate original ranges first
+  ## extract variable names
+  specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
+  notSpecialVars <- colnames(attr(terms, "factor"))
+  for (x in specialVars) {
+    notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
+  }
+  notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
+
+  sim$covMinMax_ignition <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
+
+  ## check for NAs
+  if (any(is.na(sim$covMinMax_ignition))) {
+    stop("There are NAs in fireSense_ignitionCovariates' variables used for model. Please remove NAs.")
+  }
+
   ## rescale variable and knots.
-  if (P(sim)$rescaleVars) {
-    ## save covariate original ranges first
-    ## extract variable names
-    specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
-    notSpecialVars <- colnames(attr(terms, "factor"))
-    for (x in specialVars) {
-      notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
-    }
-    notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
-
-    sim$covMinMax_ignition <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
-
-    ## check for NAs
-    if (any(is.na(sim$covMinMax_ignition))) {
-      stop("There are NAs in fireSense_ignitionCovariates' variables used for model. Please remove NAs")
-    }
-
-    if (is.null(P(sim)$rescalers)) {
+  if (isTRUE(P(sim)$rescaleVars)) {
+    if (is.na(P(sim)$rescalers)) { ## TODO: lapply through each element in rescalers and assess which elements are to be rescaled vs normalized
       message("Variables outside of [0,1] range will be rescaled to [0,1]")
 
       needRescale <- fireSense_ignitionCovariates[, vapply(.SD, FUN = function(x) all(inrange(na.omit(x), 0, 1)),
@@ -279,7 +283,7 @@ frequencyFitRun <- function(sim) {
       rescaleDT <- rbind(rescaleDT, knotsDT, fill = TRUE)
 
       rescaleDT[, (needRescale) := lapply(.SD, FUN = function(x) {
-        fireSenseUtils::rescale(x, to = c(0,1))
+        fireSenseUtils::rescale(x, to = c(0, 1))
       }), .SDcols = needRescale]
 
       fireSense_ignitionCovariates[, (needRescale) := rescaleDT[is.na(knotType), .SD, .SDcols = needRescale]]
@@ -297,22 +301,20 @@ frequencyFitRun <- function(sim) {
 
       # Redo parameter bounds after rescale
       lb$knots <- sapply(names(P(sim)$rescalers), FUN = function(x, knots, vec) {
-        knots[[x]]/vec[x]
+        knots[[x]] / vec[x]
       }, knots = lb$knots, vec = P(sim)$rescalers, simplify = FALSE, USE.NAMES = TRUE)
 
       ub$knots <- sapply(names(P(sim)$rescalers), FUN = function(x, knots, vec) {
-        knots[[x]]/vec[x]
+        knots[[x]] / vec[x]
       }, knots = ub$knots, vec = P(sim)$rescalers, simplify = FALSE, USE.NAMES = TRUE)
     }
-  } else {
-    sim$covMinMax_ignition <- NULL
   }
 
   ## save for later
-  mod$rescales <- if (P(sim)$rescaleVars) {
-    if (is.null(P(sim)$rescalers)) {
-      sapply(needRescale, FUN = function(x){
-        paste0("LandR::rescale(", x, ", to = c(0,1))")
+  mod$rescales <- if (isTRUE(P(sim)$rescaleVars)) {
+    if (is.na(P(sim)$rescalers)) { ## TODO: allow list of rescalers to be passed with mix of NA and other vals
+      sapply(needRescale, FUN = function(x) {
+        paste0("fireSenseUtils::rescale(", x, ", to = c(0,1))")
       }, USE.NAMES = TRUE, simplify = FALSE)
     } else {
       sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
@@ -643,7 +645,7 @@ frequencyFitRun <- function(sim) {
       #nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
 
       ## Update of the lower and upper bounds for the knots based on the scaling matrix
-      #TODO: fix the partial matching
+      ## TODO: fix the partial matching
 
       if (hvPW) {
         kLB <- DEoptimLB[(nx + 1L):(nx + nk)] / diag(sm)[(nx + 1L):(nx + nk)]
@@ -715,7 +717,7 @@ frequencyFitRun <- function(sim) {
       } else {
         out <- Cache(parallel::clusterApplyLB, cl = cl, x = start, fun = objNlminb, objective = objfun,
                      lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+                     linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, ## TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
                      control = c(P(sim)$nlminb.control, list(trace = trace)),
                      userTags = c(currentModule(sim), "objNlminb"),
@@ -842,7 +844,7 @@ frequencyFitRun <- function(sim) {
     }
 
     ## TODO: Ceres: this is not working if using formula/data different from Ian's/Tati's
-    ## suggested solution, pass the original data frame to get the variables (and potentially the max/min) and
+    ## suggested solution, pass the original data.frame to get the variables (and potentially the max/min) and
     ## generate new data from it.
 
     xCeiling <- max(sim$fireSense_ignitionCovariates[[colName]]) * 1.5 #subsets full 0-1 range
@@ -856,17 +858,18 @@ frequencyFitRun <- function(sim) {
                          covMinMax_ignition = sim$covMinMax_ignition,
                          xCeiling = xCeiling)
 
-    #round to avoid silly decimal errors
-    resInKm2 <- round(raster::res(sim$ignitionFitRTM)[1]^2/1e6) #1e6 m2 in km2
-    labelToUse <- paste0("Ignition rate per ", resInKm2, "km2")
-    filenameToUse <- paste0("IgnitionRatePer", resInKm2)
+    ## round to avoid silly decimal errors
+    resInKm2 <- round(prod(raster::res(sim$ignitionFitRTM)) / 1e6) ## 1e6 m^2 == 1 km^2
+    labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
+    filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
 
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
-                   ggylab = labelToUse,
-                   origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), #if supplied, adds bar to plot
-                   ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit"),
-                   filename = filenameToUse) #, types = "screen", .plotInitialTime = time(sim))
-    #TODO: unresolved bug in Plot triggered by spaces
+          ggylab = labelToUse,
+          origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
+          ggTitle =  paste("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
+                           "(", basename(outputPath(sim)), ")"),
+          filename = filenameToUse)
+    ## TODO: unresolved bug in Plot triggered by spaces
 
     ## FITTED VS OBSERVED VALUES
     ## any years in data?
@@ -905,10 +908,11 @@ frequencyFitRun <- function(sim) {
     plotData <- melt(plotData, id.var = c(xvar, "n"))
 
     Plots(data = plotData, fn = fittedVsObservedPlot,
-                   xColName = xvar,
-                   ggylab = "no. fires",
-                   ggTitle =  paste0(basename(outputPath(sim)), " fireSense IgnitionFit observed vs. fitted values"),
-                   filename = "ignitionNoFiresFitted")
+          xColName = xvar,
+          ggylab = "num. fires",
+          ggTitle = paste("fireSense_IgnitionFit: observed vs. fitted values",
+                          P(sim)$.studyAreaName, "(", basename(outputPath(sim)), ")"),
+          filename = paste0("ignition_NumFiresFitted_", P(sim)$.studyAreaName))
   }
 
   convergence <- TRUE
@@ -956,7 +960,7 @@ frequencyFitRun <- function(sim) {
     message("P(sim)$fireSense_ignitionFit$fireSense_ignitionFormula <- \"", possForm, "\"")
     messageDF(ctb)
     message("It may also help to use Ben Bolker's approximation: sqrt(1/diag(hess)) mentioned here:")
-    message("https://cran.r-project.org/web/packages/bbmle/vignettes/mle2.pdf")
+    message("<https://cran.r-project.org/web/packages/bbmle/vignettes/mle2.pdf>")
     message("If there are Inf values, that indicates variables to remove as they have",
             "infinite variance at the solution")
 
@@ -1048,11 +1052,11 @@ frequencyFitSave <- function(sim) {
 }
 
 ## TODO: these functions should be moved to fireSenseUtils or R/ folder
-pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
-  #browser()
+pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL) {
   gg <- ggplot(d,  aes_string(x = xColName, y = "mu", group = "Type", color = "Type")) +
     geom_line() +
     geom_smooth(aes(ymin = lci, ymax = uci), stat = "identity", na.rm = TRUE) +
+    #scale_x_continuous(limits = c(0, 250)) + ## can't impose scale here b/c user may pass something other than MDC
     labs(y = ggylab, title = ggTitle) +
     theme_bw()
   if (!is.null(origXmax)) {
@@ -1063,14 +1067,43 @@ pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL)  {
 }
 
 pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
-                       solvedHess, ses, rescaler, rescaleVar, xCeiling = NULL,
-                       covMinMax_ignition = sim$covMinMax_ignition) {
+                       solvedHess, ses, rescaler = NULL, rescaleVar, xCeiling = NULL,
+                       covMinMax_ignition = NULL) {
+  ## sanity checks
+  if (isTRUE(rescaleVar) && is.null(rescaler)) {
+    stop("rescaler must be provided if rescaleVar is TRUE")
+  }
+
+  if (!is.null(rescaler) && is.null(covMinMax_ignition)) {
+    stop("covMinMax_ignition must be provided if rescaler is used")
+  }
+
   cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
   cns <- setdiff(cns, xColName)
   cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
   names(cns) <- cns
   ll <- lapply(cns, function(x) 0:1)
-  ll2 <- lapply(xColName, function(x) 1:100/100)
+
+  ll2 <- lapply(xColName, function(x) {
+    ## TODO: confirm + test
+    nPoints <- 100L
+    dt <- data.table(
+      var = seq(min(covMinMax_ignition[[xColName]]), max(covMinMax_ignition[[xColName]]), length.out = nPoints)
+    )
+    setnames(dt, "var", xColName)
+
+    ## NOTE: this is the scaling operation, not the unscale operation!
+    if (isTRUE(rescaleVar) && !is.null(rescaler[[xColName]])) {
+      if (grepl("rescale", rescaler[[xColName]])) {
+        dt <- data.table(var = seq(0, 1, length.out = nPoints))
+        setnames(dt, "var", xColName)
+      } else {
+        dt[, eval(xColName) := eval(str2expression(rescaler[[xColName]]))]
+      }
+    }
+
+    dt[[xColName]]
+  })
   newDat <- do.call(expand.grid, append(ll2, ll))
   colnames(newDat)[seq_along(xColName)] <- xColName
   # newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
@@ -1107,18 +1140,19 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   newDat$mu <- mu
   newDat <- newDat[, !..keep]
 
-  # Start allowing more than one xColName -- though rest of this fn assumes only one exists
-  #TODO: this 100 needs to be supplied by a rescale param or object.
-  if (!is.null(rescaleVar) & rescaleVar) {
-    if (!is.null(rescaler)) {
-      toBeScaled <- xColName[xColName %in% names(rescaler)]
-      for (cn in toBeScaled) {
-        if (grepl("rescale", rescaler[[cn]])) {
-          cmm <- covMinMax_ignition[[cn]]
-          newDat[, eval(cn) := LandR::rescale(get(cn), to = c(min(cmm), max(cmm)))]
-        } else {
-          ## TO DO. if users past custom scaling functions, back transforming may be tricky
-        }
+  ## NOTE: this is the unscaling operation (for plotting)
+  if (isTRUE(rescaleVar) && !is.null(rescaler)) {
+    toBeUnscaled <- xColName[xColName %in% names(rescaler)]
+    for (clnm in toBeUnscaled) {
+      if (grepl("rescale", rescaler[[clnm]])) {
+        cmm <- covMinMax_ignition[[clnm]]
+        newDat[, eval(clnm) := LandR::rescale(get(clnm), to = c(min(cmm), max(cmm)))]
+      } else {
+        ## TODO: if users past custom scaling functions, back transforming may be tricky.
+        ## here, we only know to divide because we have defined/assumed multiplication
+        #newDat[, eval(clnm) := eval(str2expression(rescaler[[clnm]]))] ## scaling operation
+        unscaler <- sub("/", "*", rescaler[[clnm]], fixed = TRUE)
+        newDat[, eval(clnm) := eval(str2expression(unscaler))] ## unscaling operation
       }
     }
   }
@@ -1132,6 +1166,7 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   setkeyv(newDat, xColName)
   ndLong <- data.table::melt(newDat, measure.vars = cns, variable.name = "Type")
   ndLong <- ndLong[value > 0]
+  ndLong
 }
 
 fittedVsObservedPlot <- function(d, ggTitle, ggylab, xColName)  {
