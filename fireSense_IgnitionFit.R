@@ -16,7 +16,7 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   reqdPkgs = list("data.table", "DEoptim", "dplyr",
-                  "PredictiveEcology/fireSenseUtils@development (>= 0.0.4.9080)",
+                  "PredictiveEcology/fireSenseUtils@terra-migration (>= 0.0.5.9045)",
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
                   "PredictiveEcology/pemisc@development",
