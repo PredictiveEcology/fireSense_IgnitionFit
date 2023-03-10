@@ -11,7 +11,6 @@ defineModule(sim, list(
   ),
   childModules = character(),
   version = list(SpaDES.core = "0.1.0", fireSense_IgnitionFit = "0.0.2"),
-  spatialExtent = raster::extent(rep(NA_real_, 4)),
   timeframe = as.POSIXlt(c(NA, NA)),
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
@@ -23,7 +22,8 @@ defineModule(sim, list(
                   "PredictiveEcology/pemisc@development",
                   "PredictiveEcology/reproducible@development (>= 1.2.16.9023)",
                   "RhpcBLASctl",
-                  "PredictiveEcology/SpaDES.core@development (>= 1.0.6.9019)"),
+                  "PredictiveEcology/SpaDES.core@development (>= 1.0.6.9019)",
+                  "terra"),
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
                     desc = paste("If the objective function results in a singularity or non-convergence with full ",
@@ -125,7 +125,7 @@ defineModule(sim, list(
                               "Needs to have a `pixelID` column"),
                  sourceURL = NA_character_),
     expectsInput(objectName = "ignitionFitRTM",
-                 objectClass = "RasterLayer",
+                 objectClass = "SpatRaster",
                  desc = paste("A (template) raster with information with regards to the spatial resolution and geographical extent of",
                               "`fireSense_ignitionCovariates.` Used to pass this information onto `fireSense_ignitionFitted`",
                               "Needs to have number of non-NA cells as attribute (`ignitionFitRTM@data@attributes$nonNAs`)"))
@@ -859,7 +859,7 @@ frequencyFitRun <- function(sim) {
                          xCeiling = xCeiling)
 
     ## round to avoid silly decimal errors
-    resInKm2 <- round(prod(raster::res(sim$ignitionFitRTM)) / 1e6) ## 1e6 m^2 == 1 km^2
+    resInKm2 <- round(prod(res(sim$ignitionFitRTM)) / 1e6) ## 1e6 m^2 == 1 km^2
     labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
     filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
 
@@ -1004,7 +1004,7 @@ frequencyFitRun <- function(sim) {
   ## original fire prob is sum(n_fires)/nrow(preSampleData),
   ## the fitted one, imposed by sampling, becomes sum(n_fires)/nrow(postSampleData)
   ## so to adjust predicted values, one needs to predVals * nrow(postSampleData)/nrow(preSampleData)
-  origNoPix <- sim$ignitionFitRTM@data@attributes$nonNAs   ## nrow(preSampleData) in eg above
+  origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
   finalNoPix <- nrow(fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
   lambdaRescaleFactor <- finalNoPix/origNoPix
 
@@ -1018,7 +1018,7 @@ frequencyFitRun <- function(sim) {
             convergence = convergence,
             convergenceDiagnostic = convergDiagnostic,
             rescales = mod$rescales,
-            fittingRes = raster::res(sim$ignitionFitRTM)[1],  ## TODO: this assumes square pixels, is this okay?
+            fittingRes = res(sim$ignitionFitRTM)[1],
             lambdaRescaleFactor = lambdaRescaleFactor)
 
   if (hvPW) {
