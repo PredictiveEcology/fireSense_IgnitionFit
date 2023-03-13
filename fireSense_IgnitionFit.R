@@ -220,7 +220,7 @@ frequencyFitInit <- function(sim) {
   }
 
   ## TODO: added raster attributes may not be ideal to track number of non-NAs
-  if (is.null(sim$ignitionFitRTM@data@attributes$nonNAs) | length(sim$ignitionFitRTM@data@attributes$nonNAs) == 0) {
+  if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) | length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
     stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
   }
 
