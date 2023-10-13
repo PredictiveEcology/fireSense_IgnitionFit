@@ -155,12 +155,16 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
   switch(
     eventType,
     init = {
-      sim <- frequencyFitInit(sim)
+      
+      sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "checkData", eventPriority = 2)
 
       sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
 
       if (!is.na(P(sim)$.saveInitialTime))
         sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, moduleName, "save", .last())
+    },
+    checkData = {
+      sim <- frequencyFitInit(sim)
     },
     run = {
       sim <- frequencyFitRun(sim)
@@ -225,7 +229,6 @@ frequencyFitInit <- function(sim) {
     }
   }
 
-  ## TODO: added raster attributes may not be ideal to track number of non-NAs
   if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) | length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
     stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
   }
@@ -422,7 +425,8 @@ frequencyFitRun <- function(sim) {
     )
     fireSense_ignitionCovariates <- data.frame(fireSense_ignitionCovariates, knots)
 
-    updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", (nx + 1L):(nx + nk), "]", collapse = "; "))
+    updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", 
+                                          (nx + 1L):(nx + nk), "]", collapse = "; "))
   } else {
     missing <- !allxy %in% ls(fireSense_ignitionCovariates, all.names = TRUE)
 
@@ -519,7 +523,8 @@ frequencyFitRun <- function(sim) {
         ub2
       }
     } else {
-      ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
+      ## TODO: Ceres: potentially should also accomodate different coefs 
+      #for different variables supplied in a list.
       rep_len(ub[["coef"]], nx) ## User-defined bounds (recycled if necessary)
     },
     kUB
@@ -532,7 +537,8 @@ frequencyFitRun <- function(sim) {
              if (is.null(lb[["coef"]])) {
                -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
              } else {
-               ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
+               ## TODO: Ceres: potentially should also accomodate different coefs 
+               # for different variables supplied in a list.
                rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
 
@@ -540,7 +546,8 @@ frequencyFitRun <- function(sim) {
              if (is.null(lb[["coef"]])) {
                rep_len(1e-16, nx) ## Ensure non-negativity
              } else {
-               ## TODO: Ceres: potentially should also accomodate different coefs for different variables supplied in a list.
+               ## TODO: Ceres: potentially should also accomodate different coefs 
+               #for different variables supplied in a list.
                rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
            }, stop(moduleName, "> Link function ", family$link, " is not supported."))
@@ -754,11 +761,7 @@ frequencyFitRun <- function(sim) {
 
       if (trace) parallel::clusterEvalQ(cl, sink())
     } else {
-      ## TODO: Ceres, I have tested the results in parallel mode with 1 core and using lapply with
-      ## LIM data. The results are identical, despite the lapply option printing the error message (not for every start pop, though):
-      # Error in optim(par = x, fn = objective, lower = lower, upper = upper,  :
-      #                  L-BFGS-B needs finite values of 'fn'
-      warning("This is not tested by Eliot as of March 4, 2021; please set parameter: cores > 1")
+      #see commit ce3a8f41823583f848793f2743281f643d29ef05 if error occurs - it may be benign
       if (hvPW) {
         out <- Cache(lapply, start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
@@ -981,7 +984,7 @@ frequencyFitRun <- function(sim) {
       }
       if (identical(tolower(outRL), "y")) {
         params(sim)[[currentModule(sim)]]$fireSense_ignitionFormula <- possForm
-        sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run", eventPriority = 1)
+        sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run", eventPriority = 2)
       } else if (isTRUE(startsWith(outRL, "i"))) {
         browser()
       }
