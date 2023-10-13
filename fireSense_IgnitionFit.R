@@ -23,7 +23,7 @@ defineModule(sim, list(
                   "PredictiveEcology/pemisc@development",
                   "PredictiveEcology/reproducible@development (>= 2.0.8.9005)",
                   "RhpcBLASctl",
-                  "PredictiveEcology/SpaDES.core@development (>= 2.0.2.9007)",
+                  "PredictiveEcology/SpaDES.core@development (>= 2.0.2.9006)",
                   "terra"),
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
