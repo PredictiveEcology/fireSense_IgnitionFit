@@ -5,12 +5,12 @@ defineModule(sim, list(
   keywords = c("fire frequency", "optimization", "additive property", "poisson",
                "negative binomial", "fireSense"),
   authors = c(
-    person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut", "cre")),
-    person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca", role = c("aut")),
+    person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut")),
+    person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca", role = c("aut", "cre")),
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = c("ctb"))
   ),
   childModules = character(),
-  version = list(SpaDES.core = "0.1.0", fireSense_IgnitionFit = "0.0.2"),
+  version = list(fireSense_IgnitionFit = "1.0.0"),
   timeframe = as.POSIXlt(c(NA, NA)),
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
@@ -21,9 +21,9 @@ defineModule(sim, list(
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
                   "PredictiveEcology/pemisc@development",
-                  "PredictiveEcology/reproducible@development (>= 1.2.16.9023)",
+                  "PredictiveEcology/reproducible@development (>= 2.0.8.9005)",
                   "RhpcBLASctl",
-                  "PredictiveEcology/SpaDES.core@development (>= 1.0.6.9019)",
+                  "PredictiveEcology/SpaDES.core@development (>= 2.0.2.9007)",
                   "terra"),
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
