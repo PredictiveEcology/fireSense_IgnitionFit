@@ -239,11 +239,11 @@ frequencyFitInit <- function(sim) {
 frequencyFitRun <- function(sim) {
   moduleName <- current(sim)$moduleName
 
-  if (is.empty.model(as.formula(P(sim)$fireSense_ignitionFormula))) {
+  if (is.empty.model(as.formula(sim$fireSense_ignitionFormula))) {
     stop(moduleName, "> The formula describes an empty model.")
   }
 
-  fireSense_ignitionFormula <- as.formula(P(sim)$fireSense_ignitionFormula)
+  fireSense_ignitionFormula <- as.formula(sim$fireSense_ignitionFormula)
   terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
@@ -627,7 +627,7 @@ frequencyFitRun <- function(sim) {
     if (hvPW) {
       DEout <- Cache(DEoptim, fn = objfun, lower = DEoptimLB, upper = DEoptimUB,
                      control = do.call("DEoptim.control", control),
-                     formula = P(sim)$fireSense_ignitionFormula,
+                     formula = sim$fireSense_ignitionFormula,
                      mod_env = fireSense_ignitionCovariates,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx,
                      offset = offset, updateKnotExpr = updateKnotExpr,
@@ -722,7 +722,7 @@ frequencyFitRun <- function(sim) {
                      lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
-                     formula = P(sim)$fireSense_ignitionFormula,
+                     formula = sim$fireSense_ignitionFormula,
                      updateKnotExpr = updateKnotExpr,# cacheId = "e016b5d728ed2b6a",
                      control = c(P(sim)$nlminb.control, list(trace = trace)),
                      userTags = c(currentModule(sim), "objNlminb"),
@@ -766,7 +766,7 @@ frequencyFitRun <- function(sim) {
         out <- Cache(lapply, start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
                      linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
                      mod_env = fireSense_ignitionCovariates, offset = offset,
-                     formula = P(sim)$fireSense_ignitionFormula,
+                     formula = sim$fireSense_ignitionFormula,
                      updateKnotExpr = updateKnotExpr,
                      userTags = c(currentModule(sim), "objNlminb"),
                      omitArgs = c("X", "userTags"),
@@ -798,7 +798,7 @@ frequencyFitRun <- function(sim) {
                   mod_env = fireSense_ignitionCovariates,
                   linkinv = linkinv, nll = nll,
                   sm = sm, nx = nx, updateKnotExpr = updateKnotExpr,
-                  formula = P(sim)$fireSense_ignitionFormula,
+                  formula = sim$fireSense_ignitionFormula,
                   offset = offset,
                   userTags = c(currentModule(sim), "hessian"),
                   omitArgs = c("userTags"))
@@ -847,7 +847,7 @@ frequencyFitRun <- function(sim) {
     colName <- if (exists("specialsTerms", inherits = FALSE)) {
       unique(rbindlist(specialsTerms)$variable)
     } else {
-      tt <- terms(as.formula(P(sim)$fireSense_ignitionFormula)[-(2)])
+      tt <- terms(as.formula(sim$fireSense_ignitionFormula[-(2)]))
       facts <- attr(tt, "factors")
       rownames(facts)[sapply(rownames(facts), function(v) length(grep(v, attr(tt, "term.labels"))) > 1)]
     }
@@ -859,7 +859,7 @@ frequencyFitRun <- function(sim) {
     xCeiling <- max(sim$fireSense_ignitionCovariates[[colName]]) * 1.5 #subsets full 0-1 range
     ndLong <- pwPlotData(bestParams = best,
                          ses = se, solvedHess = solvedHess,
-                         formula = P(sim)$fireSense_ignitionFormula,
+                         formula = sim$fireSense_ignitionFormula,
                          xColName = colName, nx = nx, offset = offset,
                          linkinv = linkinv,
                          rescaler = mod$rescales,
@@ -954,7 +954,7 @@ frequencyFitRun <- function(sim) {
 
     tryRefit <- TRUE
     ## TODO: this may not be the best way for checking if the formulas are identical.
-    if (identical(as.character(parse(text = P(sim)$fireSense_ignitionFormula)),
+    if (identical(as.character(parse(text = sim$fireSense_ignitionFormula)),
                   as.character(parse(text = possForm)))) {
       tryRefit <- FALSE
       message("Can't find a simpler model to refit automatically. Will use the current formula:")
