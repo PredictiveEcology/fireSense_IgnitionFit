@@ -983,7 +983,7 @@ frequencyFitRun <- function(sim) {
         readline("Would you like to restart this IgnitionFit event with that new formula (Y or N or interactive)? ")
       }
       if (identical(tolower(outRL), "y")) {
-        params(sim)[[currentModule(sim)]]$fireSense_ignitionFormula <- possForm
+        sim$fireSense_ignitionFormula <- possForm
         sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run", eventPriority = 2)
       } else if (isTRUE(startsWith(outRL, "i"))) {
         browser()
