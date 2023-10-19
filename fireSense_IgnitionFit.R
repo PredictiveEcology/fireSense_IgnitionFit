@@ -121,6 +121,8 @@ defineModule(sim, list(
                  desc = paste("One or more objects of class data.frame in which to look for variables",
                               "present in the model formula. Must have a `pixelID` column"),
                  sourceURL = NA_character_),
+    expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
+                 "RTM without ice/rocks/urban/water. Flammable map with 0 and 1."),
     expectsInput(objectName = "ignitionFitRTM",
                  objectClass = "SpatRaster",
                  desc = paste("A (template) raster with information with regards to the spatial",
