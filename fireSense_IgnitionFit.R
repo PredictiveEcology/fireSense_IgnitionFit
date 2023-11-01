@@ -207,14 +207,6 @@ frequencyFitInit <- function(sim) {
   
   if (!is.na(P(sim)$rescalers)) {
     ## checks
-
-    # if (is.null(names(P(sim)$lb$knots))) {
-    #   stop("P(sim)$lb$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
-    # }
-    # 
-    # if (is.null(names(P(sim)$ub$knots))) {
-    #   stop("P(sim)$ub$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
-    # }
     if (is.null(names(P(sim)$rescalers))) {
       stop("P(sim)$rescalers must be a named vector or NA.")
     }
@@ -222,14 +214,6 @@ frequencyFitInit <- function(sim) {
     if (!all(names(P(sim)$rescalers) %in% names(sim$fireSense_ignitionCovariates))) {
       stop("names(P(sim)$rescalers) doesn't match variable names in fireSense_ignitionCovariates")
     }
-
-    # if (!all(names(P(sim)$rescalers) %in% names(P(sim)$lb$knots))) {
-    #   stop("names(P(sim)$rescalers) doesn't match variable names in lb$knots")
-    # }
-    # 
-    # if (!all(names(P(sim)$rescalers) %in% names(P(sim)$ub$knots))) {
-    #   stop("names(P(sim)$rescalers) doesn't match variable names in ub$knots")
-    # }
   }
 
   if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) | length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
