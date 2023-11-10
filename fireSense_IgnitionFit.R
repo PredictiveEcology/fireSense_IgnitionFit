@@ -116,11 +116,8 @@ defineModule(sim, list(
                                  "where stochasticity and time are not relevant."))
   ),
   inputObjects = bindrows(
-    expectsInput(objectName = "fireSense_ignitionCovariates",
-                 objectClass = "data.frame",
-                 desc = paste("One or more objects of class data.frame in which to look for variables",
-                              "present in the model formula. Must have a `pixelID` column"),
-                 sourceURL = NA_character_),
+    expectsInput(objectName = "fireSense_ignitionCovariates", objectClass = "data.frame",
+                 desc = "table of aggregated ignition covariates with annual ignitions"),
     expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
                  "RTM without ice/rocks/urban/water. Flammable map with 0 and 1."),
     expectsInput(objectName = "ignitionFitRTM",
@@ -128,9 +125,9 @@ defineModule(sim, list(
                  desc = paste("A (template) raster with information with regards to the spatial",
                               "resolution and geographical extent of `fireSense_ignitionCovariates.`",
                               "Used to pass this information onto `fireSense_ignitionFitted`",
-                              "Needs to have number of non-NA cells as attribute (`ignitionFitRTM@data@attributes$nonNAs`)")),
-    expectsInput(objectName = "fireSense_ignitionFormula", 
-                 objectClass = "character", 
+                              "Needs to have number of non-NA cells as attribute:",
+                              "(`ignitionFitRTM@data@attributes$nonNAs`)")),
+    expectsInput(objectName = "fireSense_ignitionFormula", objectClass = "character", 
                  desc = paste("formula - as a character - describing the model to be fitted.",
                               "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
                               "Note that when using PW terms, these will be dropped (if `autoRefit == TRUE`)",
@@ -203,17 +200,13 @@ frequencyFitInit <- function(sim) {
   if (!"pixelID" %in% colnames(sim$fireSense_ignitionCovariates)) {
     stop("fireSense_ignitionCovariates must have a 'pixelID' column")
   }
-
+  
+  if (is.empty.model(as.formula(sim$fireSense_ignitionFormula))) {
+    stop(moduleName, "> The formula describes an empty model.")
+  }
+  
   if (!is.na(P(sim)$rescalers)) {
     ## checks
-    if (is.null(names(P(sim)$lb$knots))) {
-      stop("P(sim)$lb$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
-    }
-
-    if (is.null(names(P(sim)$ub$knots))) {
-      stop("P(sim)$ub$knots must be a named vector with names corresponding to names(P(sim)$rescalers)")
-    }
-
     if (is.null(names(P(sim)$rescalers))) {
       stop("P(sim)$rescalers must be a named vector or NA.")
     }
@@ -221,48 +214,71 @@ frequencyFitInit <- function(sim) {
     if (!all(names(P(sim)$rescalers) %in% names(sim$fireSense_ignitionCovariates))) {
       stop("names(P(sim)$rescalers) doesn't match variable names in fireSense_ignitionCovariates")
     }
-
-    if (!all(names(P(sim)$rescalers) %in% names(P(sim)$lb$knots))) {
-      stop("names(P(sim)$rescalers) doesn't match variable names in lb$knots")
-    }
-
-    if (!all(names(P(sim)$rescalers) %in% names(P(sim)$ub$knots))) {
-      stop("names(P(sim)$rescalers) doesn't match variable names in ub$knots")
-    }
   }
 
   if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) | length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
     stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
   }
-
+  
   return(invisible(sim))
 }
 
 frequencyFitRun <- function(sim) {
   moduleName <- current(sim)$moduleName
 
-  if (is.empty.model(as.formula(sim$fireSense_ignitionFormula))) {
-    stop(moduleName, "> The formula describes an empty model.")
-  }
-
   fireSense_ignitionFormula <- as.formula(sim$fireSense_ignitionFormula)
   terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
+  # Check the presence of at least one piecewise term
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
   fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))
-
+  
   lb <- P(sim)$lb
   ub <- P(sim)$ub
+  
+  hvPW <- !is.null(attr(terms, "specials")$pw)
+  
+  #assign default
+  knotTerm <- NULL
 
-  ## save covariate original ranges first
-  ## extract variable names
-  specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
-  notSpecialVars <- colnames(attr(terms, "factor"))
-  for (x in specialVars) {
-    notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
+  if (hvPW) {
+    # if lb and ub don't have knots, and hvPW is true, add bounds
+    # this is necessary as of 2023 given that preceding dataPrep can be run in tandem with ignitionFit.
+    # As a consequence, users may not know the range of climate variables (e.g. MDC) in advance
+    # for simplicity we assign default bounds to the value of the knots as the 5% and 80% percentile.
+    # This situation is much more likely than one where no bounds are desired
+    # bounds must be assigned before rescaling
+    
+    specialsInd <- which(unlist(lapply(attr(terms,"variables"), is.call)))
+    specialsCalls <- attr(terms,"variables")[specialsInd]
+    
+    ## Extract the names of the knots (breakpoints)
+    ## Alternative way: all.vars(terms)[!all.vars(terms) %in% rownames(attr(terms,"factors"))]
+    specialsTerms <- lapply(specialsCalls, function(specialsCall) {
+      if (specialsCall[[1L]] == "pw") {
+        specialsCall[[1L]] <- quote(extractSpecial)
+        eval(specialsCall)
+      }
+    })
+    
+    specialsTerms <- specialsTerms[!unlist(lapply(specialsTerms, is.null))]
+    
+    ## save covariate original ranges first
+    ## extract variable names
+    specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
+    notSpecialVars <- colnames(attr(terms, "factor"))
+    for (x in specialVars) {
+      notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
+    }
+    notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
+  
+    knotTerm <- unique(sapply(specialsTerms, "[[", "variable"))
+ 
   }
-  notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
-
+  #this assigns a default coefficient boundary of 20 - this may be scale dependent... 
+  ub <- checkForNullBounds(ub, 20, 0.80, knot = knotTerm, data = fireSense_ignitionCovariates)
+  lb <- checkForNullBounds(lb, 0, 0.05, knot = knotTerm, data = fireSense_ignitionCovariates)
+  
   sim$covMinMax_ignition <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
 
   ## check for NAs
@@ -272,7 +288,8 @@ frequencyFitRun <- function(sim) {
 
   ## rescale variable and knots.
   if (isTRUE(P(sim)$rescaleVars)) {
-    if (is.na(P(sim)$rescalers)) { ## TODO: lapply through each element in rescalers and assess which elements are to be rescaled vs normalized
+    if (is.na(P(sim)$rescalers)) { 
+      ## TODO: lapply through each element in rescalers and assess which elements are to be rescaled vs normalized
       message("Variables outside of [0,1] range will be rescaled to [0,1]")
 
       needRescale <- fireSense_ignitionCovariates[, vapply(.SD, FUN = function(x) all(inrange(na.omit(x), 0, 1)),
@@ -343,7 +360,7 @@ frequencyFitRun <- function(sim) {
   #                                         "youngAge:pw(MDC, k_YA) + nonForest_lowFlam:pw(MDC, k_NFLF) + ",
   #                                         # "nonForest_highFlam:pw(MDC, k_NFHF) + class2:pw(MDC, k_class2) + ",
   #                                         "class3:pw(MDC, k_class3) - 1")
-  # params(sim)[[currentModule(sim)]]$fireSense_ignitionFormula <- sim$fireSense_ignitionFormula
+  
 
   if (attr(terms, "response")) {
     y <- fireSense_ignitionFormula[[2L]]
@@ -353,27 +370,11 @@ frequencyFitRun <- function(sim) {
   nx <- length(labels(terms)) + attr(terms, "intercept") ## Number of variables (covariates)
   allxy <- all.vars(terms)
 
-  # Check the presence of at least one piecewise term
-  hvPW <- !is.null(attr(terms, "specials")$pw)
-
   kLB <- kUB <- NULL
 
   if (hvPW) {
+    
     objfun <- fireSenseUtils::.objFunIgnitionPW
-
-    specialsInd <- which(unlist(lapply(attr(terms,"variables"), is.call)))
-    specialsCalls <- attr(terms,"variables")[specialsInd]
-
-    ## Extract the names of the knots (breakpoints)
-    ## Alternative way: all.vars(terms)[!all.vars(terms) %in% rownames(attr(terms,"factors"))]
-    specialsTerms <- lapply(specialsCalls, function(specialsCall) {
-      if (specialsCall[[1L]] == "pw") {
-        specialsCall[[1L]] <- quote(extractSpecial)
-        eval(specialsCall)
-      }
-    })
-
-    specialsTerms <- specialsTerms[!unlist(lapply(specialsTerms, is.null))]
 
     kNames <- sapply(specialsTerms, "[[", "knot")
 
@@ -525,7 +526,7 @@ frequencyFitRun <- function(sim) {
         ub2
       }
     } else {
-      ## TODO: Ceres: potentially should also accomodate different coefs 
+      ## TODO: Ceres: potentially should also accommodate different coefs 
       #for different variables supplied in a list.
       rep_len(ub[["coef"]], nx) ## User-defined bounds (recycled if necessary)
     },
@@ -1094,7 +1095,7 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
   names(cns) <- cns
   ll <- lapply(cns, function(x) 0:1)
-
+  
   ll2 <- lapply(xColName, function(x) {
     ## TODO: confirm + test
     nPoints <- 100L
@@ -1191,4 +1192,16 @@ fittedVsObservedPlot <- function(d, ggTitle, ggylab, xColName)  {
     theme(legend.position = "bottom") +
     labs(y = ggylab, x = xColName, title = ggTitle, colour = "")
   ggplot
+}
+
+checkForNullBounds <- function(bounds, coefBound, knotPercentileBound, knot, data) {
+  if (is.null(bounds)){
+    bounds <- list("coef" = coefBound)
+    if (!is.null(knot)){
+      knotBound <- round(quantile(data[[knot]], knotPercentileBound), digits = 0)
+      bounds[["knots"]] <- list()
+      bounds[["knots"]][[eval(knot)]] <- knotBound
+    }
+  } 
+  return(bounds)
 }
