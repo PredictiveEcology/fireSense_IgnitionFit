@@ -558,8 +558,8 @@ frequencyFitRun <- function(sim) {
 
   ## If negative.binomial family needs to add bounds for theta parameter
   if (isFamilyNB) {
-    DEoptimUB <- c(DEoptimUB, if (is.null(ub$t)) 2L * theta else ub$t)
-    DEoptimLB <- c(DEoptimLB, if (is.null(lb$t)) 1e-16 else lb$t) ## Enfore non-negativity
+    DEoptimUB <- c(DEoptimUB, if (is.null(ub$theta)) 2L * theta else ub$theta)
+    DEoptimLB <- c(DEoptimLB, if (is.null(lb$theta)) 1e-16 else lb$theta) ## Enfore non-negativity
   }
 
   ## Then, define lower and upper bounds for the second optimizer (nlminb)
