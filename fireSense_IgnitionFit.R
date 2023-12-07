@@ -200,11 +200,11 @@ frequencyFitInit <- function(sim) {
   if (!"pixelID" %in% colnames(sim$fireSense_ignitionCovariates)) {
     stop("fireSense_ignitionCovariates must have a 'pixelID' column")
   }
-  
-  if (is.empty.model(as.formula(sim$fireSense_ignitionFormula))) {
+
+  if (is.empty.model(as.formula(sim$fireSense_ignitionFormula, env = .GlobalEnv))) {
     stop(moduleName, "> The formula describes an empty model.")
   }
-  
+
   if (!is.na(P(sim)$rescalers)) {
     ## checks
     if (is.null(names(P(sim)$rescalers))) {
@@ -226,7 +226,7 @@ frequencyFitInit <- function(sim) {
 frequencyFitRun <- function(sim) {
   moduleName <- current(sim)$moduleName
 
-  fireSense_ignitionFormula <- as.formula(sim$fireSense_ignitionFormula)
+  fireSense_ignitionFormula <- as.formula(sim$fireSense_ignitionFormula, env = .GlobalEnv)
   terms <- terms.formula(fireSense_ignitionFormula, specials = "pw")
 
   # Check the presence of at least one piecewise term
@@ -850,7 +850,7 @@ frequencyFitRun <- function(sim) {
     colName <- if (exists("specialsTerms", inherits = FALSE)) {
       unique(rbindlist(specialsTerms)$variable)
     } else {
-      tt <- terms(as.formula(sim$fireSense_ignitionFormula[-(2)]))
+      tt <- terms(as.formula(sim$fireSense_ignitionFormula[-(2)], env = .GlobalEnv))
       facts <- attr(tt, "factors")
       rownames(facts)[sapply(rownames(facts), function(v) length(grep(v, attr(tt, "term.labels"))) > 1)]
     }
@@ -891,7 +891,7 @@ frequencyFitRun <- function(sim) {
       xvar <- rows
     }
 
-    fittedVals <- predictIgnition(as.formula(fireSense_ignitionFormula),
+    fittedVals <- predictIgnition(as.formula(fireSense_ignitionFormula, env = .GlobalEnv),
                                   fireSense_ignitionCovariates,
                                   setNames(outBest$par[1:nx], colnames(mm)),
                                   1,
@@ -1020,7 +1020,7 @@ frequencyFitRun <- function(sim) {
   finalNoPix <- nrow(fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
   lambdaRescaleFactor <- finalNoPix/origNoPix
 
-  l <- list(formula = as.formula(fireSense_ignitionFormula),
+  l <- list(formula = as.formula(fireSense_ignitionFormula, env = .GlobalEnv),
             family = family,
             data = fireSense_ignitionCovariates,
             coef = setNames(outBest$par[1:nx], colnames(mm)),
@@ -1090,7 +1090,7 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
     stop("covMinMax_ignition must be provided if rescaler is used")
   }
 
-  cns <- rownames(attr(terms(as.formula(formula)), "factors"))[-1]
+  cns <- rownames(attr(terms(as.formula(formula, env = .GlobalEnv)), "factors"))[-1]
   cns <- setdiff(cns, xColName)
   cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
   names(cns) <- cns
@@ -1134,7 +1134,7 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   keepers <- apply(newDat[, ..cns], 1, function(x) sum(x) > 0)
   newDat <- newDat[keepers]
 
-  mm <- model.matrix(as.formula(formula)[-2], newDat)
+  mm <- model.matrix(as.formula(formula, env = .GlobalEnv)[-2], newDat)
   mu <- drop(mm %*% bestParams[1:nx]) + offset
   if (!all(is.na(solvedHess))) {
     # https://biologyforfun.wordpress.com/2015/06/17/confidence-intervals-for-prediction-in-glmms/
