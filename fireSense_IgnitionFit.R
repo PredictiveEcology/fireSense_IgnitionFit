@@ -18,6 +18,7 @@ defineModule(sim, list(
   loadOrder = list(after = "fireSense_dataPrepFit"),
   reqdPkgs = list("data.table", "DEoptim", "dplyr",
                   "PredictiveEcology/fireSenseUtils@terra-migration (>= 0.0.5.9045)",
+                  "glmmTMB",
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
                   "PredictiveEcology/pemisc@development",
@@ -233,8 +234,6 @@ frequencyFitRun <- function(sim) {
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
   fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))
 
-  browser()
-
   if (TRUE) {
     m <- as.data.table(fireSense_ignitionCovariates)
     m$yearChar <- as.character(m$year)
@@ -252,14 +251,14 @@ frequencyFitRun <- function(sim) {
     # family = zi.poisson(link = "identity"), zi_fixed = ~ MDCc)
 
     # family=zipoisson(link="identity"))
-    system.time(fm6 <- glmmTMB(ignitionsNoGT1 ~ #(1|yearChar) +
-                                 youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
-                                 MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
-                               # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
-                               # random = ~ 1 | yearChar,
-                               data = m,
-                               ziformula=~MDCc,
-                               family=poisson(link = "logit")))
+    # system.time(fm6 <- glmmTMB(ignitionsNoGT1 ~ #(1|yearChar) +
+    #                              youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
+    #                              MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
+    #                            # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
+    #                            # random = ~ 1 | yearChar,
+    #                            data = m,
+    #                            ziformula=~MDCc,
+    #                            family=poisson(link = "logit")))
     system.time(fm7 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
                                  youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
                                  MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
@@ -318,14 +317,19 @@ frequencyFitRun <- function(sim) {
       #      xlim = c(50, 330))
       # axis(side = 2)
       # preds <- expit(predict(fm7, newdata = pAll, re.form = NA))
-      preds <- expit(predict(fm7, newdata = pAll, se.fit = TRUE, re.form = NA))
-      pAll[, pred := preds]
+
+      preds <- predict(fm7, newdata = pAll, se.fit = TRUE, re.form = NA)
+      pAll[, pred := expit(preds$fit)]
       pAll[, val1 := factor(val)]
-      # pAll[, se.fit := preds$se.fit]
+      pAll[, upper := expit(preds$fit + preds$se.fit)]
+      pAll[, lower := expit(preds$fit - preds$se.fit)]
       # pAll[, pred := expit(predict(fm7, newdata = .SD, se.fit = TRUE, re.form = NULL)), by = "val"]
+      browser()
       ggplot(pAll, aes(x = MDCc + centred, y = pred, by = val1, col = val1)) +
-        # geom_ribbon(aes(ymin = pred - se.fit, ymax = pred + se.fit), fill = val) +
+        geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
         geom_line(aes(y = pred))
+
+
         # geom_line()
 
       #   # lines(p$MDCc + centred, expit(estimatedLambda$fit), type = "l", col = colsColrs[[i]])
