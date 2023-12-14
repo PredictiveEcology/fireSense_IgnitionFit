@@ -320,7 +320,7 @@ frequencyFitRun <- function(sim) {
     forms <- list()
     forms[["full"]] <- as.formula(fireSense_ignitionFormula, env = .GlobalEnv)
     # drop interactions
-    formChar <- as.character(form)
+    formChar <- as.character(forms[["full"]])
     terms <- lapply(formChar, function(x) {
       allTermsNoMinus <- strsplit(x, " *\\- *")[[1]]
       allTermsNoMinus <- lapply(allTermsNoMinus, function(y) {
@@ -332,10 +332,13 @@ frequencyFitRun <- function(sim) {
     })
     forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
 
-    system.time(mods <- sapply(forms, function(form) {
+    system.time(mods <- Map(nam = names(forms), form = forms, function(form, nam) {
+      message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n", form)
+
       glmmTMB(form, data = m,
               ziformula=~MDCc,
-              family=eval(family))
+              family=eval(family)) |>
+        Cache(.functionName = paste0("glmmTMB_forIgnitions", nam))
     }))
 
 
