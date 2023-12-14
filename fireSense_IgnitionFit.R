@@ -304,10 +304,10 @@ frequencyFitRun <- function(sim) {
       colsColrsEB <- c("orange", "lightblue", "lightgreen", "pink", "grey")
       for (rmCol in c("pixelID", grep("^k_", colnames(p), value = TRUE), "year", "MDC"))
         set(p, NULL, rmCol, NULL)
-      p[, MDCc := seq(min(m$MDCc), max(m$MDCc) * 2, length.out = N)]
+      centred <- attr(m$MDCc, "scaled:center")
+      p[, MDCc := seq(quantile(m$MDC, 0.1) - centred, (quantile(m$MDC, 0.95) * 1.5) - centred, length.out = N)]
       pAll <- rbindlist(lapply(seq(cols), function(x) p))
       pAll[, val := rep(cols, each = N)]
-      centred <- attr(m$MDCc, "scaled:center")
       for (val1 in cols) {
         set(pAll, which(pAll$val %in% val1), val1, 1)
       }
@@ -317,8 +317,7 @@ frequencyFitRun <- function(sim) {
       #      xlim = c(50, 330))
       # axis(side = 2)
       # preds <- expit(predict(fm7, newdata = pAll, re.form = NA))
-
-      preds <- predict(fm7, newdata = pAll, se.fit = TRUE, re.form = NA)
+      system.time(preds <- predict(fm7, newdata = pAll, se.fit = TRUE, re.form = NA))
       pAll[, pred := expit(preds$fit)]
       pAll[, val1 := factor(val)]
       pAll[, upper := expit(preds$fit + preds$se.fit)]
@@ -327,7 +326,7 @@ frequencyFitRun <- function(sim) {
       browser()
       ggplot(pAll, aes(x = MDCc + centred, y = pred, by = val1, col = val1)) +
         geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
-        geom_line(aes(y = pred))
+        geom_line(aes(y = pred, lwd = 2))
 
 
         # geom_line()
