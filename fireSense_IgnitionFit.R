@@ -317,38 +317,32 @@ frequencyFitRun <- function(sim) {
     #                            ziformula=~MDCc,
     #                            family=poisson(link = "logit")))
     family <- P(sim)$family
-    form <- as.formula(fireSense_ignitionFormula, env = .GlobalEnv)
-    system.time(outZIP <- glmmTMB(form, data = m,
-                               ziformula=~MDCc,
-                               family=eval(family)))
+    forms <- list()
+    forms[["full"]] <- as.formula(fireSense_ignitionFormula, env = .GlobalEnv)
+    # drop interactions
+    formChar <- as.character(form)
+    terms <- lapply(formChar, function(x) {
+      allTermsNoMinus <- strsplit(x, " *\\- *")[[1]]
+      allTermsNoMinus <- lapply(allTermsNoMinus, function(y) {
+        allTerms <- strsplit(y, " *\\+ *")[[1]]
+        noInteractions <- grep(":", allTerms, value = TRUE, invert = TRUE)
+        paste0(noInteractions, collapse = " + ")
+      })
+      paste0(allTermsNoMinus, collapse = " - ")
+    })
+    forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
 
-    system.time(fm1 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
-                                 MDCc + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
-                                 MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
-                               # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
-                               # random = ~ 1 | yearChar,
-                               data = m,
-                               ziformula=~MDCc,
-                               family=poisson(link = "logit")))
+    system.time(mods <- sapply(forms, function(form) {
+      glmmTMB(form, data = m,
+              ziformula=~MDCc,
+              family=eval(family))
+    }))
 
-    system.time(fm2 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
-                                 MDCc + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 , #+
-                                 # MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
-                               # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
-                               # random = ~ 1 | yearChar,
-                               data = m,
-                               ziformula=~MDCc,
-                               family=poisson(link = "logit")))
-    system.time(fm3 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
-                                 youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
-                               MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
-                               # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
-                               # random = ~ 1 | yearChar,
-                               data = m,
-                               ziformula=~MDCc,
-                               family=poisson(link = "logit")))
-    anova(outZIP, fm1, fm2, fm3)
 
+    AICs <- sapply(mods, AIC)
+    bestModel <- mods[which.min(AICs)]
+
+    browser()
     # system.time(fm9 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
     #                              youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
     #                              MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
@@ -394,7 +388,7 @@ frequencyFitRun <- function(sim) {
         set(pAll, which(pAll$val %in% val1), val1, 1)
       }
       set(pAll, NULL, c("ignitions", "ignitionsNoGT1", "yearChar"), NULL)
-      system.time(preds <- predict(outZIP, newdata = pAll, se.fit = TRUE, re.form = NA))
+      system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA))
       pAll[, pred := expit(preds$fit)]
       pAll[, val1 := factor(val)]
       pAll[, upper := expit(preds$fit + preds$se.fit)]
@@ -424,9 +418,9 @@ frequencyFitRun <- function(sim) {
       #   geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
       #   geom_line(aes(y = pred, lwd = 2))
 
-      system.time(fittedNoRE <- predict(outZIP, newdata = m, se.fit = TRUE, re.form = NA))
+      system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = TRUE, re.form = NA))
 
-      fittedVals <- fitted(outZIP)
+      fittedVals <- fitted(bestModel)
 
       plotData <- data.table(fireSense_ignitionCovariates)
       plotData[,  rows := 1:nrow(plotData)]
@@ -455,7 +449,7 @@ frequencyFitRun <- function(sim) {
                             P(sim)$.studyAreaName, "(", basename(outputPath(sim)), ")"),
             filename = paste0("ignition_NumFiresFitted_", P(sim)$.studyAreaName))
     }
-    summ <- summary(outZIP)
+    summ <- summary(bestModel)
     mod$rescales <- if (isTRUE(P(sim)$rescaleVars)) {
       if (is.na(P(sim)$rescalers)) { ## TODO: allow list of rescalers to be passed with mix of NA and other vals
         sapply(needRescale, FUN = function(x) {
@@ -481,9 +475,9 @@ frequencyFitRun <- function(sim) {
               coef = summ$coefficients$cond[, "Estimate"],
               # coef = setNames(outBest$par[1:nx], colnames(mm)),
               coef.se = summ$coefficients$cond[, "Std. Error"],
-              LL = logLik(outZIP),
-              AIC = AIC(outZIP),
-              convergence = outZIP$fit$convergence,
+              LL = logLik(bestModel),
+              AIC = AIC(bestModel),
+              convergence = bestModel$fit$convergence,
               # convergenceDiagnostic = convergDiagnostic,
               rescales = mod$rescales,
               fittingRes = res(sim$ignitionFitRTM)[1],
