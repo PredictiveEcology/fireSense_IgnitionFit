@@ -293,29 +293,9 @@ frequencyFitRun <- function(sim) {
     }
 
     m <- as.data.table(fireSense_ignitionCovariates)
-    m$yearChar <- as.character(m$year)
+    # m$yearChar <- as.character(m$year)
     m$MDCc <- scale(m$MDC, scale = FALSE)
-    m[, ignitionsNoGT1 := ifelse(ignitions > 1, 1, ignitions)]
-    # system.time(fm6 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
-    #                              MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
-    #                            # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
-    #                            # random = ~ 1 | yearChar,
-    #                            data = m,
-    #                            ziformula=~MDCc,
-    #                            family=betabinomial()))
-    # family = beta.binomial(), zi_fixed = ~ MDCc)
-    # family = hurdle.poisson(), zi_fixed = ~ MDCc)
-    # family = zi.poisson(link = "identity"), zi_fixed = ~ MDCc)
-
-    # family=zipoisson(link="identity"))
-    # system.time(fm6 <- glmmTMB(ignitionsNoGT1 ~ #(1|yearChar) +
-    #                              youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
-    #                              MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
-    #                            # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
-    #                            # random = ~ 1 | yearChar,
-    #                            data = m,
-    #                            ziformula=~MDCc,
-    #                            family=poisson(link = "logit")))
+    # m[, ignitionsNoGT1 := ifelse(ignitions > 1, 1, ignitions)]
     family <- P(sim)$family
     forms <- list()
     forms[["full"]] <- as.formula(fireSense_ignitionFormula, env = .GlobalEnv)
@@ -335,12 +315,13 @@ frequencyFitRun <- function(sim) {
     system.time(mods <- Map(nam = names(forms), form = forms, function(form, nam) {
       message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
               messageFormulaFn(form))
-              # gsub(" {2,100}", " ", paste0(format(form), collapse = "")))
 
       glmmTMB(form, data = m,
-              ziformula=~MDCc,
-              family=eval(family)) |>
-        Cache(.functionName = paste0("glmmTMB_forIgnitions", nam))
+              ziformula = ~MDC, ## TODO this needs to be
+              family = eval(family)) |>
+        # Use .cacheExtra -- there are lots of arguments to glmmTMB that seemed to be "always different"
+        Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
+              omitArgs = formalArgs(glmmTMB), .cacheExtra = list(data = m, form = form, family = family))
     }))
 
 
