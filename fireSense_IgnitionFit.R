@@ -333,7 +333,8 @@ frequencyFitRun <- function(sim) {
     forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
 
     system.time(mods <- Map(nam = names(forms), form = forms, function(form, nam) {
-      message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n", form)
+      message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
+              gsub(" {2,100}", " ", paste0(format(form), collapse = "")))
 
       glmmTMB(form, data = m,
               ziformula=~MDCc,
