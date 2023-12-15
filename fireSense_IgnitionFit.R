@@ -293,9 +293,6 @@ frequencyFitRun <- function(sim) {
     }
 
     m <- as.data.table(fireSense_ignitionCovariates)
-    # m$yearChar <- as.character(m$year)
-    m$MDCc <- scale(m$MDC, scale = FALSE)
-    # m[, ignitionsNoGT1 := ifelse(ignitions > 1, 1, ignitions)]
     family <- P(sim)$family
     forms <- list()
     forms[["full"]] <- as.formula(fireSense_ignitionFormula, env = .GlobalEnv)
@@ -312,12 +309,16 @@ frequencyFitRun <- function(sim) {
     })
     forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
 
+    # Work around -- use centred MDC ## TODO should be in dataPrepFit
+    m$MDCc <- scale(m$MDC, scale = FALSE)
+    forms[] <- lapply(gsub("MDC", "MDCc", forms), function(ff) as.formula(ff, env = .GlobalEnv))
+
     system.time(mods <- Map(nam = names(forms), form = forms, function(form, nam) {
       message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
               messageFormulaFn(form))
 
       glmmTMB(form, data = m,
-              ziformula = ~MDC, ## TODO this needs to be
+              ziformula = ~MDCc, ## TODO this needs to be
               family = eval(family)) |>
         # Use .cacheExtra -- there are lots of arguments to glmmTMB that seemed to be "always different"
         Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
@@ -328,8 +329,8 @@ frequencyFitRun <- function(sim) {
     AICs <- sapply(mods, AIC)
     # even if the AIC is <2 better, should take simpler model; in tests, turned many to non-significant when had interactions
     whBest <- which.min(c(AICs[["full"]] + 2, AICs[["NoInteractions"]]))
-    bestModel <- mods[whBest]
-    message("Best model is:\n", messageFormulaFn(bestModel$NoInteractions$call$formula))
+    bestModel <- mods[[whBest]]
+    message("Best model is:\n", messageFormulaFn(bestModel$call$formula))
 
     # system.time(fm9 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
     #                              youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
@@ -363,20 +364,24 @@ frequencyFitRun <- function(sim) {
 
       N <- 40
       p <- as.data.table(lapply(m, function(pp) if (is.numeric(pp)) mean(pp) else pp[1:N]))
-      cols <- c("youngAge", "nonForest_highFlam", "nonForest_lowFlam", "class2", "class3")
+      cols <- c("youngAge", "nonForest_highFlam", "nonForest_lowFlam", "class2", "class3", "MDC")
       colsColrs <- c("red", "blue", "green", "magenta", "black")
       colsColrsEB <- c("orange", "lightblue", "lightgreen", "pink", "grey")
-      for (rmCol in c("pixelID", grep("^k_", colnames(p), value = TRUE), "year", "MDC"))
+      for (rmCol in c("pixelID", grep("^k_", colnames(p), value = TRUE), "year", "MDCc"))
         set(p, NULL, rmCol, NULL)
       centred <- attr(m$MDCc, "scaled:center")
-      p[, MDCc := seq(quantile(m$MDC, 0.1) - centred, (quantile(m$MDC, 0.95) * 1.5) - centred, length.out = N)]
+
+      p[, MDC := seq(quantile(m$MDC, 0.1), (quantile(m$MDC, 0.95) * 1.5), length.out = N)]
+      # p[, MDCc := seq(quantile(m$MDC, 0.1) - centred, (quantile(m$MDC, 0.95) * 1.5) - centred, length.out = N)]
       pAll <- rbindlist(lapply(seq(cols), function(x) p))
       pAll[, val := rep(cols, each = N)]
       for (val1 in cols) {
         set(pAll, which(pAll$val %in% val1), val1, 1)
       }
       set(pAll, NULL, c("ignitions", "ignitionsNoGT1", "yearChar"), NULL)
+
       system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA))
+      browser()
       pAll[, pred := expit(preds$fit)]
       pAll[, val1 := factor(val)]
       pAll[, upper := expit(preds$fit + preds$se.fit)]
@@ -386,15 +391,7 @@ frequencyFitRun <- function(sim) {
       labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
       filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
 
-      fn <- function(pAll, ggylab, ggTitle) {
-        ggplot(pAll, aes(x = MDCc + centred, y = pred, by = val1, col = val1)) +
-          geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
-          geom_line(aes(y = pred, lwd = 2)) +
-          labs(y = ggylab, title = ggTitle) +
-          theme_bw()
-      }
-
-      Plots(data = pAll, fn = fn, # xColName = colName,
+      Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
             ggylab = labelToUse, # types = "screen",
             # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
             ggTitle =  paste("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
@@ -406,7 +403,7 @@ frequencyFitRun <- function(sim) {
       #   geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
       #   geom_line(aes(y = pred, lwd = 2))
 
-      system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = TRUE, re.form = NA))
+      system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA))
 
       fittedVals <- fitted(bestModel)
 
@@ -1448,3 +1445,12 @@ expit <- function(x) 1/(1 + exp(-x)) # inverse logit function; used below
 messageFormulaFn <- function(form) {
   gsub(" {2,100}", " ", paste0(format(form), collapse = ""))
 }
+
+plotFnLogitIgnition <- function(pAll, ggylab, ggTitle) {
+  ggplot(pAll, aes(x = MDC, y = pred, by = val1, col = val1)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
+    geom_line(aes(y = pred, lwd = 2)) +
+    labs(y = ggylab, title = ggTitle) +
+    theme_bw()
+}
+
