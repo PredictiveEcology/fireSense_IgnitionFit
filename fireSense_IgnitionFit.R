@@ -334,7 +334,8 @@ frequencyFitRun <- function(sim) {
 
     system.time(mods <- Map(nam = names(forms), form = forms, function(form, nam) {
       message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
-              gsub(" {2,100}", " ", paste0(format(form), collapse = "")))
+              messageFormulaFn(form))
+              # gsub(" {2,100}", " ", paste0(format(form), collapse = "")))
 
       glmmTMB(form, data = m,
               ziformula=~MDCc,
@@ -344,9 +345,11 @@ frequencyFitRun <- function(sim) {
 
 
     AICs <- sapply(mods, AIC)
-    bestModel <- mods[which.min(AICs)]
+    # even if the AIC is <2 better, should take simpler model; in tests, turned many to non-significant when had interactions
+    whBest <- which.min(c(AICs[["full"]] + 2, AICs[["NoInteractions"]]))
+    bestModel <- mods[whBest]
+    message("Best model is:\n", messageFormulaFn(bestModel$NoInteractions$call$formula))
 
-    browser()
     # system.time(fm9 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
     #                              youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
     #                              MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
@@ -1460,3 +1463,7 @@ checkForNullBounds <- function(bounds, coefBound, knotPercentileBound, knot, dat
 }
 
 expit <- function(x) 1/(1 + exp(-x)) # inverse logit function; used below
+
+messageFormulaFn <- function(form) {
+  gsub(" {2,100}", " ", paste0(format(form), collapse = ""))
+}
