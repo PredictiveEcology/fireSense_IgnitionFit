@@ -118,6 +118,9 @@ defineModule(sim, list(
                                  "where stochasticity and time are not relevant."))
   ),
   inputObjects = bindrows(
+    expectsInput(objectName = "fireSense_climateVariable", objectClass = "character",
+                 desc = "The column name in the `fireSense_ignitionCovariates that is ",
+                 "climate"),
     expectsInput(objectName = "fireSense_ignitionCovariates", objectClass = "data.frame",
                  desc = "table of aggregated ignition covariates with annual ignitions"),
     expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
@@ -258,42 +261,19 @@ frequencyFitRun <- function(sim) {
         needRescale <- fireSense_ignitionCovariates[, vapply(.SD, FUN = function(x) all(inrange(na.omit(x), 0, 1)),
                                                              FUN.VALUE = logical(1)),
                                                     .SDcols = notSpecialVars]
-        needRescale <- names(needRescale)[which(!needRescale)]
-
         message(paste("rescaling", needRescale))
-        ## knots need to be added for rescaling
-        rescaleDT <- fireSense_ignitionCovariates[, ..needRescale]
-        # knotsDT <- rbind(as.data.table(lb$knots), as.data.table(ub$knots), idcol = "knotType")
-        # if (sum(dim(knotsDT)) ==  0) {
-        #   vars <- c(needRescale, "knotType")
-        #   knotsDT[, (vars) := numeric(0)]
-        # } else {
-        #   knotsDT[, knotType := ifelse(knotType == 1, "lb", "ub")]
-        # }
-
-        # rescaleDT <- rbind(rescaleDT, knotsDT, fill = TRUE)
-
-        rescaleDT[, (needRescale) := lapply(.SD, FUN = function(x) {
-          fireSenseUtils::rescale(x, to = c(0, 1))
-        }), .SDcols = needRescale]
-
-        fireSense_ignitionCovariates[, (needRescale) := rescaleDT[is.na(knotType), .SD, .SDcols = needRescale]]
-
-        # if (nrow(knotsDT)) {
-        #   lb$knots <- as.list(rescaleDT[knotType == "lb", ..needRescale])
-        #   ub$knots <- as.list(rescaleDT[knotType == "ub", ..needRescale])
-        # }
+        cols <- names(needRescale)[which(!needRescale)]
       } else {
         cols <- names(P(sim)$rescalers)
-        fireSense_ignitionCovariates[, (cols) := mapply(FUN = function(x, vec) {x / vec},
-                                                        x = .SD, vec = P(sim)$rescalers,
-                                                        SIMPLIFY = FALSE),
-                                     .SDcols = cols]
       }
+      fireSense_ignitionCovariates <- rescaleVars(fireSense_ignitionCovariates, Par$rescalers)
     }
 
+    # convert to data.table --> easier to work with
     m <- as.data.table(fireSense_ignitionCovariates)
     family <- P(sim)$family
+
+    # Run 2 models ... the full one passed, plus a simplified one without interactions
     forms <- list()
     forms[["full"]] <- as.formula(fireSense_ignitionFormula, env = .GlobalEnv)
     # drop interactions
@@ -309,9 +289,8 @@ frequencyFitRun <- function(sim) {
     })
     forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
 
-    # Work around -- use centred MDC ## TODO should be in dataPrepFit
-    m$MDCc <- scale(m$MDC, scale = FALSE)
-    forms[] <- lapply(gsub("MDC", "MDCc", forms), function(ff) as.formula(ff, env = .GlobalEnv))
+    # make minor modifications to dataset --> remove cases of >1 ignition per pixel (logit link for poisson model)
+    climVar <- sim$fireSense_climateVariable
 
     for (i in c("year", "ignitionsNoGT1"))
       set(m, NULL, i, as.integer(m[[i]]))
@@ -323,7 +302,7 @@ frequencyFitRun <- function(sim) {
                             MoreArgs = list(dat = m, family = family),
                             function(form, nam, dat, family) {
       en <- new.env(parent = .GlobalEnv)
-      ziform <- as.formula("~MDCc", env = en)
+      ziform <- as.formula(paste0("~", climVar), env = en)
       # form <- as.formula("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3", env = en)
       objNames <- c("dat", "family", "form", "ziform", "nam")
       objs <- mget(objNames)
@@ -367,29 +346,39 @@ frequencyFitRun <- function(sim) {
     #                            family=nbinom1(link = "logit")))
     P(sim)$.plots <- "screen"
     if (anyPlotting(P(sim)$.plots)) {
+
+      ff <- as.character(bestModel$call$formula)
+
+      formForNull <- as.formula(paste0(ff[[2]], ff[[1]], "1"), env = .GlobalEnv)
+
+      nullModel <- glmmTMB(formForNull, dat = m, family = eval(family))
+
+      # https://stackoverflow.com/a/68684973 -- NOT VERY APPROPRIATE FOR RE model
+      pseudoR2 <- as.numeric(1 - logLik(bestModel)/logLik(nullModel))
+
       message("Plotting has not been tested thoroughly")
 
       N <- 30
       p <- as.data.table(lapply(m, function(pp) if (is.numeric(pp)) mean(pp) else pp[1:N]))
-      cols <- c("youngAge", "nonForest_highFlam", "nonForest_lowFlam", "class2", "class3")
-      colsColrs <- c("red", "blue", "green", "magenta", "black")
-      colsColrsEB <- c("orange", "lightblue", "lightgreen", "pink", "grey")
-      for (rmCol in c("pixelID", grep("^k_", colnames(p), value = TRUE), "year", "MDCc"))
+      terms <- terms(bestModel)
+      termsNonClimate <- setdiff(attr(terms, "term.labels"), climVar)
+      # re <- terms
+      unneededCovs <- setdiff(colnames(p), termsNonClimate)
+      # # cols <- c("youngAge", "nonForest_highFlam", "nonForest_lowFlam", "class2", "class3")
+      # unneededCovs <- c("pixelID", grep("^k_", colnames(p), value = TRUE),
+      #                   "year", climVar)
+      for (rmCol in unneededCovs)
         set(p, NULL, rmCol, NULL)
-      centred <- attr(m$MDCc, "scaled:center")
-      scaled <- attr(m$MDCc, "scaled:scale")
 
-      # if (any(grepl("^MDC$", bestModel$call$formula))) {
-      #   p[, MDC := seq(quantile(m$MDC, 0.1), (quantile(m$MDC, 0.95) * 1.5), length.out = N)]
-      # } else {
-        p[, MDCc := seq(quantile(m$MDCc, 0.1), (quantile(m$MDCc, 0.95) * 1.5) , length.out = N)]
-      # }
-      pAll <- rbindlist(lapply(seq(cols), function(x) p))
-      pAll[, val := rep(cols, each = N)]
-      for (val1 in cols) {
+      interpolateClimVar <- seq(quantile(m[[climVar]], 0.1),
+                                (quantile(m[[climVar]], 0.95) * 1.5), length.out = N)
+      set(p, NULL, climVar, interpolateClimVar)
+      pAll <- rbindlist(lapply(seq(termsNonClimate), function(x) p))
+      pAll[, val := rep(termsNonClimate, each = N)]
+      for (val1 in termsNonClimate) {
         set(pAll, which(pAll$val %in% val1), val1, 1)
       }
-      set(pAll, NULL, c("ignitions", "ignitionsNoGT1", "yearChar", "MDC"), NULL)
+      # set(pAll, NULL, c("ignitions", "ignitionsNoGT1", "yearChar"), NULL)
 
       # system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA))
       system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
@@ -403,18 +392,22 @@ frequencyFitRun <- function(sim) {
       labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
       filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
 
-      browser()
+      titl <- paste0("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
+                     " (", basename(outputPath(sim)), ")",
+                     " -- Pseudo ")
+      titl2 <- paste0(round(pseudoR2, 3))
+      if (isTRUE(Par$rescaleVars)) {
+        pAll <- rescaleVars(pAll, 1/Par$rescalers) # invert it
+      }
       Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
             ggylab = labelToUse,
             .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
-            centred = centred,
+            # centred = centred,
+            climateVar = climVar,
             # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
-            ggTitle =  paste("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
-                             "(", basename(outputPath(sim)), ")"),
+            # ggTitle =  expression(paste("x axis ", ring(A)^2)),
+            ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
             filename = filenameToUse)
-      # browser()
-      ## TODO: unresolved bug in Plot triggered by spaces
-
       system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA,
                                         type = "response") |>
                     Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
@@ -1017,7 +1010,6 @@ frequencyFitRun <- function(sim) {
 
         if (trace) parallel::clusterEvalQ(cl, sink())
       } else {
-        browser()
 
         #see commit ce3a8f41823583f848793f2743281f643d29ef05 if error occurs - it may be benign
         if (hvPW) {
@@ -1046,7 +1038,6 @@ frequencyFitRun <- function(sim) {
       list(objNlminb(start, objfun, nlminbLB, nlminbUB, c(P(sim)$nlminb.control, list(trace = trace))))
     }
 
-    browser()
     ## Select best minimum amongst all trials
     outBest <- outNlminb[[which.min(sapply(outNlminb, "[[", "objective"))]]
 
@@ -1236,7 +1227,6 @@ frequencyFitRun <- function(sim) {
           readline("Would you like to restart this IgnitionFit event with that new formula (Y or N or interactive)? ")
         }
         if (identical(tolower(outRL), "y")) {
-          browser()
           sim$fireSense_ignitionFormula <- possForm
           sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run", eventPriority = 2)
         } else if (isTRUE(startsWith(outRL, "i"))) {
@@ -1464,8 +1454,11 @@ messageFormulaFn <- function(form) {
   gsub(" {2,100}", " ", paste0(format(form), collapse = ""))
 }
 
-plotFnLogitIgnition <- function(pAll, ggylab, ggTitle, centred) {
-  ggplot(pAll, aes(x = MDCc + centred, y = pred, by = val1, col = val1)) +
+plotFnLogitIgnition <- function(pAll, ggylab, ggTitle,
+                                # centred,
+                                climateVar) {
+  ggplot(pAll, aes(x = MDC, # MDCc + centred,
+                   y = pred, by = val1, col = val1)) +
     geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
     geom_line(aes(y = pred, lwd = 2)) +
     labs(y = ggylab, title = ggTitle) +
@@ -1489,4 +1482,15 @@ identifyEnvs <- function(l, topEnv) {
     return(NULL)
   }
   return(out)
+}
+
+
+rescaleVars <- function(dt, rescalers) {
+  cols <- names(Par$rescalers)
+  dt[, (cols) := mapply(FUN = function(x, vec) {x / vec},
+                                                  x = .SD, vec = rescalers,
+                                                  SIMPLIFY = FALSE),
+                               .SDcols = cols]
+  dt[]
+
 }
