@@ -375,9 +375,22 @@ frequencyFitRun <- function(sim) {
       set(p, NULL, climVar, interpolateClimVar)
       pAll <- rbindlist(lapply(seq(termsNonClimate), function(x) p))
       pAll[, val := rep(termsNonClimate, each = N)]
-      for (val1 in termsNonClimate) {
-        set(pAll, which(pAll$val %in% val1), val1, 1)
+      
+      termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
+      
+      termsUsingCover <- as.vector(m[, lapply(.SD, max), .SDcol = termsNoInteraction])
+      termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
+      termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
+      
+      for (val1 in termsUsingBiomass) {
+          set(pAll, which(!pAll$val %in% val1), val1, 0)
       }
+      #I dont' think they need to be separately set to 0 - 
+      for (val1 in termsUsingCover) {
+        # set(pAll, which(pAll$val %in% val1), val1, 1) #set the variable of interest to 1 for cover
+        set(pAll, which(!pAll$val %in% val1), val1, 0) #set the variable to zero where it isn't of interest
+      }
+
       # set(pAll, NULL, c("ignitions", "ignitionsNoGT1", "yearChar"), NULL)
 
       # system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA))
@@ -403,7 +416,7 @@ frequencyFitRun <- function(sim) {
             ggylab = labelToUse,
             .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
             # centred = centred,
-            climateVar = climVar[1], #TODO: fix to allow multiple climate variables 
+            climateVar = climVar, #TODO: fix to allow multiple climate variables 
             # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
             # ggTitle =  expression(paste("x axis ", ring(A)^2)),
             ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
@@ -1457,7 +1470,7 @@ messageFormulaFn <- function(form) {
 plotFnLogitIgnition <- function(pAll, ggylab, ggTitle,
                                 # centred,
                                 climateVar) {
-  ggplot(pAll, aes(x = climateVar, # MDCc + centred,
+  ggplot(pAll, aes(x = .data[[climateVar]], # MDCc + centred,
                    y = pred, by = val1, col = val1)) +
     geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
     geom_line(aes(y = pred, lwd = 2)) +
