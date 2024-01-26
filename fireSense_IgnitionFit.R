@@ -118,9 +118,9 @@ defineModule(sim, list(
                                  "where stochasticity and time are not relevant."))
   ),
   inputObjects = bindrows(
-    expectsInput(objectName = "fireSense_climateVariable", objectClass = "character",
-                 desc = "The column name in the `fireSense_ignitionCovariates that is ",
-                 "climate"),
+    expectsInput(objectName = "climateVariablesForFire", objectClass = "list",
+                 desc = paste("The column name(s) in the `fireSense_ignitionCovariates that is climate,",
+                 "in a named list, .e.g. `climateVariablesForFire = list('ignition' = 'MDC')`")),
     expectsInput(objectName = "fireSense_ignitionCovariates", objectClass = "data.frame",
                  desc = "table of aggregated ignition covariates with annual ignitions"),
     expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
@@ -290,7 +290,7 @@ frequencyFitRun <- function(sim) {
     forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
 
     # make minor modifications to dataset --> remove cases of >1 ignition per pixel (logit link for poisson model)
-    climVar <- sim$fireSense_climateVariable
+    climVar <- sim$climateVariablesForFire$ignition
 
     for (i in c("year", "ignitionsNoGT1"))
       set(m, NULL, i, as.integer(m[[i]]))
@@ -302,7 +302,7 @@ frequencyFitRun <- function(sim) {
                             MoreArgs = list(dat = m, family = family),
                             function(form, nam, dat, family) {
       en <- new.env(parent = .GlobalEnv)
-      ziform <- as.formula(paste0("~", climVar), env = en)
+      ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
       # form <- as.formula("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3", env = en)
       objNames <- c("dat", "family", "form", "ziform", "nam")
       objs <- mget(objNames)
@@ -403,7 +403,7 @@ frequencyFitRun <- function(sim) {
             ggylab = labelToUse,
             .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
             # centred = centred,
-            climateVar = climVar,
+            climateVar = climVar[1], #TODO: fix to allow multiple climate variables 
             # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
             # ggTitle =  expression(paste("x axis ", ring(A)^2)),
             ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
@@ -1320,7 +1320,7 @@ pwPlot <- function(d, ggTitle, ggylab, xColName, origXmax = NULL) {
   return(gg)
 }
 
-pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkinv,
+pwPlotData <- function(bestParams, formula, xColName, nx, offset, linkinv,
                        solvedHess, ses, rescaler = NULL, rescaleVar, xCeiling = NULL,
                        covMinMax_ignition = NULL) {
   ## sanity checks
@@ -1457,7 +1457,7 @@ messageFormulaFn <- function(form) {
 plotFnLogitIgnition <- function(pAll, ggylab, ggTitle,
                                 # centred,
                                 climateVar) {
-  ggplot(pAll, aes(x = MDC, # MDCc + centred,
+  ggplot(pAll, aes(x = climateVar, # MDCc + centred,
                    y = pred, by = val1, col = val1)) +
     geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
     geom_line(aes(y = pred, lwd = 2)) +
@@ -1493,4 +1493,22 @@ rescaleVars <- function(dt, rescalers) {
                                .SDcols = cols]
   dt[]
 
+}
+
+.inputObjects <- function(sim) {
+  
+  if (!suppliedElsewhere("fireSense_ignitionCovariates", sim)) {
+    stop("this module does not produce data - consider usin the module 'PredictiveEcology/fireSense_dataPrepFit'")
+  }
+  
+  if (!suppliedElsewhere("climateVariablesForFire", sim)) {
+    #in most cases this will be supplied with data - this is to make some changes backwards compatible
+    sim$climateVariablesForFire <- list("ignition" = "MDC")
+    
+    if (!"MDC" %in% names(sim$fireSense_ignitionCovariates)) {
+      stop("please supply climateVariablesForFire")
+    }
+  }
+  
+  return(sim)
 }
