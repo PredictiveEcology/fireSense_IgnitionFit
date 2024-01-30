@@ -60,6 +60,10 @@ defineModule(sim, list(
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
                                  "the `nlminb` optimizer. See `?nlminb`.")),
+    defineParameter("plot_fuelBiomassPerPrediction", "numeric", NULL, 1, NA, 
+                    desc = paste("when generating plots of MDC x fuel class, the amount of biomass for which", 
+                            "to generate predictions across a gradient of climate values.", 
+                            "If supplied, it will override any values in sim$ignitionFitRTM$meanForestB")),
     defineParameter("rescalers", "numeric", c("MDC" = 1000),
                     desc = paste("`NA` or a named vector of rescaling factors (numeric/integer values)",
                                  "for each predictor variable. If not `NA`, it will be used to rescale the",
@@ -131,7 +135,8 @@ defineModule(sim, list(
                               "resolution and geographical extent of `fireSense_ignitionCovariates.`",
                               "Used to pass this information onto `fireSense_ignitionFitted`",
                               "Needs to have number of non-NA cells as attribute:",
-                              "(`ignitionFitRTM@data@attributes$nonNAs`)")),
+                              "(`ignitionFitRTM@data@attributes$nonNAs`), and optionally,",
+                              "ignitionFitRTM@data@attributes$meanForestB")),
     expectsInput(objectName = "fireSense_ignitionFormula", objectClass = "character",
                  desc = paste("formula - as a character - describing the model to be fitted.",
                               "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
@@ -303,13 +308,15 @@ frequencyFitRun <- function(sim) {
                             function(form, nam, dat, family) {
       en <- new.env(parent = .GlobalEnv)
       ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
-      # form <- as.formula("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3", env = en)
+      # form <- as.formula(paste0("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + ",
+      #                           "nonForest_lowFlam + class2 + class3"), env = en)
       objNames <- c("dat", "family", "form", "ziform", "nam")
       objs <- mget(objNames)
       dig <- en$dig <- .robustDigest(objs)
       list2env(objs, envir = en)
       message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
               messageFormulaFn(form))
+      
       # out <- glmer(form, data = dat,
       #              family = poisson(link = "logit"),
       #              mustart = pmin(0.5, pmax(youngAge, 0.5))) |>
@@ -358,25 +365,31 @@ frequencyFitRun <- function(sim) {
 
       message("Plotting has not been tested thoroughly")
 
+      #build two prediction datasets
+      #both predict across quantiles of climate variable
+      #the first dataset will have class means for cover and forest biomass
+      #the second will have cover values of 1 (i.e. representing complete cover for non-forest)
+      #and biomass values representing the mean for forested pixels (i.e. complete cover of forest)
+      # the 2nd dataset is different because the first one, while more representative of the actual landscape, 
+      # implicitly includes non-forest pixels in the calculation of the mean. 
+      
       N <- 30
       p <- as.data.table(lapply(m, function(pp) if (is.numeric(pp)) mean(pp) else pp[1:N]))
       terms <- terms(bestModel)
       termsNonClimate <- setdiff(attr(terms, "term.labels"), climVar)
       # re <- terms
       unneededCovs <- setdiff(colnames(p), termsNonClimate)
-      # # cols <- c("youngAge", "nonForest_highFlam", "nonForest_lowFlam", "class2", "class3")
-      # unneededCovs <- c("pixelID", grep("^k_", colnames(p), value = TRUE),
-      #                   "year", climVar)
+      
       for (rmCol in unneededCovs)
         set(p, NULL, rmCol, NULL)
 
       interpolateClimVar <- seq(quantile(m[[climVar]], 0.1),
                                 (quantile(m[[climVar]], 0.95) * 1.5), length.out = N)
       set(p, NULL, climVar, interpolateClimVar)
-      pAll <- rbindlist(lapply(seq(termsNonClimate), function(x) p))
-      pAll[, val := rep(termsNonClimate, each = N)]
       
       termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
+      pAll <- rbindlist(lapply(seq(termsNoInteraction), function(x) p))
+      pAll[, val := rep(termsNoInteraction, each = N)]
       
       termsUsingCover <- as.vector(m[, lapply(.SD, max), .SDcol = termsNoInteraction])
       termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
@@ -385,7 +398,7 @@ frequencyFitRun <- function(sim) {
       for (val1 in termsUsingBiomass) {
           set(pAll, which(!pAll$val %in% val1), val1, 0)
       }
-      #I dont' think they need to be separately set to 0 - 
+     
       for (val1 in termsUsingCover) {
         # set(pAll, which(pAll$val %in% val1), val1, 1) #set the variable of interest to 1 for cover
         set(pAll, which(!pAll$val %in% val1), val1, 0) #set the variable to zero where it isn't of interest
@@ -414,6 +427,8 @@ frequencyFitRun <- function(sim) {
       }
       Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
             ggylab = labelToUse,
+            subtitle = "using mean cover and biomass per pixel",
+            fillTitle = "veg. covariate",
             .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
             # centred = centred,
             climateVar = climVar, #TODO: fix to allow multiple climate variables 
@@ -421,6 +436,46 @@ frequencyFitRun <- function(sim) {
             # ggTitle =  expression(paste("x axis ", ring(A)^2)),
             ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
             filename = filenameToUse)
+      
+      if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) |
+          !is.null(P(sim)$plot_fuelBiomassPerPrediction)) {
+        Bunit <- ifelse(!is.null(P(sim)$plot_fuelBiomassPerPrediction), 
+                        P(sim)$plot_fuelBiomassPerPrediction, 
+                        round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0))
+        #make second prediction using mean forest or alternatively 100% non-forest cover
+        Bunit <- round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0)
+        pAll2 <- copy(pAll)
+        
+        for (val1 in termsUsingBiomass) {
+          set(pAll2, which(pAll2$val %in% val1), val1, Bunit)
+        }
+        
+        for (val1 in termsUsingCover) {
+          set(pAll2, which(pAll2$val %in% val1), val1, 1) #set the variable to 1 representing complete cover
+        }
+        
+        system.time(preds <- predict(bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
+                      Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
+        pAll2[, pred := expit(preds$fit)]
+        pAll2[, val1 := factor(val)]
+        pAll2[, upper := expit(preds$fit + preds$se.fit)]
+        pAll2[, lower := expit(preds$fit - preds$se.fit)]
+        
+        
+        Plots(data = pAll2, fn = plotFnLogitIgnition, 
+              ggylab = labelToUse,
+              subtitle = paste0("per ", Bunit, " g B/m2 or 100% cover"),
+              fillTitle = "veg. covariate",
+              .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
+              # centred = centred,
+              climateVar = climVar, #TODO: fix to allow multiple climate variables 
+              # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
+              # ggTitle =  expression(paste("x axis ", ring(A)^2)),
+              ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
+              filename = filenameToUse)
+      }
+      
+      
       system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA,
                                         type = "response") |>
                     Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
@@ -1467,14 +1522,13 @@ messageFormulaFn <- function(form) {
   gsub(" {2,100}", " ", paste0(format(form), collapse = ""))
 }
 
-plotFnLogitIgnition <- function(pAll, ggylab, ggTitle,
-                                # centred,
-                                climateVar) {
+plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab, ggTitle, fillTitle, climateVar) {
   ggplot(pAll, aes(x = .data[[climateVar]], # MDCc + centred,
                    y = pred, by = val1, col = val1)) +
-    geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.1)) +
-    geom_line(aes(y = pred, lwd = 2)) +
-    labs(y = ggylab, title = ggTitle) +
+    geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1, alpha = 0.4)) +
+    geom_line(aes(y = pred), lwd = 1.5, alpha = 0.8) +
+    labs(y = ggylab, title = ggTitle, fill = fillTitle, subtitle = subtitle) +
+    guides(lwd = "none", alpha = "none", col = "none") + 
     theme_bw()
 }
 
