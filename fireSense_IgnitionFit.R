@@ -194,11 +194,6 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
   return(invisible(sim))
 }
 
-## event functions
-#   - follow the naming convention `modulenameEventtype()`;
-#   - `modulenameInit()` function is required for initiliazation;
-#   - keep event functions short and clean, modularize by calling subroutines from section below.
-
 ### template initialization
 frequencyFitInit <- function(sim) {
   # Checking parameters
@@ -343,14 +338,7 @@ frequencyFitRun <- function(sim) {
     bestModel <- mods[[whBest]]
     messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
 
-    # system.time(fm9 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
-    #                              youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
-    #                              MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
-    #                            # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
-    #                            # random = ~ 1 | yearChar,
-    #                            data = m,
-    #                            ziformula=~MDCc,
-    #                            family=nbinom1(link = "logit")))
+
     P(sim)$.plots <- "screen"
     if (anyPlotting(P(sim)$.plots)) {
 
@@ -394,19 +382,15 @@ frequencyFitRun <- function(sim) {
       termsUsingCover <- as.vector(m[, lapply(.SD, max), .SDcol = termsNoInteraction])
       termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
       termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
-      
+    
       for (val1 in termsUsingBiomass) {
           set(pAll, which(!pAll$val %in% val1), val1, 0)
       }
      
       for (val1 in termsUsingCover) {
-        # set(pAll, which(pAll$val %in% val1), val1, 1) #set the variable of interest to 1 for cover
         set(pAll, which(!pAll$val %in% val1), val1, 0) #set the variable to zero where it isn't of interest
       }
 
-      # set(pAll, NULL, c("ignitions", "ignitionsNoGT1", "yearChar"), NULL)
-
-      # system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA))
       system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
         Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
       pAll[, pred := expit(preds$fit)]
@@ -433,8 +417,7 @@ frequencyFitRun <- function(sim) {
             # centred = centred,
             climateVar = climVar, #TODO: fix to allow multiple climate variables 
             # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
-            # ggTitle =  expression(paste("x axis ", ring(A)^2)),
-            ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
+            ggTitle = bquote(.(titl)~R^2 == .(titl2)),
             filename = filenameToUse)
       
       if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) |
@@ -470,11 +453,9 @@ frequencyFitRun <- function(sim) {
               # centred = centred,
               climateVar = climVar, #TODO: fix to allow multiple climate variables 
               # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
-              # ggTitle =  expression(paste("x axis ", ring(A)^2)),
-              ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
+              ggTitle = bquote(.(titl)~R^2 == .(titl2)),
               filename = filenameToUse)
       }
-      
       
       system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA,
                                         type = "response") |>
@@ -969,9 +950,6 @@ frequencyFitRun <- function(sim) {
         nlminbLB <- nlminbLB / diag(sm)
         nlminbUB <- nlminbUB / diag(sm)
 
-        #nlminbLB[c(1:nx, length(nlminbLB))] <- nlminbLB[c(1:nx, length(nlminbLB))] / diag(sm)[c(1:nx, length(nlminbLB))]
-        #nlminbUB[c(1:nx, length(nlminbUB))] <- nlminbUB[c(1:nx, length(nlminbUB))] / diag(sm)[c(1:nx, length(nlminbUB))]
-
         ## Update of the lower and upper bounds for the knots based on the scaling matrix
         ## TODO: fix the partial matching
 
@@ -1428,12 +1406,6 @@ pwPlotData <- function(bestParams, formula, xColName, nx, offset, linkinv,
   })
   newDat <- do.call(expand.grid, append(ll2, ll))
   colnames(newDat)[seq_along(xColName)] <- xColName
-  # newDat <- expand.grid(MDC = 1:250/1000, youngAge = 0:1, nonForest_highFlam = 0:1,
-  #                       nonForest_lowFlam = 0:1,
-  #                       class2 = 0:1, class3 = 0:1)
-  #cns <- setdiff(colnames(newDat), xColName)
-
-  # bestParams <- drop(as.matrix(dd[1, -(1:2)]))
 
   keep <- grep("^k_", names(bestParams), value = TRUE)
   newDat <- data.table(newDat, t(bestParams[keep]))
@@ -1532,7 +1504,6 @@ plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab, ggTitle, fillTitl
     theme_bw()
 }
 
-
 identifyEnvs <- function(l, topEnv) {
   if (is.list(l)) {
     out <- lapply(l, function(ll) {
@@ -1551,7 +1522,6 @@ identifyEnvs <- function(l, topEnv) {
   return(out)
 }
 
-
 rescaleVars <- function(dt, rescalers) {
   cols <- names(Par$rescalers)
   dt[, (cols) := mapply(FUN = function(x, vec) {x / vec},
@@ -1559,7 +1529,6 @@ rescaleVars <- function(dt, rescalers) {
                                                   SIMPLIFY = FALSE),
                                .SDcols = cols]
   dt[]
-
 }
 
 .inputObjects <- function(sim) {
