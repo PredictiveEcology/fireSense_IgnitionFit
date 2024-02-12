@@ -353,6 +353,7 @@ frequencyFitRun <- function(sim) {
 
       message("Plotting has not been tested thoroughly")
 
+      #### Plotting glmmTMB ####
       #build two prediction datasets
       #both predict across quantiles of climate variable
       #the first dataset will have class means for cover and forest biomass
@@ -376,10 +377,19 @@ frequencyFitRun <- function(sim) {
         interpolateClimVar <- seq(quantile(m[[var]], 0.1),
                                   (quantile(m[[var]], 0.95) * 1.5), length.out = N)
         set(p, NULL, var, interpolateClimVar)
-      }
-      termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
-      pAll <- rbindlist(lapply(seq(termsNoInteraction), function(x) p))
-      pAll[, val := rep(termsNoInteraction, each = N)]
+        
+        #if more than 1 climate variable are used, they are plotted sequentially
+        #each prediction dataset will contain quantiles of one variable and mean of the other(s)
+        otherClimVar <- climVar[!climVar %in% var]
+        if (length(otherClimVar) > 0) {
+          for (otherVar in otherClimVar) {
+            set(p, NULL, otherVar, mean(m[[otherVar]]))
+          }
+        }
+        
+        termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
+        pAll <- rbindlist(lapply(seq(termsNoInteraction), function(x) p))
+        pAll[, val := rep(termsNoInteraction, each = N)]
       
       termsUsingCover <- as.vector(m[, lapply(.SD, max), .SDcol = termsNoInteraction])
       termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
@@ -408,25 +418,25 @@ frequencyFitRun <- function(sim) {
                      " (", basename(outputPath(sim)), ")",
                      " -- Pseudo ")
       titl2 <- paste0(round(pseudoR2, 3))
-      if (isTRUE(Par$rescaleVars)) {
-        pAll <- rescaleVars(pAll, 1/Par$rescalers) # invert it
-      }
-      for (var in climVar) {
-      Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
-            ggylab = labelToUse,
-            subtitle = "using mean cover and biomass per pixel",
+        if (isTRUE(Par$rescaleVars)) {
+          pAll <- rescaleVars(pAll, 1/Par$rescalers) # invert it
+        }
+        
+        Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
+              ggylab = labelToUse,
+              subtitle = "using mean cover and biomass per pixel",
             fillTitle = "veg. covariate",
             .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
             # centred = centred,
             climateVar = var, #TODO: fix to allow multiple climate variables 
             # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
-            ggTitle = bquote(.(titl)~R^2 == .(titl2)),
-            rawClimate=  m[[var]],
-            filename = filenameToUse)
-      }
-      if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) |
-          !is.null(P(sim)$plot_fuelBiomassPerPrediction)) {
-        Bunit <- ifelse(!is.null(P(sim)$plot_fuelBiomassPerPrediction), 
+              ggTitle = bquote(.(titl)~R^2 == .(titl2)),
+              rawClimate=  m[[var]],
+              filename = filenameToUse)
+        
+        if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) |
+            !is.null(P(sim)$plot_fuelBiomassPerPrediction)) {
+          Bunit <- ifelse(!is.null(P(sim)$plot_fuelBiomassPerPrediction), 
                         P(sim)$plot_fuelBiomassPerPrediction, 
                         round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0))
         #make second prediction using mean forest or alternatively 100% non-forest cover
@@ -445,13 +455,13 @@ frequencyFitRun <- function(sim) {
                       Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
         pAll2[, pred := expit(preds$fit)]
         pAll2[, val1 := factor(val)]
-        pAll2[, upper := expit(preds$fit + preds$se.fit)]
-        pAll2[, lower := expit(preds$fit - preds$se.fit)]
-        
-        for (var in climVar){
-        Plots(data = pAll2, fn = plotFnLogitIgnition, 
-              ggylab = labelToUse,
-              subtitle = paste0("per ", Bunit, " g B/m2 or 100% cover"),
+          pAll2[, upper := expit(preds$fit + preds$se.fit)]
+          pAll2[, lower := expit(preds$fit - preds$se.fit)]
+          
+          
+          Plots(data = pAll2, fn = plotFnLogitIgnition, 
+                ggylab = labelToUse,
+                subtitle = paste0("per ", Bunit, " g B/m2 or 100% cover"),
               fillTitle = "veg. covariate",
               .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
               # centred = centred,
@@ -459,10 +469,9 @@ frequencyFitRun <- function(sim) {
               rawClimate = m[[var]],
               # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
               ggTitle = bquote(.(titl)~R^2 == .(titl2)),
-              filename = filenameToUse)
+                filename = filenameToUse)
         }
       }
-      
       system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA,
                                         type = "response") |>
                     Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
@@ -1499,7 +1508,7 @@ plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab,
                    y = pred, by = val1, col = val1)) +
     geom_line(aes(y = pred), lwd = 1.5) +
     geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1), alpha = 0.4, show.legend = FALSE) +
-    geom_vline(xintercept = quants, show.legend = FALSE) +
+    geom_vline(xintercept = quants, show.legend = FALSE, linetype = "dotted") +
     annotate("text", y = max(pAll$pred), 
              x = quants-mean(quants*0.025),
              label = c("25%", "50%", "75%", "95%"), angle = 90)+
