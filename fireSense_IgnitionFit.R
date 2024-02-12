@@ -210,7 +210,7 @@ frequencyFitInit <- function(sim) {
     stop(moduleName, "> The formula describes an empty model.")
   }
 
-  if (!is.na(P(sim)$rescalers)) {
+  if (!all(is.na(P(sim)$rescalers))) {
     ## checks
     if (is.null(names(P(sim)$rescalers))) {
       stop("P(sim)$rescalers must be a named vector or NA.")
@@ -372,7 +372,7 @@ frequencyFitRun <- function(sim) {
       for (rmCol in unneededCovs)
         set(p, NULL, rmCol, NULL)
   
-      #populate a prediction dataset with quantiles of climate variable and mutually exclusive veg. 
+      #populate a prediction dataset with quantiles of climate variable and mutually exclusive veg.
       for (var in climVar) {
         interpolateClimVar <- seq(quantile(m[[var]], 0.1),
                                   (quantile(m[[var]], 0.95) * 1.5), length.out = N)
@@ -390,34 +390,34 @@ frequencyFitRun <- function(sim) {
         termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
         pAll <- rbindlist(lapply(seq(termsNoInteraction), function(x) p))
         pAll[, val := rep(termsNoInteraction, each = N)]
-      
-      termsUsingCover <- as.vector(m[, lapply(.SD, max), .SDcol = termsNoInteraction])
-      termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
-      termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
-    
-      for (val1 in termsUsingBiomass) {
+        
+        termsUsingCover <- as.vector(m[, lapply(.SD, max), .SDcol = termsNoInteraction])
+        termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
+        termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
+        
+        for (val1 in termsUsingBiomass) {
           set(pAll, which(!pAll$val %in% val1), val1, 0)
-      }
-     
-      for (val1 in termsUsingCover) {
-        set(pAll, which(!pAll$val %in% val1), val1, 0) #set the variable to zero where it isn't of interest
-      }
-
-      system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
-        Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
-      pAll[, pred := expit(preds$fit)]
-      pAll[, val1 := factor(val)]
-      pAll[, upper := expit(preds$fit + preds$se.fit)]
-      pAll[, lower := expit(preds$fit - preds$se.fit)]
-
-      resInKm2 <- prod(res(sim$ignitionFitRTM)) / 1e6 ## 1e6 m^2 == 1 km^2
-      labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
-      filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
-
-      titl <- paste0("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
-                     " (", basename(outputPath(sim)), ")",
-                     " -- Pseudo ")
-      titl2 <- paste0(round(pseudoR2, 3))
+        }
+        
+        for (val1 in termsUsingCover) {
+          set(pAll, which(!pAll$val %in% val1), val1, 0) #set the variable to zero where it isn't of interest
+        }
+        
+        system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
+                      Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
+        pAll[, pred := expit(preds$fit)]
+        pAll[, val1 := factor(val)]
+        pAll[, upper := expit(preds$fit + preds$se.fit)]
+        pAll[, lower := expit(preds$fit - preds$se.fit)]
+        
+        resInKm2 <- prod(res(sim$ignitionFitRTM)) / 1e6 ## 1e6 m^2 == 1 km^2
+        labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
+        filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
+        
+        titl <- paste0("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
+                       " (", basename(outputPath(sim)), ")",
+                       " -- Pseudo ")
+        titl2 <- paste0(round(pseudoR2, 3))
         if (isTRUE(Par$rescaleVars)) {
           pAll <- rescaleVars(pAll, 1/Par$rescalers) # invert it
         }
@@ -425,11 +425,11 @@ frequencyFitRun <- function(sim) {
         Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
               ggylab = labelToUse,
               subtitle = "using mean cover and biomass per pixel",
-            fillTitle = "veg. covariate",
-            .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
-            # centred = centred,
-            climateVar = var, #TODO: fix to allow multiple climate variables 
-            # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
+              fillTitle = "veg. covariate",
+              .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
+              # centred = centred,
+              climateVar = var, #TODO: fix to allow multiple climate variables 
+              # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
               ggTitle = bquote(.(titl)~R^2 == .(titl2)),
               rawClimate=  m[[var]],
               filename = filenameToUse)
@@ -437,24 +437,24 @@ frequencyFitRun <- function(sim) {
         if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) |
             !is.null(P(sim)$plot_fuelBiomassPerPrediction)) {
           Bunit <- ifelse(!is.null(P(sim)$plot_fuelBiomassPerPrediction), 
-                        P(sim)$plot_fuelBiomassPerPrediction, 
-                        round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0))
-        #make second prediction using mean forest or alternatively 100% non-forest cover
-        Bunit <- round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0)
-        pAll2 <- copy(pAll)
-        
-        for (val1 in termsUsingBiomass) {
-          set(pAll2, which(pAll2$val %in% val1), val1, Bunit)
-        }
-        
-        for (val1 in termsUsingCover) {
-          set(pAll2, which(pAll2$val %in% val1), val1, 1) #set the variable to 1 representing complete cover
-        }
-        
-        system.time(preds <- predict(bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
-                      Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
-        pAll2[, pred := expit(preds$fit)]
-        pAll2[, val1 := factor(val)]
+                          P(sim)$plot_fuelBiomassPerPrediction, 
+                          round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0))
+          #make second prediction using mean forest or alternatively 100% non-forest cover
+          Bunit <- round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0)
+          pAll2 <- copy(pAll)
+          
+          for (val1 in termsUsingBiomass) {
+            set(pAll2, which(pAll2$val %in% val1), val1, Bunit)
+          }
+          
+          for (val1 in termsUsingCover) {
+            set(pAll2, which(pAll2$val %in% val1), val1, 1) #set the variable to 1 representing complete cover
+          }
+          
+          system.time(preds <- predict(bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
+                        Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
+          pAll2[, pred := expit(preds$fit)]
+          pAll2[, val1 := factor(val)]
           pAll2[, upper := expit(preds$fit + preds$se.fit)]
           pAll2[, lower := expit(preds$fit - preds$se.fit)]
           
@@ -462,13 +462,13 @@ frequencyFitRun <- function(sim) {
           Plots(data = pAll2, fn = plotFnLogitIgnition, 
                 ggylab = labelToUse,
                 subtitle = paste0("per ", Bunit, " g B/m2 or 100% cover"),
-              fillTitle = "veg. covariate",
-              .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
-              # centred = centred,
-              climateVar = var,
-              rawClimate = m[[var]],
-              # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
-              ggTitle = bquote(.(titl)~R^2 == .(titl2)),
+                fillTitle = "veg. covariate",
+                .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
+                # centred = centred,
+                climateVar = var,
+                rawClimate = m[[var]],
+                # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
+                ggTitle = bquote(.(titl)~R^2 == .(titl2)),
                 filename = filenameToUse)
         }
       }
@@ -511,7 +511,7 @@ frequencyFitRun <- function(sim) {
     }
     summ <- summary(bestModel)
     mod$rescales <- if (isTRUE(P(sim)$rescaleVars)) {
-      if (is.na(P(sim)$rescalers)) { ## TODO: allow list of rescalers to be passed with mix of NA and other vals
+      if (!all(is.na(P(sim)$rescalers))) { ## TODO: allow list of rescalers to be passed with mix of NA and other vals
         sapply(needRescale, FUN = function(x) {
           paste0("fireSenseUtils::rescale(", x, ", to = c(0,1))")
         }, USE.NAMES = TRUE, simplify = FALSE)
@@ -601,7 +601,7 @@ frequencyFitRun <- function(sim) {
 
     ## rescale variable and knots.
     if (isTRUE(P(sim)$rescaleVars)) {
-      if (is.na(P(sim)$rescalers)) {
+      if (all(is.na(P(sim)$rescalers))) {
         ## TODO: lapply through each element in rescalers and assess which elements are to be rescaled vs normalized
         message("Variables outside of [0,1] range will be rescaled to [0,1]")
 
@@ -653,7 +653,7 @@ frequencyFitRun <- function(sim) {
 
     ## save for later
     mod$rescales <- if (isTRUE(P(sim)$rescaleVars)) {
-      if (is.na(P(sim)$rescalers)) { ## TODO: allow list of rescalers to be passed with mix of NA and other vals
+      if (all(is.na(P(sim)$rescalers))) { ## TODO: allow list of rescalers to be passed with mix of NA and other vals
         sapply(needRescale, FUN = function(x) {
           paste0("fireSenseUtils::rescale(", x, ", to = c(0,1))")
         }, USE.NAMES = TRUE, simplify = FALSE)
