@@ -40,10 +40,10 @@ defineModule(sim, list(
                     desc = paste("a family function (must be wrapped with `quote()`) or a",
                                  "character string naming a family function.",
                                  "Only the negative binomial has been implemented",
-                                 "For additional details see `?family`. This was formerly ",
-                                 "quote(MASS::negative.binomial(theta = 1, link = 'identity'))")),
+                                 "For additional details see `?family`.",
+                                 "This was formerly `quote(MASS::negative.binomial(theta = 1, link = 'identity'))`.")),
     defineParameter("iterDEoptim", "integer", default = 500L,
-                    desc = "maximum number of iterations allowed (DEoptim optimizer)."),
+                    desc = "maximum number of iterations allowed (`DEoptim` optimizer)."),
     defineParameter("iterNlminb", "integer", default = 500L,
                     desc = paste("if start is not supplied, iterNlminb defines the number of trials,",
                                  "or searches, to be performed by the nlminb optimizer in order to",
@@ -54,8 +54,8 @@ defineModule(sim, list(
                                  "theta and knots to be estimated.",
                                  "These must be finite and will be recycled if necessary to match",
                                  "`length(coefficients)`. When rescaling, (see `P(sim)$rescaleVars` and",
-                                 "`P(sim)$rescalers)` the 'knots' needs to be named list of knot values",
-                                 "matching the variable names in `P(sim)$rescalers`")),
+                                 "`P(sim)$rescalers`) the 'knots' needs to be named list of knot values",
+                                 "matching the variable names in `P(sim)$rescalers`.")),
     defineParameter("nlminb.control", "numeric",
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
@@ -113,32 +113,31 @@ defineModule(sim, list(
     defineParameter(".studyAreaName", "character", NA, NA, NA,
                     "Human-readable name for the study area used. If NA, a hash of `studyAreaLarge` will be used."),
     defineParameter(".useCache", "logical", FALSE, NA, NA,
-                    desc = paste("Should this entire module be run with caching activated?",
-                                 "This is generally intended for data-type modules,",
-                                 "where stochasticity and time are not relevant."))
+                    paste("Should this entire module be run with caching activated?",
+                          "This is generally intended for data-type modules,",
+                          "where stochasticity and time are not relevant."))
   ),
   inputObjects = bindrows(
-    expectsInput(objectName = "climateVariablesForFire", objectClass = "list",
-                 desc = paste("The column name(s) in the `fireSense_ignitionCovariates that is climate,",
-                 "in a named list, .e.g. `climateVariablesForFire = list('ignition' = 'MDC')`")),
-    expectsInput(objectName = "fireSense_ignitionCovariates", objectClass = "data.frame",
-                 desc = "table of aggregated ignition covariates with annual ignitions"),
-    expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
+    expectsInput("climateVariablesForFire", "list",
+                 paste("The column name(s) in the `fireSense_ignitionCovariates that is climate,",
+                       "in a named list, .e.g. `climateVariablesForFire = list('ignition' = 'MDC')`")),
+    expectsInput("fireSense_ignitionCovariates", "data.frame",
+                 "table of aggregated ignition covariates with annual ignitions"),
+    expectsInput("flammableRTM", "SpatRaster",
                  "RTM without ice/rocks/urban/water. Flammable map with 0 and 1."),
-    expectsInput(objectName = "ignitionFitRTM",
-                 objectClass = "SpatRaster",
-                 desc = paste("A (template) raster with information with regards to the spatial",
-                              "resolution and geographical extent of `fireSense_ignitionCovariates.`",
-                              "Used to pass this information onto `fireSense_ignitionFitted`",
-                              "Needs to have number of non-NA cells as attribute:",
-                              "(`ignitionFitRTM@data@attributes$nonNAs`)")),
-    expectsInput(objectName = "fireSense_ignitionFormula", objectClass = "character",
-                 desc = paste("formula - as a character - describing the model to be fitted.",
-                              "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
-                              "Note that when using PW terms, these will be dropped (if `autoRefit == TRUE`)",
-                              "if their *coefficients* are too close to 0, or lower boundary. Also note that",
-                              "actual knot values are estimated/optimised, but knot lower/upper boundaries",
-                              "can be supplied in lb and ub.")),
+    expectsInput("ignitionFitRTM", "SpatRaster",
+                 paste("A (template) raster with information with regards to the spatial",
+                       "resolution and geographical extent of `fireSense_ignitionCovariates.`",
+                       "Used to pass this information onto `fireSense_ignitionFitted`",
+                       "Needs to have number of non-NA cells as attribute:",
+                       "(`ignitionFitRTM@data@attributes$nonNAs`)")),
+    expectsInput("fireSense_ignitionFormula", "character",
+                 paste("formula - as a character - describing the model to be fitted.",
+                       "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
+                       "Note that when using PW terms, these will be dropped (if `autoRefit == TRUE`)",
+                       "if their *coefficients* are too close to 0, or lower boundary. Also note that",
+                       "actual knot values are estimated/optimised, but knot lower/upper boundaries",
+                       "can be supplied in `lb` and `ub`.")),
   ),
   outputObjects = bindrows(
     createsOutput(objectName = "covMinMax_ignition",
@@ -151,7 +150,7 @@ defineModule(sim, list(
 ))
 
 ## event types
-#   - type `init` is required for initialiazation
+#   - type `init` is required for initialization
 
 doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALSE) {
   moduleName <- current(sim)$moduleName
@@ -298,10 +297,11 @@ frequencyFitRun <- function(sim) {
       set(m, NULL, i, factor(m[[i]]))
 
     # m <- m[sample(NROW(m), NROW(m)/4), ]
-    system.time(mods <- Map(nam = names(forms), form = forms,
-                            MoreArgs = list(dat = m, family = family),
-                            function(form, nam, dat, family) {
-      en <- new.env(parent = .GlobalEnv)
+    system.time({
+      mods <- Map(nam = names(forms), form = forms,
+                  MoreArgs = list(dat = m, family = family),
+                  function(form, nam, dat, family) {
+        en <- new.env(parent = .GlobalEnv)
       ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
       # form <- as.formula("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3", env = en)
       objNames <- c("dat", "family", "form", "ziform", "nam")
@@ -317,18 +317,19 @@ frequencyFitRun <- function(sim) {
       #         omitArgs = formalArgs(glmer),
       #         .cacheExtra = dig)
 
-      out <- local({
-        glmmTMB(form, data = dat,
-                ziformula = ziform, ## TODO this needs to be
-                family = eval(family))|>
-          # Use .cacheExtra -- there are lots of arguments to glmmTMB that seemed to be "always different"
-          Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
-                omitArgs = formalArgs(glmmTMB),
+        out <- local({
+          glmmTMB(form, data = dat,
+                  ziformula = ziform, ## TODO this needs to be
+                  family = eval(family)) |>
+            # Use .cacheExtra -- there are lots of arguments to glmmTMB that seemed to be "always different"
+            Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
+                  omitArgs = formalArgs(glmmTMB),
                 .cacheExtra = dig)},
-        envir = en)
-      # a <- identifyEnvs(out, en)
-      out
-    }))
+          envir = en)
+        # a <- identifyEnvs(out, en)
+        out
+      })
+    })
     AICs <- sapply(mods, AIC)
     # even if the AIC is <2 better, should take simpler model; in tests, turned many to non-significant when had interactions
     whBest <- which.min(c(AICs[["full"]] + 2, AICs[["NoInteractions"]]))
@@ -336,17 +337,18 @@ frequencyFitRun <- function(sim) {
     bestModel <- mods[[whBest]]
     messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
 
-    # system.time(fm9 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
-    #                              youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
-    #                              MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
-    #                            # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
-    #                            # random = ~ 1 | yearChar,
-    #                            data = m,
-    #                            ziformula=~MDCc,
-    #                            family=nbinom1(link = "logit")))
+    # system.time({
+    #   fm9 <- glmmTMB(ignitionsNoGT1 ~ (1|yearChar) +
+    #                    youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3 +
+    #                    MDCc : youngAge + MDCc : nonForest_highFlam + MDCc : nonForest_lowFlam + MDCc : class2 + MDCc : class3,
+    #                  # youngAge:MDC + nonForest_highFlam:MDC + nonForest_lowFlam:MDC + class2:MDC + class3:MDC,
+    #                  # random = ~ 1 | yearChar,
+    #                  data = m,
+    #                  ziformula = ~MDCc,
+    #                  family = nbinom1(link = "logit"))
+    # })
     P(sim)$.plots <- "screen"
     if (anyPlotting(P(sim)$.plots)) {
-
       ff <- as.character(bestModel$call$formula)
 
       formForNull <- as.formula(paste0(ff[[2]], ff[[1]], "1"), env = .GlobalEnv)
@@ -393,9 +395,13 @@ frequencyFitRun <- function(sim) {
 
       # set(pAll, NULL, c("ignitions", "ignitionsNoGT1", "yearChar"), NULL)
 
-      # system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA))
-      system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
-        Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
+      # system.time({
+      #   preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA)
+      # })
+      system.time({
+        preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
+          Cache(omitArgs = "object", .cacheExtra = forms[whBest])
+      })
       pAll[, pred := expit(preds$fit)]
       pAll[, val1 := factor(val)]
       pAll[, upper := expit(preds$fit + preds$se.fit)]
@@ -421,10 +427,11 @@ frequencyFitRun <- function(sim) {
             # ggTitle =  expression(paste("x axis ", ring(A)^2)),
             ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
             filename = filenameToUse)
-      system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA,
-                                        type = "response") |>
-                    Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
-                          omitArgs = "object", .cacheExtra = forms[whBest]))
+      system.time({
+        fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA, type = "response") |>
+          Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
+                omitArgs = "object", .cacheExtra = forms[whBest])
+      })
 
       # fittedVals <- fitted(bestModel)
 
@@ -1513,11 +1520,12 @@ rescaleVars <- function(dt, rescalers) {
   if (!suppliedElsewhere("fireSense_ignitionCovariates", sim)) {
     stop("this module does not produce data - consider usin the module 'PredictiveEcology/fireSense_dataPrepFit'")
   }
-  
+
   if (!suppliedElsewhere("climateVariablesForFire", sim)) {
-    #in most cases this will be supplied with data - this is to make some changes backwards compatible
+    ## in most cases this will be supplied with data;
+    ## this is to make some changes backwards compatible.
     sim$climateVariablesForFire <- list("ignition" = "MDC")
-    
+
     if (!"MDC" %in% names(sim$fireSense_ignitionCovariates)) {
       stop("please supply climateVariablesForFire")
     }
