@@ -496,6 +496,7 @@ frequencyFitRun <- function(sim) {
       plotData <- plotData[, list(obsFires = sum(eval(y), na.rm = TRUE),
                                   predFires = sum(rpoisPred, na.rm = TRUE)),
                            by = c(xvar, "n")]
+      plotData[, obsFires := as.integer(obsFires)]
       plotData[, predFires := as.integer(predFires)]
       plotData <- melt(plotData, id.var = c(xvar, "n"))
 
