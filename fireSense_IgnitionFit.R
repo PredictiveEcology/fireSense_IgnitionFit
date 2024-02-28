@@ -17,7 +17,7 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   loadOrder = list(after = "fireSense_dataPrepFit"),
   reqdPkgs = list("data.table", "DEoptim", "dplyr",
-                  "PredictiveEcology/fireSenseUtils@terra-migration (>= 0.0.5.9045)",
+                  "PredictiveEcology/fireSenseUtils@development (>= 0.0.5.9045)",
                   "glmmTMB",
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
