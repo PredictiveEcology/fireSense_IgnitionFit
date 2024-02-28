@@ -302,20 +302,20 @@ frequencyFitRun <- function(sim) {
                   MoreArgs = list(dat = m, family = family),
                   function(form, nam, dat, family) {
         en <- new.env(parent = .GlobalEnv)
-      ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
-      # form <- as.formula("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3", env = en)
-      objNames <- c("dat", "family", "form", "ziform", "nam")
-      objs <- mget(objNames)
-      dig <- en$dig <- .robustDigest(objs)
-      list2env(objs, envir = en)
-      message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
-              messageFormulaFn(form))
-      # out <- glmer(form, data = dat,
-      #              family = poisson(link = "logit"),
-      #              mustart = pmin(0.5, pmax(youngAge, 0.5))) |>
-      #   Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
-      #         omitArgs = formalArgs(glmer),
-      #         .cacheExtra = dig)
+        ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
+        # form <- as.formula("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + nonForest_lowFlam + class2 + class3", env = en)
+        objNames <- c("dat", "family", "form", "ziform", "nam")
+        objs <- mget(objNames)
+        dig <- en$dig <- .robustDigest(objs)
+        list2env(objs, envir = en)
+        message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
+                messageFormulaFn(form))
+        # out <- glmer(form, data = dat,
+        #              family = poisson(link = "logit"),
+        #              mustart = pmin(0.5, pmax(youngAge, 0.5))) |>
+        #   Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
+        #         omitArgs = formalArgs(glmer),
+        #         .cacheExtra = dig)
 
         out <- local({
           glmmTMB(form, data = dat,
@@ -324,7 +324,7 @@ frequencyFitRun <- function(sim) {
             # Use .cacheExtra -- there are lots of arguments to glmmTMB that seemed to be "always different"
             Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
                   omitArgs = formalArgs(glmmTMB),
-                .cacheExtra = dig)},
+                  .cacheExtra = dig)},
           envir = en)
         # a <- identifyEnvs(out, en)
         out
@@ -377,17 +377,17 @@ frequencyFitRun <- function(sim) {
       set(p, NULL, climVar, interpolateClimVar)
       pAll <- rbindlist(lapply(seq(termsNonClimate), function(x) p))
       pAll[, val := rep(termsNonClimate, each = N)]
-      
+
       termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
-      
+
       termsUsingCover <- as.vector(m[, lapply(.SD, max), .SDcol = termsNoInteraction])
       termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
       termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
-      
+
       for (val1 in termsUsingBiomass) {
           set(pAll, which(!pAll$val %in% val1), val1, 0)
       }
-      #I dont' think they need to be separately set to 0 - 
+      #I dont' think they need to be separately set to 0 -
       for (val1 in termsUsingCover) {
         # set(pAll, which(pAll$val %in% val1), val1, 1) #set the variable of interest to 1 for cover
         set(pAll, which(!pAll$val %in% val1), val1, 0) #set the variable to zero where it isn't of interest
@@ -422,7 +422,7 @@ frequencyFitRun <- function(sim) {
             ggylab = labelToUse,
             .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
             # centred = centred,
-            climateVar = climVar, #TODO: fix to allow multiple climate variables 
+            climateVar = climVar, #TODO: fix to allow multiple climate variables
             # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
             # ggTitle =  expression(paste("x axis ", ring(A)^2)),
             ggTitle = bquote(.(titl)~R^2 == .(titl2)),#expression(paste("pseudo", R^2)),
@@ -1516,7 +1516,7 @@ rescaleVars <- function(dt, rescalers) {
 }
 
 .inputObjects <- function(sim) {
-  
+
   if (!suppliedElsewhere("fireSense_ignitionCovariates", sim)) {
     stop("this module does not produce data - consider usin the module 'PredictiveEcology/fireSense_dataPrepFit'")
   }
@@ -1530,6 +1530,6 @@ rescaleVars <- function(dt, rescalers) {
       stop("please supply climateVariablesForFire")
     }
   }
-  
+
   return(sim)
 }
