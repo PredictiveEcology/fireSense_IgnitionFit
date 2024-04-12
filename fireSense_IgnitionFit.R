@@ -17,7 +17,7 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   loadOrder = list(after = "fireSense_dataPrepFit"),
   reqdPkgs = list("data.table", "DEoptim", "dplyr",
-                  "PredictiveEcology/fireSenseUtils@terra-migration (>= 0.0.5.9045)",
+                  "PredictiveEcology/fireSenseUtils@lccFix (>= 0.0.5.9065)",
                   "glmmTMB",
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
@@ -60,10 +60,10 @@ defineModule(sim, list(
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
                                  "the `nlminb` optimizer. See `?nlminb`.")),
-    defineParameter("plot_fuelBiomassPerPrediction", "numeric", NULL, 1, NA, 
-                    desc = paste("when generating plots of MDC x fuel class, the amount of biomass for which", 
-                            "to generate predictions across a gradient of climate values.", 
-                            "If supplied, it will override any values in sim$ignitionFitRTM$meanForestB")),
+    defineParameter("plot_fuelBiomassPerPrediction", "numeric", NULL, 1, NA,
+                    desc = paste("when generating plots of MDC x fuel class, the amount of biomass for which",
+                                 "to generate predictions across a gradient of climate values.",
+                                 "If supplied, it will override any values in `sim$ignitionFitRTM$meanForestB`")),
     defineParameter("rescalers", "numeric", c("MDC" = 1000),
                     desc = paste("`NA` or a named vector of rescaling factors (numeric/integer values)",
                                  "for each predictor variable. If not `NA`, it will be used to rescale the",
@@ -298,122 +298,126 @@ frequencyFitRun <- function(sim) {
       set(m, NULL, i, factor(m[[i]]))
 
     # m <- m[sample(NROW(m), NROW(m)/4), ]
-    system.time(mods <- Map(nam = names(forms), form = forms,
-                            MoreArgs = list(dat = m, family = family),
-                            function(form, nam, dat, family) {
-      en <- new.env(parent = .GlobalEnv)
-      ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
-      # form <- as.formula(paste0("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + ",
-      #                           "nonForest_lowFlam + class2 + class3"), env = en)
-      objNames <- c("dat", "family", "form", "ziform", "nam")
-      objs <- mget(objNames)
-      dig <- en$dig <- .robustDigest(objs)
-      list2env(objs, envir = en)
-      message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
-              messageFormulaFn(form))
-      
-      # out <- glmer(form, data = dat,
-      #              family = poisson(link = "logit"),
-      #              mustart = pmin(0.5, pmax(youngAge, 0.5))) |>
-      #   Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
-      #         omitArgs = formalArgs(glmer),
-      #         .cacheExtra = dig)
+    system.time({
+      mods <- Map(
+        nam = names(forms), form = forms,
+        MoreArgs = list(dat = m, family = family),
+        function(form, nam, dat, family) {
+          en <- new.env(parent = .GlobalEnv)
+          ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
+          # form <- as.formula(paste0("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + ",
+          #                           "nonForest_lowFlam + class2 + class3"), env = en)
+          objNames <- c("dat", "family", "form", "ziform", "nam")
+          objs <- mget(objNames)
+          dig <- en$dig <- .robustDigest(objs)
+          list2env(objs, envir = en)
+          message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
+                  messageFormulaFn(form))
 
-      out <- local({
-        glmmTMB(form, data = dat,
-                ziformula = ziform, ## TODO this needs to be
-                family = eval(family))|>
-          # Use .cacheExtra -- there are lots of arguments to glmmTMB that seemed to be "always different"
-          Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
-                omitArgs = formalArgs(glmmTMB),
-                .cacheExtra = dig)},
-        envir = en)
-      # a <- identifyEnvs(out, en)
-      out
-    }))
+          # out <- glmer(form, data = dat,
+          #              family = poisson(link = "logit"),
+          #              mustart = pmin(0.5, pmax(youngAge, 0.5))) |>
+          #   Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
+          #         omitArgs = formalArgs(glmer),
+          #         .cacheExtra = dig)
+
+          out <- local({
+            glmmTMB(form, data = dat,
+                    ziformula = ziform, ## TODO this needs to be
+                    family = eval(family)) |>
+              ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
+              Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
+                    omitArgs = formalArgs(glmmTMB),
+                    .cacheExtra = dig)},
+            envir = en)
+          # a <- identifyEnvs(out, en)
+          out
+        })
+    })
     AICs <- sapply(mods, AIC)
-    # even if the AIC is <2 better, should take simpler model; in tests, turned many to non-significant when had interactions
+    ## even if the AIC is <2 better, should take simpler model;
+    ## in tests, turned many to non-significant when had interactions
     whBest <- which.min(c(AICs[["full"]] + 2, AICs[["NoInteractions"]]))
     # whBest <- 1
     bestModel <- mods[[whBest]]
     messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
 
-
     P(sim)$.plots <- "screen"
     if (anyPlotting(P(sim)$.plots)) {
-
       ff <- as.character(bestModel$call$formula)
 
       formForNull <- as.formula(paste0(ff[[2]], ff[[1]], "1"), env = .GlobalEnv)
 
       nullModel <- glmmTMB(formForNull, dat = m, family = eval(family))
 
-      # https://stackoverflow.com/a/68684973 -- NOT VERY APPROPRIATE FOR RE model
-      pseudoR2 <- as.numeric(1 - logLik(bestModel)/logLik(nullModel))
+      ## https://stackoverflow.com/a/68684973 -- NOT VERY APPROPRIATE FOR RE model
+      pseudoR2 <- as.numeric(1 - logLik(bestModel) / logLik(nullModel))
 
       message("Plotting has not been tested thoroughly")
 
       #### Plotting glmmTMB ####
-      #build two prediction datasets
-      #both predict across quantiles of climate variable
-      #the first dataset will have class means for cover and forest biomass
-      #the second will have cover values of 1 (i.e. representing complete cover for non-forest)
-      #and biomass values representing the mean for forested pixels (i.e. complete cover of forest)
-      # the 2nd dataset is different because the first one, while more representative of the actual landscape, 
-      # implicitly includes non-forest pixels in the calculation of the mean. 
-      
+      ## build two prediction datasets
+      ## both predict across quantiles of climate variable
+      ## the first dataset will have class means for cover and forest biomass
+      ## the second will have cover values of 1 (i.e. representing complete cover for non-forest)
+      ## and biomass values representing the mean for forested pixels (i.e. complete cover of forest)
+      ## the 2nd dataset is different because the first one, while more representative of the actual landscape,
+      ## implicitly includes non-forest pixels in the calculation of the mean.
+
       N <- 30
       p <- as.data.table(lapply(m, function(pp) if (is.numeric(pp)) mean(pp) else pp[1:N]))
       terms <- terms(bestModel)
       termsNonClimate <- setdiff(attr(terms, "term.labels"), climVar)
       # re <- terms
       unneededCovs <- setdiff(colnames(p), termsNonClimate)
-      
+
       for (rmCol in unneededCovs)
         set(p, NULL, rmCol, NULL)
-  
-      #populate a prediction dataset with quantiles of climate variable and mutually exclusive veg.
+
+      ## populate a prediction dataset with quantiles of climate variable and mutually exclusive veg.
       for (var in climVar) {
         interpolateClimVar <- seq(quantile(m[[var]], 0.1),
                                   (quantile(m[[var]], 0.95) * 1.5), length.out = N)
         set(p, NULL, var, interpolateClimVar)
-        
-        #if more than 1 climate variable are used, they are plotted sequentially
-        #each prediction dataset will contain quantiles of one variable and mean of the other(s)
+
+        ## if more than 1 climate variable are used, they are plotted sequentially
+        ## each prediction dataset will contain quantiles of one variable and mean of the other(s)
         otherClimVar <- climVar[!climVar %in% var]
         if (length(otherClimVar) > 0) {
           for (otherVar in otherClimVar) {
             set(p, NULL, otherVar, mean(m[[otherVar]]))
           }
         }
-        
+
         termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
         pAll <- rbindlist(lapply(seq(termsNoInteraction), function(x) p))
         pAll[, val := rep(termsNoInteraction, each = N)]
-        
+
         termsUsingCover <- as.vector(m[, lapply(.SD, max), .SDcol = termsNoInteraction])
         termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
         termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
-        
+
         for (val1 in termsUsingBiomass) {
           set(pAll, which(!pAll$val %in% val1), val1, 0)
         }
-        
+
         for (val1 in termsUsingCover) {
           set(pAll, which(!pAll$val %in% val1), val1, 0) #set the variable to zero where it isn't of interest
         }
-        
-        system.time(preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
-                      Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
+
+        system.time({
+          preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
+            Cache(omitArgs = "object", .cacheExtra = forms[whBest])
+        })
         pAll[, pred := expit(preds$fit)]
         pAll[, val1 := factor(val)]
         pAll[, upper := expit(preds$fit + preds$se.fit)]
         pAll[, lower := expit(preds$fit - preds$se.fit)]
-        
+
         resInKm2 <- prod(res(sim$ignitionFitRTM)) / 1e6 ## 1e6 m^2 == 1 km^2
         labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
         filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
-        
+
         titl <- paste0("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
                        " (", basename(outputPath(sim)), ")",
                        " -- Pseudo ")
@@ -421,45 +425,46 @@ frequencyFitRun <- function(sim) {
         if (isTRUE(Par$rescaleVars)) {
           pAll <- rescaleVars(pAll, 1/Par$rescalers) # invert it
         }
-        
+
         Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
               ggylab = labelToUse,
               subtitle = "using mean cover and biomass per pixel",
               fillTitle = "veg. covariate",
               .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
               # centred = centred,
-              climateVar = var, #TODO: fix to allow multiple climate variables 
+              climateVar = var, #TODO: fix to allow multiple climate variables
               # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
               ggTitle = bquote(.(titl)~R^2 == .(titl2)),
-              rawClimate=  m[[var]],
+              rawClimate =  m[[var]],
               filename = filenameToUse)
-        
-        if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) |
+
+        if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) ||
             !is.null(P(sim)$plot_fuelBiomassPerPrediction)) {
-          Bunit <- ifelse(!is.null(P(sim)$plot_fuelBiomassPerPrediction), 
-                          P(sim)$plot_fuelBiomassPerPrediction, 
+          Bunit <- ifelse(!is.null(P(sim)$plot_fuelBiomassPerPrediction),
+                          P(sim)$plot_fuelBiomassPerPrediction,
                           round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0))
           #make second prediction using mean forest or alternatively 100% non-forest cover
           Bunit <- round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0)
           pAll2 <- copy(pAll)
-          
+
           for (val1 in termsUsingBiomass) {
             set(pAll2, which(pAll2$val %in% val1), val1, Bunit)
           }
-          
+
           for (val1 in termsUsingCover) {
             set(pAll2, which(pAll2$val %in% val1), val1, 1) #set the variable to 1 representing complete cover
           }
-          
-          system.time(preds <- predict(bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
-                        Cache(omitArgs = "object", .cacheExtra = forms[whBest]))
+
+          system.time({
+            preds <- predict(bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
+              Cache(omitArgs = "object", .cacheExtra = forms[whBest])
+          })
           pAll2[, pred := expit(preds$fit)]
           pAll2[, val1 := factor(val)]
           pAll2[, upper := expit(preds$fit + preds$se.fit)]
           pAll2[, lower := expit(preds$fit - preds$se.fit)]
-          
-          
-          Plots(data = pAll2, fn = plotFnLogitIgnition, 
+
+          Plots(data = pAll2, fn = plotFnLogitIgnition,
                 ggylab = labelToUse,
                 subtitle = paste0("per ", Bunit, " g B/m2 or 100% cover"),
                 fillTitle = "veg. covariate",
@@ -1501,7 +1506,7 @@ messageFormulaFn <- function(form) {
   gsub(" {2,100}", " ", paste0(format(form), collapse = ""))
 }
 
-plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab, 
+plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab,
                                 ggTitle, fillTitle, climateVar, rawClimate) {
 
   quants <- quantile(rawClimate, probs = c(0.25, 0.5, 0.75, 0.95))
@@ -1510,11 +1515,11 @@ plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab,
     geom_line(aes(y = pred), lwd = 1.5) +
     geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1), alpha = 0.4, show.legend = FALSE) +
     geom_vline(xintercept = quants, show.legend = FALSE, linetype = "dotted") +
-    annotate("text", y = max(pAll$pred), 
+    annotate("text", y = max(pAll$pred),
              x = quants-mean(quants*0.025),
              label = c("25%", "50%", "75%", "95%"), angle = 90)+
     labs(y = ggylab, title = ggTitle, col = fillTitle, subtitle = subtitle) +
-    guides(lwd = "none", alpha = "none") + 
+    guides(lwd = "none", alpha = "none") +
     theme_bw()
 }
 
@@ -1546,19 +1551,19 @@ rescaleVars <- function(dt, rescalers) {
 }
 
 .inputObjects <- function(sim) {
-  
+
   if (!suppliedElsewhere("fireSense_ignitionCovariates", sim)) {
     stop("this module does not produce data - consider usin the module 'PredictiveEcology/fireSense_dataPrepFit'")
   }
-  
+
   if (!suppliedElsewhere("climateVariablesForFire", sim)) {
     #in most cases this will be supplied with data - this is to make some changes backwards compatible
     sim$climateVariablesForFire <- list("ignition" = "MDC")
-    
+
     if (!"MDC" %in% names(sim$fireSense_ignitionCovariates)) {
       stop("please supply climateVariablesForFire")
     }
   }
-  
+
   return(sim)
 }
