@@ -122,22 +122,21 @@ defineModule(sim, list(
                                  "where stochasticity and time are not relevant."))
   ),
   inputObjects = bindrows(
-    expectsInput(objectName = "climateVariablesForFire", objectClass = "list",
+    expectsInput("climateVariablesForFire", "list",
                  desc = paste("The column name(s) in the `fireSense_ignitionCovariates that is climate,",
                  "in a named list, .e.g. `climateVariablesForFire = list('ignition' = 'MDC')`")),
-    expectsInput(objectName = "fireSense_ignitionCovariates", objectClass = "data.frame",
+    expectsInput("fireSense_ignitionCovariates", "data.frame",
                  desc = "table of aggregated ignition covariates with annual ignitions"),
     expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
                  "RTM without ice/rocks/urban/water. Flammable map with 0 and 1."),
-    expectsInput(objectName = "ignitionFitRTM",
-                 objectClass = "SpatRaster",
+    expectsInput("ignitionFitRTM", "SpatRaster",
                  desc = paste("A (template) raster with information with regards to the spatial",
                               "resolution and geographical extent of `fireSense_ignitionCovariates.`",
                               "Used to pass this information onto `fireSense_ignitionFitted`",
                               "Needs to have number of non-NA cells as attribute:",
                               "(`ignitionFitRTM@data@attributes$nonNAs`), and optionally,",
                               "ignitionFitRTM@data@attributes$meanForestB")),
-    expectsInput(objectName = "fireSense_ignitionFormula", objectClass = "character",
+    expectsInput("fireSense_ignitionFormula", "character",
                  desc = paste("formula - as a character - describing the model to be fitted.",
                               "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
                               "Note that when using PW terms, these will be dropped (if `autoRefit == TRUE`)",
@@ -146,11 +145,11 @@ defineModule(sim, list(
                               "can be supplied in lb and ub.")),
   ),
   outputObjects = bindrows(
-    createsOutput(objectName = "covMinMax_ignition",
-                  objectClass = "data.table",
+    createsOutput("covMinMax_ignition",
+                  "data.table",
                   desc = "Table of the original ranges (min and max) of covariates"),
-    createsOutput(objectName = "fireSense_IgnitionFitted",
-                  objectClass = "fireSense_IgnitionFit",
+    createsOutput("fireSense_IgnitionFitted",
+                  "fireSense_IgnitionFit",
                   desc = "A fitted model object of class `fireSense_IgnitionFit`.")
   )
 ))
@@ -1491,9 +1490,9 @@ fittedVsObservedPlot <- function(d, ggTitle, ggylab, xColName)  {
 }
 
 checkForNullBounds <- function(bounds, coefBound, knotPercentileBound, knot, data) {
-  if (is.null(bounds)){
+  if (is.null(bounds)) {
     bounds <- list("coef" = coefBound)
-    if (!is.null(knot)){
+    if (!is.null(knot)) {
       knotBound <- round(quantile(data[[knot]], knotPercentileBound), digits = 0)
       bounds[["knots"]] <- list()
       bounds[["knots"]][[eval(knot)]] <- knotBound
@@ -1518,8 +1517,8 @@ plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab,
     geom_ribbon(aes(ymin = lower, ymax = upper, fill = val1), alpha = 0.4, show.legend = FALSE) +
     geom_vline(xintercept = quants, show.legend = FALSE, linetype = "dotted") +
     annotate("text", y = max(pAll$pred),
-             x = quants-mean(quants*0.025),
-             label = c("25%", "50%", "75%", "95%"), angle = 90)+
+             x = quants - mean(quants*0.025),
+             label = c("25%", "50%", "75%", "95%"), angle = 90) +
     labs(y = ggylab, title = ggTitle, col = fillTitle, subtitle = subtitle) +
     guides(lwd = "none", alpha = "none") +
     theme_bw()
@@ -1546,14 +1545,13 @@ identifyEnvs <- function(l, topEnv) {
 rescaleVars <- function(dt, rescalers) {
   cols <- names(Par$rescalers)
   dt[, (cols) := mapply(FUN = function(x, vec) {x / vec},
-                                                  x = .SD, vec = rescalers,
-                                                  SIMPLIFY = FALSE),
-                               .SDcols = cols]
+                        x = .SD, vec = rescalers,
+                        SIMPLIFY = FALSE),
+     .SDcols = cols]
   dt[]
 }
 
 .inputObjects <- function(sim) {
-
   if (!suppliedElsewhere("fireSense_ignitionCovariates", sim)) {
     stop("this module does not produce data - consider usin the module 'PredictiveEcology/fireSense_dataPrepFit'")
   }
