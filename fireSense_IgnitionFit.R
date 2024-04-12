@@ -164,13 +164,13 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
   switch(
     eventType,
     init = {
+      sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "checkData", eventPriority = 2)
 
-      sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "checkData", eventPriority = 2)
+      sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "run")
 
-      sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
-
-      if (!is.na(P(sim)$.saveInitialTime))
+      if (!is.na(P(sim)$.saveInitialTime)) {
         sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, moduleName, "save", .last())
+      }
     },
     checkData = {
       sim <- frequencyFitInit(sim)
@@ -184,8 +184,9 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
     save = {
       sim <- frequencyFitSave(sim)
 
-      if (!is.na(P(sim)$.saveInterval))
+      if (!is.na(P(sim)$.saveInterval)) {
         sim <- scheduleEvent(sim, time(sim) + P(sim)$.saveInterval, moduleName, "save", .last())
+      }
     },
     warning(paste("Undefined event type: '", current(sim)[1, "eventType", with = FALSE],
                   "' in module '", current(sim)[1, "moduleName", with = FALSE], "'", sep = ""))
@@ -221,7 +222,8 @@ frequencyFitInit <- function(sim) {
     }
   }
 
-  if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) | length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
+  if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) ||
+      length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
     stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
   }
 
