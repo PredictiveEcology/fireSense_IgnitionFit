@@ -16,18 +16,20 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   loadOrder = list(after = "fireSense_dataPrepFit"),
-  reqdPkgs = list("data.table", "DEoptim", "dplyr",
-                  "PredictiveEcology/fireSenseUtils@terra-migration (>= 0.0.5.9045)",
-                  "ggplot2", "ggpubr", "MASS", "magrittr",
-                  "numDeriv", "parallel", "parallelly",
-                  "PredictiveEcology/pemisc@development",
-                  "PredictiveEcology/reproducible@development (>= 2.0.8.9005)",
-                  "RhpcBLASctl",
-                  "PredictiveEcology/SpaDES.core@development (>= 2.0.2.9006)",
-                  "terra"),
+  reqdPkgs = list(
+    "data.table", "DEoptim", "dplyr",
+    "PredictiveEcology/fireSenseUtils@lccFix (>= 0.0.5.9065)",
+    "ggplot2", "ggpubr", "MASS", "magrittr",
+    "numDeriv", "parallel", "parallelly",
+    "PredictiveEcology/pemisc@development",
+    "PredictiveEcology/reproducible@development (>= 2.0.8.9005)",
+    "RhpcBLASctl",
+    "PredictiveEcology/SpaDES.core@development (>= 2.0.2.9006)",
+    "terra"
+  ),
   parameters = bindrows(
     defineParameter("autoRefit", c("logical", "character"), default = TRUE, min = NA, max = NA,
-                    desc = paste("If the objective function results in a singularity or 
+                    desc = paste("If the objective function results in a singularity or
                                  non-convergence with full model, should the module cull all",
                                  "effects that are causing the problem and retry?")),
     defineParameter("cores", "integer", default = 1L,
@@ -116,18 +118,17 @@ defineModule(sim, list(
                                  "where stochasticity and time are not relevant."))
   ),
   inputObjects = bindrows(
-    expectsInput(objectName = "fireSense_ignitionCovariates", objectClass = "data.frame",
+    expectsInput("fireSense_ignitionCovariates", "data.frame",
                  desc = "table of aggregated ignition covariates with annual ignitions"),
     expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
                  "RTM without ice/rocks/urban/water. Flammable map with 0 and 1."),
-    expectsInput(objectName = "ignitionFitRTM",
-                 objectClass = "SpatRaster",
+    expectsInput("ignitionFitRTM", "SpatRaster",
                  desc = paste("A (template) raster with information with regards to the spatial",
                               "resolution and geographical extent of `fireSense_ignitionCovariates.`",
                               "Used to pass this information onto `fireSense_ignitionFitted`",
                               "Needs to have number of non-NA cells as attribute:",
                               "(`ignitionFitRTM@data@attributes$nonNAs`)")),
-    expectsInput(objectName = "fireSense_ignitionFormula", objectClass = "character", 
+    expectsInput("fireSense_ignitionFormula", "character",
                  desc = paste("formula - as a character - describing the model to be fitted.",
                               "Piece-wised (PW) terms can be specifed using `pw(variableName, knotName)`.",
                               "Note that when using PW terms, these will be dropped (if `autoRefit == TRUE`)",
@@ -136,11 +137,9 @@ defineModule(sim, list(
                               "can be supplied in lb and ub.")),
   ),
   outputObjects = bindrows(
-    createsOutput(objectName = "covMinMax_ignition",
-                  objectClass = "data.table",
+    createsOutput("covMinMax_ignition", "data.table",
                   desc = "Table of the original ranges (min and max) of covariates"),
-    createsOutput(objectName = "fireSense_IgnitionFitted",
-                  objectClass = "fireSense_IgnitionFit",
+    createsOutput("fireSense_IgnitionFitted", "fireSense_IgnitionFit",
                   desc = "A fitted model object of class `fireSense_IgnitionFit`.")
   )
 ))
@@ -154,7 +153,7 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
   switch(
     eventType,
     init = {
-      
+
       sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "checkData", eventPriority = 2)
 
       sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
@@ -219,7 +218,7 @@ frequencyFitInit <- function(sim) {
   if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) | length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
     stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
   }
-  
+
   return(invisible(sim))
 }
 
@@ -232,12 +231,12 @@ frequencyFitRun <- function(sim) {
   # Check the presence of at least one piecewise term
   fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
   fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))
-  
+
   lb <- P(sim)$lb
   ub <- P(sim)$ub
-  
+
   hvPW <- !is.null(attr(terms, "specials")$pw)
-  
+
   #assign default
   knotTerm <- NULL
 
@@ -248,10 +247,10 @@ frequencyFitRun <- function(sim) {
     # for simplicity we assign default bounds to the value of the knots as the 5% and 80% percentile.
     # This situation is much more likely than one where no bounds are desired
     # bounds must be assigned before rescaling
-    
+
     specialsInd <- which(unlist(lapply(attr(terms,"variables"), is.call)))
     specialsCalls <- attr(terms,"variables")[specialsInd]
-    
+
     ## Extract the names of the knots (breakpoints)
     ## Alternative way: all.vars(terms)[!all.vars(terms) %in% rownames(attr(terms,"factors"))]
     specialsTerms <- lapply(specialsCalls, function(specialsCall) {
@@ -260,9 +259,9 @@ frequencyFitRun <- function(sim) {
         eval(specialsCall)
       }
     })
-    
+
     specialsTerms <- specialsTerms[!unlist(lapply(specialsTerms, is.null))]
-    
+
     ## save covariate original ranges first
     ## extract variable names
     specialVars <- rownames(attr(terms, "factors"))[attr(terms, "specials")$pw]
@@ -271,14 +270,14 @@ frequencyFitRun <- function(sim) {
       notSpecialVars <- sub(x, "", notSpecialVars, fixed = TRUE)
     }
     notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
-  
+
     knotTerm <- unique(sapply(specialsTerms, "[[", "variable"))
- 
+
   }
-  #this assigns a default coefficient boundary of 20 - this may be scale dependent... 
+  #this assigns a default coefficient boundary of 20 - this may be scale dependent...
   ub <- checkForNullBounds(ub, 20, 0.80, knot = knotTerm, data = fireSense_ignitionCovariates)
   lb <- checkForNullBounds(lb, 0, 0.05, knot = knotTerm, data = fireSense_ignitionCovariates)
-  
+
   sim$covMinMax_ignition <- fireSense_ignitionCovariates[, lapply(.SD, range), .SDcols = notSpecialVars]
 
   ## check for NAs
@@ -288,7 +287,7 @@ frequencyFitRun <- function(sim) {
 
   ## rescale variable and knots.
   if (isTRUE(P(sim)$rescaleVars)) {
-    if (is.na(P(sim)$rescalers)) { 
+    if (is.na(P(sim)$rescalers)) {
       ## TODO: lapply through each element in rescalers and assess which elements are to be rescaled vs normalized
       message("Variables outside of [0,1] range will be rescaled to [0,1]")
 
@@ -360,7 +359,7 @@ frequencyFitRun <- function(sim) {
   #                                         "youngAge:pw(MDC, k_YA) + nonForest_lowFlam:pw(MDC, k_NFLF) + ",
   #                                         # "nonForest_highFlam:pw(MDC, k_NFHF) + class2:pw(MDC, k_class2) + ",
   #                                         "class3:pw(MDC, k_class3) - 1")
-  
+
 
   if (attr(terms, "response")) {
     y <- fireSense_ignitionFormula[[2L]]
@@ -373,7 +372,7 @@ frequencyFitRun <- function(sim) {
   kLB <- kUB <- NULL
 
   if (hvPW) {
-    
+
     objfun <- fireSenseUtils::.objFunIgnitionPW
 
     kNames <- sapply(specialsTerms, "[[", "knot")
@@ -428,7 +427,7 @@ frequencyFitRun <- function(sim) {
     )
     fireSense_ignitionCovariates <- data.frame(fireSense_ignitionCovariates, knots)
 
-    updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[", 
+    updateKnotExpr <- parse(text = paste0("mod_env[[\"", kNames, "\"]] = params[",
                                           (nx + 1L):(nx + nk), "]", collapse = "; "))
   } else {
     missing <- !allxy %in% ls(fireSense_ignitionCovariates, all.names = TRUE)
@@ -526,7 +525,7 @@ frequencyFitRun <- function(sim) {
         ub2
       }
     } else {
-      ## TODO: Ceres: potentially should also accommodate different coefs 
+      ## TODO: Ceres: potentially should also accommodate different coefs
       #for different variables supplied in a list.
       rep_len(ub[["coef"]], nx) ## User-defined bounds (recycled if necessary)
     },
@@ -540,7 +539,7 @@ frequencyFitRun <- function(sim) {
              if (is.null(lb[["coef"]])) {
                -DEoptimUB[1L:nx] ## Automatically estimate a lower boundary for each parameter
              } else {
-               ## TODO: Ceres: potentially should also accomodate different coefs 
+               ## TODO: Ceres: potentially should also accomodate different coefs
                # for different variables supplied in a list.
                rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
@@ -549,7 +548,7 @@ frequencyFitRun <- function(sim) {
              if (is.null(lb[["coef"]])) {
                rep_len(1e-16, nx) ## Ensure non-negativity
              } else {
-               ## TODO: Ceres: potentially should also accomodate different coefs 
+               ## TODO: Ceres: potentially should also accomodate different coefs
                #for different variables supplied in a list.
                rep_len(lb[["coef"]], nx) ## User-defined bounds (recycled if necessary)
              }
@@ -738,7 +737,6 @@ frequencyFitRun <- function(sim) {
                      control = c(P(sim)$nlminb.control, list(trace = trace)),
                      userTags = c(currentModule(sim), "objNlminb"),
                      omitArgs = c("x", "userTags")) # don't need to know the random sample... the mm is enough
-
       }
 
       if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
@@ -751,7 +749,7 @@ frequencyFitRun <- function(sim) {
             cc <- do.call(rbind, lapply(vals, as.numeric))
             wh <- unique(c(which(cc[, 1] == 0) - 1, NROW(cc)))
             wh <- setdiff(wh, 0)
-            cc[wh,, drop = FALSE]
+            cc[wh, , drop = FALSE]
           })
           cc <- do.call(rbind, bb)
           dd <- head(data.table::as.data.table(cc[order(cc[, 2]),]), 20)
@@ -873,7 +871,7 @@ frequencyFitRun <- function(sim) {
     ## round to avoid silly decimal errors
     resInKm2 <- round(prod(res(sim$ignitionFitRTM)) / 1e6) ## 1e6 m^2 == 1 km^2
     labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
-    filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
+    filenameToUse <- file.path(figurePath(sim), paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName))
 
     Plots(data = ndLong, fn = pwPlot, xColName = colName,
           ggylab = labelToUse,
@@ -1095,7 +1093,7 @@ pwPlotData <- function(bestParams, formula, xColName = "MDC", nx, offset, linkin
   cns <- grep("pw\\(", cns, value = TRUE, invert = TRUE)
   names(cns) <- cns
   ll <- lapply(cns, function(x) 0:1)
-  
+
   ll2 <- lapply(xColName, function(x) {
     ## TODO: confirm + test
     nPoints <- 100L
@@ -1195,13 +1193,13 @@ fittedVsObservedPlot <- function(d, ggTitle, ggylab, xColName)  {
 }
 
 checkForNullBounds <- function(bounds, coefBound, knotPercentileBound, knot, data) {
-  if (is.null(bounds)){
+  if (is.null(bounds)) {
     bounds <- list("coef" = coefBound)
-    if (!is.null(knot)){
+    if (!is.null(knot)) {
       knotBound <- round(quantile(data[[knot]], knotPercentileBound), digits = 0)
       bounds[["knots"]] <- list()
       bounds[["knots"]][[eval(knot)]] <- knotBound
     }
-  } 
+  }
   return(bounds)
 }
