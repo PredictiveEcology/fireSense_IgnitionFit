@@ -153,7 +153,6 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
   switch(
     eventType,
     init = {
-
       sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "checkData", eventPriority = 2)
 
       sim <- scheduleEvent(sim, eventTime = P(sim)$.runInitialTime, moduleName, "run")
@@ -272,7 +271,6 @@ frequencyFitRun <- function(sim) {
     notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
 
     knotTerm <- unique(sapply(specialsTerms, "[[", "variable"))
-
   }
   #this assigns a default coefficient boundary of 20 - this may be scale dependent...
   ub <- checkForNullBounds(ub, 20, 0.80, knot = knotTerm, data = fireSense_ignitionCovariates)
@@ -359,7 +357,6 @@ frequencyFitRun <- function(sim) {
   #                                         "youngAge:pw(MDC, k_YA) + nonForest_lowFlam:pw(MDC, k_NFLF) + ",
   #                                         # "nonForest_highFlam:pw(MDC, k_NFHF) + class2:pw(MDC, k_class2) + ",
   #                                         "class3:pw(MDC, k_class3) - 1")
-
 
   if (attr(terms, "response")) {
     y <- fireSense_ignitionFormula[[2L]]
@@ -780,7 +777,6 @@ frequencyFitRun <- function(sim) {
                      omitArgs = c("X", "userTags"),
                      control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
       }
-
     }
 
     out
@@ -917,12 +913,15 @@ frequencyFitRun <- function(sim) {
     plotData[, predFires := as.integer(predFires)]
     plotData <- melt(plotData, id.var = c(xvar, "n"))
 
-    Plots(data = plotData, fn = fittedVsObservedPlot,
-          xColName = xvar,
-          ggylab = "num. fires",
-          ggTitle = paste("fireSense_IgnitionFit: observed vs. fitted values",
-                          P(sim)$.studyAreaName, "(", basename(outputPath(sim)), ")"),
-          filename = paste0("ignition_NumFiresFitted_", P(sim)$.studyAreaName))
+    Plots(
+      data = plotData,
+      n = fittedVsObservedPlot,
+      xColName = xvar,
+      ggylab = "num. fires",
+      ggTitle = paste("fireSense_IgnitionFit: observed vs. fitted values",
+                      P(sim)$.studyAreaName, "(", basename(outputPath(sim)), ")"),
+      filename = file.path(figurePath(sim), paste0("ignition_NumFiresFitted_", P(sim)$.studyAreaName))
+    )
   }
 
   convergence <- TRUE
