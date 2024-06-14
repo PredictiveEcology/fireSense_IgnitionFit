@@ -145,11 +145,9 @@ defineModule(sim, list(
                               "can be supplied in lb and ub.")),
   ),
   outputObjects = bindrows(
-    createsOutput("covMinMax_ignition",
-                  "data.table",
+    createsOutput("covMinMax_ignition", "data.table",
                   desc = "Table of the original ranges (min and max) of covariates"),
-    createsOutput("fireSense_IgnitionFitted",
-                  "fireSense_IgnitionFit",
+    createsOutput("fireSense_IgnitionFitted", "fireSense_IgnitionFit",
                   desc = "A fitted model object of class `fireSense_IgnitionFit`.")
   )
 ))
@@ -478,10 +476,12 @@ frequencyFitRun <- function(sim) {
                 filename = filenameToUse)
         }
       }
-      system.time(fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA,
-                                        type = "response") |>
-                    Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
-                          omitArgs = "object", .cacheExtra = forms[whBest]))
+      system.time({
+        fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA,
+                              type = "response") |>
+          Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
+                omitArgs = "object", .cacheExtra = forms[whBest])
+      })
 
       # fittedVals <- fitted(bestModel)
 
@@ -535,7 +535,6 @@ frequencyFitRun <- function(sim) {
     finalNoPix <- nrow(fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
     lambdaRescaleFactor <- finalNoPix/origNoPix
 
-
     l <- list(formula = forms[[whBest]],
               family = family,
               data = fireSense_ignitionCovariates,
@@ -549,8 +548,6 @@ frequencyFitRun <- function(sim) {
               rescales = mod$rescales,
               fittingRes = res(sim$ignitionFitRTM)[1],
               lambdaRescaleFactor = lambdaRescaleFactor)
-
-
   } else {
 
     lb <- P(sim)$lb
@@ -692,10 +689,11 @@ frequencyFitRun <- function(sim) {
 
       missing <- !allxy[!allxy %in% kNames] %in% ls(fireSense_ignitionCovariates, all.names = TRUE)
 
-      if (s <- sum(missing))
+      if (s <- sum(missing)) {
         stop(moduleName, "> '", allxy[!allxy %in% kNames][missing][1L], "'",
              if (s > 1) paste0(" (and ", s - 1L, " other", if (s > 2) "s", ")"),
              " not found in data objects nor in the simList environment.")
+      }
 
       ## Covariates that have a breakpoint
       pwVarNames <- sapply(specialsTerms, "[[", "variable", simplify = FALSE)
@@ -1043,7 +1041,6 @@ frequencyFitRun <- function(sim) {
                        userTags = c(currentModule(sim), "objNlminb_without_hvPW"),
                        omitArgs = c("x", "userTags"),
                        .functionName = "objNlminb") # don't need to know the random sample... the mm is enough
-
         }
 
         if (FALSE) { # THIS SECTION ALLOWS MANUAL READING OF LOG FILES
@@ -1069,11 +1066,12 @@ frequencyFitRun <- function(sim) {
 
         if (trace) parallel::clusterEvalQ(cl, sink())
       } else {
-
-        #see commit ce3a8f41823583f848793f2743281f643d29ef05 if error occurs - it may be benign
+        ## see commit ce3a8f41823583f848793f2743281f643d29ef05 if error occurs - it may be benign
         if (hvPW) {
-          out <- Cache(lapply, start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                       linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+          out <- Cache(lapply, start, objNlminb, objective = objfun,
+                       lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                       linkinv = linkinv, nll = nll, sm = sm, nx = nx,
+                       mm = mm, ## TODO mm may not be required with PW
                        mod_env = fireSense_ignitionCovariates, offset = offset,
                        formula = sim$fireSense_ignitionFormula,
                        updateKnotExpr = updateKnotExpr,
@@ -1081,8 +1079,10 @@ frequencyFitRun <- function(sim) {
                        omitArgs = c("X", "userTags"),
                        control = c(P(sim)$nlminb.control, list(trace = min(6, trace * 3))))
         } else {
-          out <- Cache(lapply, start, objNlminb, objective = objfun, lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
-                       linkinv = linkinv, nll = nll, sm = sm, nx = nx, mm = mm, #TODO mm may not be required with PW...
+          out <- Cache(lapply, start, objNlminb, objective = objfun,
+                       lower = nlminbLB, upper = nlminbUB, hvPW = hvPW,
+                       linkinv = linkinv, nll = nll, sm = sm, nx = nx,
+                       mm = mm, ## TODO mm may not be required with PW
                        mod_env = fireSense_ignitionCovariates, offset = offset,
                        userTags = c(currentModule(sim), "objNlminb"),
                        omitArgs = c("X", "userTags"),
@@ -1147,7 +1147,6 @@ frequencyFitRun <- function(sim) {
 
       names(best) <- colnms
     }
-
 
     if (anyPlotting(P(sim)$.plots)) {
       message("Plotting has not been tested thoroughly")
