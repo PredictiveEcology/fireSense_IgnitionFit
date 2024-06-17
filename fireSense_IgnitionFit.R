@@ -341,7 +341,6 @@ frequencyFitRun <- function(sim) {
     bestModel <- mods[[whBest]]
     messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
 
-    P(sim)$.plots <- "screen"
     if (anyPlotting(P(sim)$.plots)) {
       ff <- as.character(bestModel$call$formula)
 
@@ -370,8 +369,9 @@ frequencyFitRun <- function(sim) {
       # re <- terms
       unneededCovs <- setdiff(colnames(p), termsNonClimate)
 
-      for (rmCol in unneededCovs)
+      for (rmCol in unneededCovs) {
         set(p, NULL, rmCol, NULL)
+      }
 
       ## populate a prediction dataset with quantiles of climate variable and mutually exclusive veg.
       for (var in climVar) {
@@ -442,7 +442,7 @@ frequencyFitRun <- function(sim) {
           Bunit <- ifelse(!is.null(P(sim)$plot_fuelBiomassPerPrediction),
                           P(sim)$plot_fuelBiomassPerPrediction,
                           round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0))
-          #make second prediction using mean forest or alternatively 100% non-forest cover
+          ## make second prediction using mean forest or alternatively 100% non-forest cover
           Bunit <- round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0)
           pAll2 <- copy(pAll)
 
@@ -518,7 +518,8 @@ frequencyFitRun <- function(sim) {
     }
     summ <- summary(bestModel)
     mod$rescales <- if (isTRUE(P(sim)$rescaleVars)) {
-      if (!all(is.na(P(sim)$rescalers))) { ## TODO: allow list of rescalers to be passed with mix of NA and other vals
+      if (!all(is.na(P(sim)$rescalers))) {
+        ## TODO: allow list of rescalers to be passed with mix of NA and other vals
         sapply(needRescale, FUN = function(x) {
           paste0("fireSenseUtils::rescale(", x, ", to = c(0,1))")
         }, USE.NAMES = TRUE, simplify = FALSE)
@@ -549,13 +550,12 @@ frequencyFitRun <- function(sim) {
               fittingRes = res(sim$ignitionFitRTM)[1],
               lambdaRescaleFactor = lambdaRescaleFactor)
   } else {
-
     lb <- P(sim)$lb
     ub <- P(sim)$ub
 
     hvPW <- !is.null(attr(terms, "specials")$pw)
 
-    #assign default
+    ## assign default
     knotTerm <- NULL
 
     if (hvPW) {
@@ -590,9 +590,8 @@ frequencyFitRun <- function(sim) {
       notSpecialVars <- unique(unlist(strsplit(notSpecialVars, ":")))
 
       knotTerm <- unique(sapply(specialsTerms, "[[", "variable"))
-
     }
-    #this assigns a default coefficient boundary of 20 - this may be scale dependent...
+    ## this assigns a default coefficient boundary of 20 - this may be scale dependent...
     ub <- checkForNullBounds(ub, 20, 0.80, knot = knotTerm, data = fireSense_ignitionCovariates)
     lb <- checkForNullBounds(lb, 0, 0.05, knot = knotTerm, data = fireSense_ignitionCovariates)
 
