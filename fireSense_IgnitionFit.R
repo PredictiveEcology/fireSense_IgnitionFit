@@ -228,6 +228,7 @@ frequencyFitInit <- function(sim) {
 }
 
 frequencyFitRun <- function(sim) {
+
   moduleName <- current(sim)$moduleName
 
   fireSense_ignitionFormula <- as.formula(sim$fireSense_ignitionFormula, env = .GlobalEnv)
@@ -312,7 +313,6 @@ frequencyFitRun <- function(sim) {
           list2env(objs, envir = en)
           message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
                   messageFormulaFn(form))
-
           # out <- glmer(form, data = dat,
           #              family = poisson(link = "logit"),
           #              mustart = pmin(0.5, pmax(youngAge, 0.5))) |>
@@ -405,7 +405,7 @@ frequencyFitRun <- function(sim) {
         }
 
         system.time({
-          preds <- predict(bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
+          preds <- predict(object = bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
             Cache(omitArgs = "object", .cacheExtra = forms[whBest])
         })
         pAll[, pred := expit(preds$fit)]
@@ -455,7 +455,7 @@ frequencyFitRun <- function(sim) {
           }
 
           system.time({
-            preds <- predict(bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
+            preds <- predict(object= bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
               Cache(omitArgs = "object", .cacheExtra = forms[whBest])
           })
           pAll2[, pred := expit(preds$fit)]
@@ -477,7 +477,7 @@ frequencyFitRun <- function(sim) {
         }
       }
       system.time({
-        fittedNoRE <- predict(bestModel, newdata = m, se.fit = FALSE, re.form = NA,
+        fittedNoRE <- predict(object = bestModel, newdata = m, se.fit = FALSE, re.form = NA,
                               type = "response") |>
           Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
                 omitArgs = "object", .cacheExtra = forms[whBest])
