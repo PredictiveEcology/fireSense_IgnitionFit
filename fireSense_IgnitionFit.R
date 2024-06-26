@@ -60,8 +60,8 @@ defineModule(sim, list(
                     default = list(iter.max = 5e3L, eval.max = 5e3L),
                     desc = paste("optional list of control parameters to be passed to",
                                  "the `nlminb` optimizer. See `?nlminb`.")),
-    defineParameter("plot_fuelBiomassPerPrediction", "numeric", NULL, 1, NA,
-                    desc = paste("when generating plots of MDC x fuel class, the amount of biomass for which",
+    defineParameter("plot_fuelBiomassPerPrediction", "numeric", NULL, 1, 10,
+                    desc = paste("when generating plots of climate x fuel class, the log of biomass (g/m2) for which",
                                  "to generate predictions across a gradient of climate values.",
                                  "If supplied, it will override any values in `sim$ignitionFitRTM$meanForestB`")),
     defineParameter("rescalers", "numeric", c("MDC" = 1000),
@@ -363,10 +363,10 @@ frequencyFitRun <- function(sim) {
       ## implicitly includes non-forest pixels in the calculation of the mean.
 
       N <- 30
+      #TODO - what ISN'T numeric?
       p <- as.data.table(lapply(m, function(pp) if (is.numeric(pp)) mean(pp) else pp[1:N]))
       terms <- terms(bestModel)
       termsNonClimate <- setdiff(attr(terms, "term.labels"), climVar)
-      # re <- terms
       unneededCovs <- setdiff(colnames(p), termsNonClimate)
 
       for (rmCol in unneededCovs) {
@@ -415,7 +415,7 @@ frequencyFitRun <- function(sim) {
 
         resInKm2 <- prod(res(sim$ignitionFitRTM)) / 1e6 ## 1e6 m^2 == 1 km^2
         labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
-        filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName)
+        filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName, "_meanByClass")
 
         titl <- paste0("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
                        " (", basename(outputPath(sim)), ")",
@@ -437,13 +437,15 @@ frequencyFitRun <- function(sim) {
               rawClimate =  m[[var]],
               filename = filenameToUse)
 
+        ## make second prediction using mean forest or alternatively 100% non-forest cover
+
         if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) ||
             !is.null(P(sim)$plot_fuelBiomassPerPrediction)) {
+
           Bunit <- ifelse(!is.null(P(sim)$plot_fuelBiomassPerPrediction),
-                          P(sim)$plot_fuelBiomassPerPrediction,
-                          round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0))
-          ## make second prediction using mean forest or alternatively 100% non-forest cover
-          Bunit <- round(attributes(sim$ignitionFitRTM)$meanForestB, digits = 0)
+                          P(sim)$plot_fuelBiomassPerPrediction, #should be log already
+                          log(attributes(sim$ignitionFitRTM)$meanForestB))
+          BunitForLabel <- round(exp(Bunit), digits = 0)
           pAll2 <- copy(pAll)
 
           for (val1 in termsUsingBiomass) {
@@ -458,14 +460,16 @@ frequencyFitRun <- function(sim) {
             preds <- predict(object= bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
               Cache(omitArgs = "object", .cacheExtra = forms[whBest])
           })
+
           pAll2[, pred := expit(preds$fit)]
           pAll2[, val1 := factor(val)]
           pAll2[, upper := expit(preds$fit + preds$se.fit)]
           pAll2[, lower := expit(preds$fit - preds$se.fit)]
 
+          filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName, "_fullCoverAndBiomass")
           Plots(data = pAll2, fn = plotFnLogitIgnition,
                 ggylab = labelToUse,
-                subtitle = paste0("per ", Bunit, " g B/m2 or 100% cover"),
+                subtitle = paste0("per ", BunitForLabel, " g B/m2 or 100% cover"),
                 fillTitle = "veg. covariate",
                 .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
                 # centred = centred,
