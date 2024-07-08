@@ -363,15 +363,9 @@ frequencyFitRun <- function(sim) {
       ## implicitly includes non-forest pixels in the calculation of the mean.
 
       N <- 30
-      #TODO - what ISN'T numeric?
       p <- as.data.table(lapply(m, function(pp) if (is.numeric(pp)) mean(pp) else pp[1:N]))
       terms <- terms(bestModel)
       termsNonClimate <- setdiff(attr(terms, "term.labels"), climVar)
-      unneededCovs <- setdiff(colnames(p), termsNonClimate)
-
-      for (rmCol in unneededCovs) {
-        set(p, NULL, rmCol, NULL)
-      }
 
       ## populate a prediction dataset with quantiles of climate variable and mutually exclusive veg.
       for (var in climVar) {
@@ -388,7 +382,20 @@ frequencyFitRun <- function(sim) {
           }
         }
 
+
         termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
+        if (length(termsNoInteraction) == 0) { #all terms are interactions between fuel and climate
+          termsWithInteraction <- attr(terms, "term.labels")
+          termsNoInteraction <- sub(termsWithInteraction, pattern = climVar, replacement = "") |>
+            sub(pattern = ":", replacement = "") #to catch ':<climvar>' or '<climVar>:'
+        }
+
+        #remove columns that aren't model terms - don't use set diff b/c some terms are only interaction
+        unneededCovs <- setdiff(colnames(p), c(termsNoInteraction, climVar))
+        for (rmCol in unneededCovs) {
+          set(p, NULL, rmCol, NULL)
+        }
+
         pAll <- rbindlist(lapply(seq(termsNoInteraction), function(x) p))
         pAll[, val := rep(termsNoInteraction, each = N)]
 
@@ -396,12 +403,8 @@ frequencyFitRun <- function(sim) {
         termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
         termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
 
-        for (val1 in termsUsingBiomass) {
+        for (val1 in c(termsUsingBiomass, termsUsingCover)) {
           set(pAll, which(!pAll$val %in% val1), val1, 0)
-        }
-
-        for (val1 in termsUsingCover) {
-          set(pAll, which(!pAll$val %in% val1), val1, 0) #set the variable to zero where it isn't of interest
         }
 
         system.time({
@@ -508,16 +511,17 @@ frequencyFitRun <- function(sim) {
                            by = c(xvar, "n")]
       plotData[, obsFires := as.integer(obsFires)]
       plotData[, predFires := as.integer(predFires)]
+
+      pd <- plotData[, .(obsFires = mean(obsFires), predFires = mean(predFires)), .(year)]
+      correl <- cor(pd$obsFires, pd$predFires)
+
       plotData <- melt(plotData, id.var = c(xvar, "n"))
 
-      pd <- plotData[, .(observed = value[[1]], predicted = mean(value)), by = "year"]
-      correl <- cor(pd$observed, pd$predicted)
       Plots(data = plotData, fn = fittedVsObservedPlot,
             xColName = xvar, .plotInitialTime = NULL,
             ggylab = "num. fires",
-            ggTitle = paste("fireSense_IgnitionFit: observed vs. fitted values",
-                            P(sim)$.studyAreaName, "(", basename(outputPath(sim)), ")",
-                            " -- Correlation = ", round(correl, 2)),
+            ggTitle = paste(P(sim)$.studyAreaName, "fireSense_IgnitionFit: obs. vs. fit"),
+            ggSubtitle = paste0("Correlation = ", round(correl, 2)),
             filename = paste0("ignition_NumFiresFitted_", P(sim)$.studyAreaName))
     }
     summ <- summary(bestModel)
@@ -1224,9 +1228,8 @@ frequencyFitRun <- function(sim) {
       Plots(data = plotData, fn = fittedVsObservedPlot,
             xColName = xvar,
             ggylab = "num. fires",
-            ggTitle = paste("fireSense_IgnitionFit: observed vs. fitted values",
-                            P(sim)$.studyAreaName, "(", basename(outputPath(sim)), ")"),
-            filename = paste0("ignition_NumFiresFitted_", P(sim)$.studyAreaName))
+            ggTitle = paste(P(sim)$.studyAreaName, "fireSense_IgnitionFit: obs. vs. fitted values"),
+            filename = paste0("ignition_NumFiresFitted", P(sim)$.studyAreaName))
     }
 
     convergence <- TRUE
@@ -1478,7 +1481,7 @@ pwPlotData <- function(bestParams, formula, xColName, nx, offset, linkinv,
   ndLong
 }
 
-fittedVsObservedPlot <- function(d, ggTitle, ggylab, xColName)  {
+fittedVsObservedPlot <- function(d, ggTitle, ggSubtitle = NULL, ggylab, xColName)  {
   ggplot <- ggplot(data = d, aes_string(x = xColName, y = "value", colour = "variable")) +
     stat_summary(aes(fill = variable), fun.data = mean_ci,
                  geom = "ribbon", alpha = 0.5, show.legend = FALSE) +
@@ -1487,7 +1490,8 @@ fittedVsObservedPlot <- function(d, ggTitle, ggylab, xColName)  {
                                     "predFires" = "fitted no. fires")) +
     theme_bw() +
     theme(legend.position = "bottom") +
-    labs(y = ggylab, x = xColName, title = ggTitle, colour = "")
+    labs(y = ggylab, x = xColName, title = ggTitle,
+         subtitle = ggSubtitle, colour = "")
   ggplot
 }
 
