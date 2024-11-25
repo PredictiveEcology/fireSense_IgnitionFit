@@ -339,6 +339,7 @@ frequencyFitRun <- function(sim) {
     # whBest <- 1
     bestModel <- mods[[whBest]]
     messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
+    summ <- summary(bestModel)
 
     if (anyPlotting(P(sim)$.plots)) {
       ff <- as.character(bestModel$call$formula)
@@ -380,7 +381,6 @@ frequencyFitRun <- function(sim) {
             set(p, NULL, otherVar, mean(m[[otherVar]]))
           }
         }
-
 
         termsNoInteraction <- termsNonClimate[termsNonClimate %in% names(m)]
         if (length(termsNoInteraction) == 0) { #all terms are interactions between fuel and climate
@@ -523,7 +523,7 @@ frequencyFitRun <- function(sim) {
             ggSubtitle = paste0("Correlation = ", round(correl, 2)),
             filename = paste0("ignition_NumFiresFitted_", P(sim)$.studyAreaName))
     }
-    summ <- summary(bestModel)
+
     mod$rescales <- if (isTRUE(P(sim)$rescaleVars)) {
       if (!all(is.na(P(sim)$rescalers))) {
         ## TODO: allow list of rescalers to be passed with mix of NA and other vals
@@ -542,30 +542,30 @@ frequencyFitRun <- function(sim) {
     origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
     finalNoPix <- nrow(fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
     lambdaRescaleFactor <- finalNoPix/origNoPix
-
-    l <- list(formula = forms[[whBest]],
-              family = family,
-              data = fireSense_ignitionCovariates,
-              coef = summ$coefficients$cond[, "Estimate"],
-              # coef = setNames(outBest$par[1:nx], colnames(mm)),
-              coef.se = summ$coefficients$cond[, "Std. Error"],
-              LL = logLik(bestModel),
-              AIC = AIC(bestModel),
-              convergence = bestModel$fit$convergence,
-              # convergenceDiagnostic = convergDiagnostic,
-              rescales = mod$rescales,
-              fittingRes = res(sim$ignitionFitRTM)[1],
-              lambdaRescaleFactor = lambdaRescaleFactor)
+    browser() #check that you can't just attach bestMod, with the environment business sorted
+    modelList <- list(formula = forms[[whBest]],
+                      family = family,
+                      data = fireSense_ignitionCovariates,
+                      coef = summ$coefficients$cond[, "Estimate"],
+                      # coef = setNames(outBest$par[1:nx], colnames(mm)),
+                      coef.se = summ$coefficients$cond[, "Std. Error"],
+                      LL = logLik(bestModel),
+                      AIC = AIC(bestModel),
+                      convergence = bestModel$fit$convergence,
+                      # convergenceDiagnostic = convergDiagnostic,
+                      rescales = mod$rescales,
+                      fittingRes = res(sim$ignitionFitRTM)[1],
+                      lambdaRescaleFactor = lambdaRescaleFactor)
   } else {
-    l <- hockeyStickApproach(sim = sim,
-                             terms = terms,
-                             fireSense_ignitionCovariates =
-                               fireSense_ignitionCovariates,
-                             fireSense_ignitionFormula =
-                               fireSense_ignitionFormula)
+    modelList <- hockeyStickApproach(sim = sim,
+                                     terms = terms,
+                                     fireSense_ignitionCovariates =
+                                       fireSense_ignitionCovariates,
+                                     fireSense_ignitionFormula =
+                                       fireSense_ignitionFormula)
   }
 
-  sim$fireSense_IgnitionFitted <- l
+  sim$fireSense_IgnitionFitted <- modelList
   class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
 
   return(invisible(sim))
