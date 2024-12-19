@@ -110,7 +110,7 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
     init = {
       sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "checkData", eventPriority = 2)
 
-      sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "run")
+      sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "run", eventPriority = 5.11)
 
       if (!is.na(P(sim)$.saveInitialTime)) {
         sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, moduleName, "save", .last())
