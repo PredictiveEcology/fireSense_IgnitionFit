@@ -281,8 +281,6 @@ frequencyFitRun <- function(sim) {
     ## https://stackoverflow.com/a/68684973 -- NOT VERY APPROPRIATE FOR RE model
     pseudoR2 <- as.numeric(1 - logLik(bestModel) / logLik(nullModel))
 
-    message("Plotting has not been tested thoroughly")
-
     #### Plotting glmmTMB ####
     ## build two prediction datasets
     ## both predict across quantiles of climate variable
@@ -332,13 +330,20 @@ frequencyFitRun <- function(sim) {
       termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
       termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
 
-      for (val1 in c(termsUsingBiomass, termsUsingCover)) {
+      for (val1 in c(termsUsingCover)) {
         set(pAll, which(!pAll$val %in% val1), val1, 0)
       }
 
+      #set minimum biomass as whatever is in data (likely log(100)-1)
+      minBiomass <- min(m[, .SD, .SDcol = termsUsingBiomass])
+      for (val1 in c(termsUsingCover)) {
+        set(pAll, which(!pAll$val %in% val1), val1, minBiomass)
+      }
+
+
+      #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
       system.time({
-        preds <- predict(object = bestModel, newdata = pAll, se.fit = TRUE, re.form = NA) |>
-          Cache(omitArgs = "object", .cacheExtra = forms[whBest])
+        preds <- predict(object = bestModel, newdata = pAll, se.fit = TRUE, re.form = NA)
       })
       pAll[, pred := expit(preds$fit)]
       pAll[, val1 := factor(val)]
@@ -347,7 +352,8 @@ frequencyFitRun <- function(sim) {
 
       resInKm2 <- prod(res(sim$ignitionFitRTM)) / 1e6 ## 1e6 m^2 == 1 km^2
       labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
-      filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName, "_meanByClass")
+      filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_",
+                              P(sim)$.studyAreaName, "_meanByClass_", climVar)
 
       titl <- paste0("fireSense_IgnitionFit:", P(sim)$.studyAreaName,
                      " (", basename(outputPath(sim)), ")",
@@ -388,9 +394,10 @@ frequencyFitRun <- function(sim) {
           set(pAll2, which(pAll2$val %in% val1), val1, 1) #set the variable to 1 representing complete cover
         }
 
+        #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
         system.time({
-          preds <- predict(object= bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA) |>
-            Cache(omitArgs = "object", .cacheExtra = forms[whBest])
+          preds <- predict(object= bestModel, newdata = pAll2, se.fit = TRUE, re.form = NA)# |>
+            # Cache(omitArgs = "object", .cacheExtra = forms[whBest])
         })
 
         pAll2[, pred := expit(preds$fit)]
@@ -398,7 +405,7 @@ frequencyFitRun <- function(sim) {
         pAll2[, upper := expit(preds$fit + preds$se.fit)]
         pAll2[, lower := expit(preds$fit - preds$se.fit)]
 
-        filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName, "_fullCoverAndBiomass")
+        filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName, "_fullCoverAndBiomass_", climVar)
         Plots(data = pAll2, fn = plotFnLogitIgnition,
               ggylab = labelToUse,
               subtitle = paste0("per ", BunitForLabel, " g B/m2 or 100% cover"),
@@ -411,11 +418,12 @@ frequencyFitRun <- function(sim) {
               filename = filenameToUse)
       }
     }
+    #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
     system.time({
       fittedNoRE <- predict(object = bestModel, newdata = m, se.fit = FALSE, re.form = NA,
-                            type = "response") |>
-        Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
-              omitArgs = "object", .cacheExtra = forms[whBest])
+                            type = "response") #|>
+        # Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
+        #       omitArgs = "object", .cacheExtra = forms[whBest])
     })
 
     # fittedVals <- fitted(bestModel)
