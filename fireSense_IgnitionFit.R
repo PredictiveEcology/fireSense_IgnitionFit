@@ -37,12 +37,7 @@ defineModule(sim, list(
                     desc = paste("when generating plots of climate x fuel class, the log of biomass (g/m2) for which",
                                  "to generate predictions across a gradient of climate values.",
                                  "If supplied, it will override any values in `sim$ignitionFitRTM$meanForestB`")),
-    defineParameter("rescalers", "numeric", c("MDC" = 1000),
-                    desc = paste("`NA` or a named vector of rescaling factors (numeric/integer values)",
-                                 "for each predictor variable. If not `NA`, it will be used to rescale the",
-                                 "variables as `var / rescalers['var']`. If `NA` and `rescaleVars == TRUE`,",
-                                 "variables will be scaled to `[0,1]`.")),
-    defineParameter("rescaleVars", "logical", default = FALSE,
+    defineParameter("rescaleVars", "logical", default = TRUE,
                     desc = paste("Attempt to rescale variables? If `rescalers` is defined,",
                                  "use it to rescale variables as `var / rescalers['var']`. ",
                                  "Otherwise, `scale()` will be used to rescale variables to `[0,1]`,",
@@ -95,7 +90,8 @@ defineModule(sim, list(
     createsOutput("covMinMax_ignition", "data.table",
                   desc = "Table of the original ranges (min and max) of covariates"),
     createsOutput("fireSense_IgnitionFitted", "fireSense_IgnitionFit",
-                  desc = "A fitted model object of class `fireSense_IgnitionFit`.")
+                  desc = "A fitted model object of class `fireSense_IgnitionFit`."),
+    createsOutput("ignitionRescalers", "integer", "scaling vector if rescaling variables to 0-10 range")
   )
 ))
 
@@ -108,6 +104,8 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
   switch(
     eventType,
     init = {
+      #the reason this is not scheduling Init is because it is only performing sanity checks on data
+      # which is created during other modules non-init events. And since Inits are all scheduled first...
       sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "checkData", eventPriority = 2)
 
       sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "run", eventPriority = 5.11)
@@ -134,24 +132,13 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
 
 ### template initialization
 Init <- function(sim) {
-  #TODO: review why Init event is not Init.
+
   if (!"pixelID" %in% colnames(sim$fireSense_ignitionCovariates)) {
     stop("fireSense_ignitionCovariates must have a 'pixelID' column")
   }
 
   if (is.empty.model(as.formula(sim$fireSense_ignitionFormula, env = .GlobalEnv))) {
     stop(moduleName, "> The formula describes an empty model.")
-  }
-
-  if (!all(is.na(P(sim)$rescalers))) {
-    ## checks
-    if (is.null(names(P(sim)$rescalers))) {
-      stop("P(sim)$rescalers must be a named vector or NA.")
-    }
-
-    if (!all(names(P(sim)$rescalers) %in% names(sim$fireSense_ignitionCovariates))) {
-      stop("names(P(sim)$rescalers) doesn't match variable names in fireSense_ignitionCovariates")
-    }
   }
 
   if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) ||
@@ -187,21 +174,21 @@ frequencyFitRun <- function(sim) {
   }
 
   ## rescale variable and knots.
+  #this should always happen
   if (isTRUE(P(sim)$rescaleVars)) {
-    if (is.na(P(sim)$rescalers)) {
-      ## TODO: lapply through each element in rescalers and assess which elements are to be rescaled vs normalized
-      message("Variables outside of [0,1] range will be rescaled to [0,1]")
 
-      needRescale <- fireSense_ignitionCovariates[, vapply(.SD, FUN = function(x) all(inrange(na.omit(x), 0, 1)),
-                                                           FUN.VALUE = logical(1)),
-                                                  .SDcols = notSpecialVars]
-      message(paste("rescaling", needRescale))
-      cols <- names(needRescale)[which(!needRescale)]
-    } else {
-      cols <- names(P(sim)$rescalers)
-    }
-    fireSense_ignitionCovariates <- rescaleVars(fireSense_ignitionCovariates, Par$rescalers)
+    # rescalers <- abs(sapply(fireSense_ignitionCovariates[, .SD, .SDcol = toRescale], FUN = max))
+    message("Variables outside of [0,10] range will be rescaled to [0,10]")
+    toRescale <- setdiff(names(fireSense_ignitionCovariates),
+                         c("pixelID", "ignitions", "year", "yearChar", "ignitionsNoGT1"))
+    rescalers <- sapply(fireSense_ignitionCovariates[, .SD, .SDcol = toRescale], max)
+    needRescale <- sapply(rescalers, FUN = function(x) all(inrange(na.omit(x), 0, 10)))
+    cols <- names(needRescale)[which(!needRescale)]
+    message("rescaling the following variables: ", paste(cols, collapse = ", "))
+    sim$ignitionRescalers <- 10^floor(log10(abs(rescalers[cols])))
+    fireSense_ignitionCovariates <- rescaleVars(fireSense_ignitionCovariates, sim$ignitionRescalers)
   }
+
 
   # convert to data.table --> easier to work with
   m <- as.data.table(fireSense_ignitionCovariates)
@@ -359,8 +346,8 @@ frequencyFitRun <- function(sim) {
                      " (", basename(outputPath(sim)), ")",
                      " -- Pseudo ")
       titl2 <- paste0(round(pseudoR2, 3))
-      if (isTRUE(Par$rescaleVars)) {
-        pAll <- rescaleVars(pAll, 1/Par$rescalers) # invert it
+      if (isTRUE(P(sim)$rescaleVars)) {
+        pAll <- rescaleVars(pAll, 1/sim$ignitionRescalers) # invert it
       }
 
       Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
@@ -461,21 +448,6 @@ frequencyFitRun <- function(sim) {
           filename = paste0("ignition_NumFiresFitted_", P(sim)$.studyAreaName))
   }
 
-  mod$rescales <- if (isTRUE(P(sim)$rescaleVars)) {
-    if (!all(is.na(P(sim)$rescalers))) {
-      ## TODO: allow list of rescalers to be passed with mix of NA and other vals
-      sapply(needRescale, FUN = function(x) {
-        paste0("fireSenseUtils::rescale(", x, ", to = c(0,1))")
-      }, USE.NAMES = TRUE, simplify = FALSE)
-    } else {
-      sapply(names(P(sim)$rescalers), FUN = function(x, vec) {
-        paste(x, "/", vec[x])
-      }, vec = P(sim)$rescalers, USE.NAMES = TRUE, simplify = FALSE)
-    }
-  } else {
-    NULL
-  }
-
   origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
   finalNoPix <- nrow(fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
   lambdaRescaleFactor <- finalNoPix/origNoPix
@@ -485,7 +457,7 @@ frequencyFitRun <- function(sim) {
     #formula, data, coef, coef.se, convergence should all be attainable.
     # formula = forms[[whBest]],
     # convergence = bestModel$fit$convergence,
-    rescales = mod$rescales,
+    rescales = sim$ignitionRescalers,
     fittingRes = res(sim$ignitionFitRTM)[1],
     lambdaRescaleFactor = lambdaRescaleFactor)
 
@@ -531,25 +503,6 @@ plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab,
     guides(lwd = "none", alpha = "none") +
     theme_bw()
 }
-
-#TODO: this function is currently unused - remove it if no longer needed
-# identifyEnvs <- function(l, topEnv) {
-#   if (is.list(l)) {
-#     out <- lapply(l, function(ll) {
-#       identifyEnvs(ll, topEnv)
-#     })
-#   } else {
-#     if (NROW(l) == 0 || is(l, "externalptr")) {
-#       return(NULL)
-#     } else if (is.function(l)) {
-#       return(environment(l))
-#     } else if (is.environment(l)) {
-#       return(l)
-#     }
-#     return(NULL)
-#   }
-#   return(out)
-# }
 
 rescaleVars <- function(dt, rescalers) {
   cols <- names(Par$rescalers)
