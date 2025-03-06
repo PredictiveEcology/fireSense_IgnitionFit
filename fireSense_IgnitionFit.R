@@ -6,6 +6,7 @@ defineModule(sim, list(
                "negative binomial", "fireSense"),
   authors = c(
     person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut")),
+    person("Eliot", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca", role = c("aut", "cre")),
     person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca", role = c("aut", "cre")),
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = c("ctb"))
   ),
