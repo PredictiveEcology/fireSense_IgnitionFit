@@ -1,5 +1,5 @@
 ---
-title: "fireSense_dataPrepFit Manual"
+title: "fireSense_IgnitionFit Manual"
 subtitle: "v.`r SpaDES.core::moduleMetadata(module = 'fireSense_IgnitionFit', path = '..')$version`"
 date: "Last updated: `r Sys.Date()`"
 output:
@@ -12,36 +12,25 @@ output:
     keep_md: yes
 editor_options:
   chunk_output_type: console
-  bibliography: citations/references_fireSense_dataPrepFit.bib
+bibliography: citations/references_fireSense_IgnitionFit.bib
 link-citations: true
 always_allow_html: true
 ---
 
+# fireSense_IgnitionFit Module
+
+<!-- the following are text references used in captions for LaTeX compatibility -->
+(ref:fireSense-IgnitionFit) *fireSense_IgnitionFit*
+
 ```{r setup-fireSense-IgnitionFit, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, eval = FALSE, results = "hold") ## change to eval = TRUE if all chunks are to be evaluated
+
 dir.create("figures", showWarnings = FALSE)
 
 download.file(url = "https://img.shields.io/badge/Made%20with-Markdown-1f425f.png",
               destfile = "figures/markdownBadge.png",
-              mode = 'wb')
+              mode = "wb")
 ```
-
-# Download the module
-```{r download module, eval = FALSE, echo = TRUE}
-library(SpaDES)
-
-moduleName <- "fireSense_IgnitionFit"
-
-spadesModulesDirectory <- tempdir() # Location where the module will be downloaded
-
-downloadModule(moduleName, path = spadesModulesDirectory)
-```
-
-#fireSense_IgnitionFit Module
-
-<!-- the following are text references used in captions for LaTeX compatibility -->
-
-(ref:fireSense-dataPrepFit) *fireSense_dataPrepFit*
 
 [![made-with-Markdown](figures/markdownBadge.png)](https://commonmark.org)
 
@@ -50,50 +39,74 @@ downloadModule(moduleName, path = spadesModulesDirectory)
 #### Authors:
 
 `r paste(as.character(SpaDES.core::moduleMetadata(module = "fireSense_IgnitionFit", path = '..')$authors), sep = ', ')`
-
-## Overview
-This module fits a statistical model to estimate the contributions of climate and fuel to fire ignition.
-
-Estimate fire ignition (TODO: fill this out)
-
-### Module summary
+<!-- ideally separate authors with new lines, '\n' not working -->
 
 ## Module Overview
 
-Fit a model of fire ignition from climate and fuel covariates
+This module fits a statistical model to estimate the contributions of climate and fuel to fire ignition.
+<!-- TODO -->
+Estimate fire ignition (TODO: fill this out) - [@Marchal:2017a; @Marchal:2017b; @Marchal:2019]
 
 ### Module summary
 
+Fit a model of fire ignition from climate and fuel covariates.
 
 ### Module inputs and parameters
 
-Describe input data required by the module and how to obtain it (e.g., directly from online sources or supplied by other modules) 
-```{r moduleInputs-fireSense-fireSense_IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
-df_inputs <- SpaDES.core::moduleInputs("fireSense_fireSense_IgnitionFit", "modules")
+Describe input data required by the module and how to obtain it (e.g., directly from online sources or supplied by other modules) .
+
+Table \@ref(tab:moduleInputs-fireSense-IgnitionFit) shows the full list of module inputs.
+
+```{r moduleInputs-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
+df_inputs <- SpaDES.core::moduleInputs("fireSense_IgnitionFit", "..")
 knitr::kable(df_inputs,
-             caption = "List of (ref:fireSense_fireSense_IgnitionFit) input objects and their description.") |>
+             caption = "List of (ref:fireSense_IgnitionFit) input objects and their description.") |>
   kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
 ```
 
-Provide a summary of user-visible parameters (Table \@ref(tab:moduleParams-fireSense-IgnitionFit))
+Summary of user-visible parameters (Table \@ref(tab:moduleParams-fireSense-IgnitionFit))
 
 ```{r moduleParams-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
-df_params <- SpaDES.core::moduleParams("fireSense_IgnitionFit", "modules")
+df_params <- SpaDES.core::moduleParams("fireSense_IgnitionFit", "..")
 knitr::kable(df_params, caption = "List of (ref:fireSense-IgnitionFit) parameters and their description.") |>
   kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
 ```
-## Usage example
 
+### Events
 
-# Events
-Events are scheduled as follows:
+<!-- TODO -->
+Describe what happens for each event type.
 
+### Plotting
 
-# Data dependencies
+<!-- TODO -->
+Write what is plotted.
 
-## Output data
+### Saving
 
+<!-- TODO -->
+Write what is saved.
 
-# Links to other modules
+### Module outputs
+
+Description of the module outputs (Table \@ref(tab:moduleOutputs-fireSense-IgnitionFit)).
+
+```{r moduleOutputs-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
+df_outputs <- SpaDES.core::moduleOutputs("fireSense_IgnitionFit", "..")
+knitr::kable(df_outputs, caption = "List of (ref:fireSense-IgnitionFit) outputs and their description.") |>
+  kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
+```
+
+### Links to other modules
+
+<!-- TODO: add links to other fireSense modules -->
 This model can be used to parameterize the fire ignition component of landscape fire models such as fireSense.
+
+### Getting help
+
+- <https://github.com/PredictiveEcology/fireSense_IgnitionFit/issues>
+
+## References
+
+<!-- autogenerated from bibligraphy -->
 

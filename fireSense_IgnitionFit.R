@@ -6,7 +6,7 @@ defineModule(sim, list(
                "negative binomial", "fireSense"),
   authors = c(
     person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut")),
-    person("Eliot", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca", role = c("aut", "cre")),
+    person("Eliot", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca", role = "aut"),
     person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca", role = c("aut", "cre")),
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = c("ctb"))
   ),
@@ -71,7 +71,7 @@ defineModule(sim, list(
   ),
   inputObjects = bindrows(
     expectsInput("climateVariablesForFire", "list",
-                 desc = paste("The column name(s) in the `fireSense_ignitionCovariates that is climate,",
+                 desc = paste("The column name(s) in the `fireSense_ignitionCovariates` that is climate,",
                  "in a named list, .e.g. `climateVariablesForFire = list('ignition' = 'MDC')`")),
     expectsInput("fireSense_ignitionCovariates", "data.frame",
                  desc = "table of aggregated ignition covariates with annual ignitions"),
@@ -79,11 +79,11 @@ defineModule(sim, list(
                  "RTM without ice/rocks/urban/water. Flammable map with 0 and 1."),
     expectsInput("ignitionFitRTM", "SpatRaster",
                  desc = paste("A (template) raster with information with regards to the spatial",
-                              "resolution and geographical extent of `fireSense_ignitionCovariates.`",
+                              "resolution and geographical extent of `fireSense_ignitionCovariates`.",
                               "Used to pass this information onto `fireSense_ignitionFitted`",
                               "Needs to have number of non-NA cells as attribute:",
                               "(`ignitionFitRTM@data@attributes$nonNAs`), and optionally,",
-                              "ignitionFitRTM@data@attributes$meanForestB")),
+                              "`ignitionFitRTM@data@attributes$meanForestB`")),
     expectsInput("fireSense_ignitionFormula", "character",
                  desc = "formula - as a character - describing the model to be fitted."),
   ),
