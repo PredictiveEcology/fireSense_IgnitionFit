@@ -174,14 +174,13 @@ frequencyFitRun <- function(sim) {
   }
 
   if (isTRUE(P(sim)$rescaleVars)) {
-
     # rescalers <- abs(sapply(fireSense_ignitionCovariates[, .SD, .SDcol = toRescale], FUN = max))
     message("Variables outside of [0,10] range will be rescaled to [0,10]")
     toRescale <- setdiff(names(fireSense_ignitionCovariates),
                          c("pixelID", "ignitions", "year", "yearChar", "ignitionsNoGT1"))
     rescalers <- sapply(fireSense_ignitionCovariates[, .SD, .SDcol = toRescale], max)
-    needRescale <- sapply(rescalers, FUN = function(x) all(inrange(na.omit(x), 0, 10)))
-    cols <- names(needRescale)[which(!needRescale)]
+    needRescale <- sapply(rescalers, FUN = function(x) !inRange(x, 0, 10))
+    cols <- names(rescalers)[which(needRescale)]
     message("rescaling the following variables: ", paste(cols, collapse = ", "))
     sim$ignitionRescalers <- 10^floor(log10(abs(rescalers[cols])))
     fireSense_ignitionCovariates <- rescaleVars(fireSense_ignitionCovariates, sim$ignitionRescalers)
@@ -285,7 +284,6 @@ frequencyFitRun <- function(sim) {
         interpolateClimVar <- seq(quantile(m[[var]], 0.1),
                                   (quantile(m[[var]], 0.95) * 1.5), length.out = N)
         set(p, NULL, var, interpolateClimVar)
-
         ## if more than 1 climate variable are used, they are plotted sequentially
         ## each prediction dataset will contain quantiles of one variable and mean of the other(s)
         otherClimVar <- climVar[!climVar %in% var]
@@ -325,7 +323,6 @@ frequencyFitRun <- function(sim) {
           set(pAll, which(!pAll$val %in% val1), val1, minBiomass)
         }
 
-
         #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
         system.time({
           preds <- predict(object = bestModel, newdata = pAll, se.fit = TRUE, re.form = NA)
@@ -344,6 +341,8 @@ frequencyFitRun <- function(sim) {
                        " (", basename(outputPath(sim)), ")",
                        " -- Pseudo ")
         titl2 <- paste0(round(pseudoR2, 3))
+
+        #TODO: this unscales the climate but it is scaled when passed to ggplot
         if (isTRUE(P(sim)$rescaleVars)) {
           pAll <- rescaleVars(pAll, 1/sim$ignitionRescalers) # invert it
         }
@@ -506,7 +505,7 @@ plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab,
 }
 
 rescaleVars <- function(dt, rescalers) {
-  cols <- names(Par$rescalers)
+  cols <- names(rescalers)
   dt[, (cols) := mapply(FUN = function(x, vec) {x / vec},
                         x = .SD, vec = rescalers,
                         SIMPLIFY = FALSE),
