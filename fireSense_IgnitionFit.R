@@ -313,15 +313,20 @@ frequencyFitRun <- function(sim) {
         termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
         termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
 
+
         for (val1 in c(termsUsingCover)) {
           set(pAll, which(!pAll$val %in% val1), val1, 0)
         }
 
         #set minimum biomass as whatever is in data (likely log(100)-1)
         minBiomass <- min(m[, .SD, .SDcol = termsUsingBiomass])
-        for (val1 in c(termsUsingCover)) {
-          set(pAll, which(!pAll$val %in% val1), val1, minBiomass)
+
+        for (val1 in c(termsUsingBiomass)) {
+          set(pAll, which(!pAll$val %in% c(val1, termsUsingCover)), val1, minBiomass)
         }
+
+        #copy pAll for plot #2 before the data are modified for plot #1
+        pAll2 <- copy(pAll)
 
         #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
         system.time({
@@ -342,10 +347,12 @@ frequencyFitRun <- function(sim) {
                        " -- Pseudo ")
         titl2 <- paste0(round(pseudoR2, 3))
 
-        #TODO: this unscales the climate but it is scaled when passed to ggplot
         if (isTRUE(P(sim)$rescaleVars)) {
           pAll <- rescaleVars(pAll, 1/sim$ignitionRescalers) # invert it
+          m <- rescaleVars(m, 1/sim$ignitionRescalers) #in case climate is rescaled
         }
+
+
 
         Plots(data = pAll, fn = plotFnLogitIgnition, # xColName = colName,
               ggylab = labelToUse,
@@ -360,7 +367,6 @@ frequencyFitRun <- function(sim) {
               filename = filenameToUse)
 
         ## make second prediction using mean forest or alternatively 100% non-forest cover
-
         if (!is.null(attributes(sim$ignitionFitRTM)$meanForestB) ||
             !is.null(P(sim)$plot_fuelBiomassPerPrediction)) {
 
@@ -368,14 +374,13 @@ frequencyFitRun <- function(sim) {
                           P(sim)$plot_fuelBiomassPerPrediction,
                           log(attributes(sim$ignitionFitRTM)$meanForestB))
           BunitForLabel <- round(exp(Bunit), digits = 0)
-          pAll2 <- copy(pAll)
 
-          for (val1 in termsUsingBiomass) {
-            set(pAll2, which(pAll2$val %in% val1), val1, Bunit)
+          for (val2 in termsUsingBiomass) {
+            set(pAll2, which(pAll2$val %in% val2), val2, Bunit)
           }
 
-          for (val1 in termsUsingCover) {
-            set(pAll2, which(pAll2$val %in% val1), val1, 1)#set the variable to 1 representing complete cover
+          for (val2 in termsUsingCover) {
+            set(pAll2, which(pAll2$val %in% val2), val2, 1) #set the variable to 1 representing complete cover
           }
 
           #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
@@ -388,6 +393,10 @@ frequencyFitRun <- function(sim) {
           pAll2[, val1 := factor(val)]
           pAll2[, upper := expit(preds$fit + preds$se.fit)]
           pAll2[, lower := expit(preds$fit - preds$se.fit)]
+
+          if (isTRUE(P(sim)$rescaleVars)) {
+            pAll2 <- rescaleVars(pAll2, 1/sim$ignitionRescalers) # invert it
+          }
 
           filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName, "_fullCoverAndBiomass_", climVar)
           Plots(data = pAll2, fn = plotFnLogitIgnition,
@@ -470,7 +479,7 @@ frequencyFitRun <- function(sim) {
 fittedVsObservedPlot <- function(d, ggTitle, ggSubtitle = NULL, ggylab, xColName)  {
   ggplot <- ggplot(data = d, aes_string(x = xColName, y = "value", colour = "variable")) +
     stat_summary(aes(fill = variable), fun.data = mean_ci,
-                 geom = "ribbon", alpha = 0.5, show.legend = FALSE) +
+                 geom = "ribbon", alpha = 0.3, show.legend = FALSE) +
     stat_summary(fun = mean, geom = "line", size = 1) +
     scale_color_discrete(labels = c("obsFires" = "observed no. fires",
                                     "predFires" = "fitted no. fires")) +
