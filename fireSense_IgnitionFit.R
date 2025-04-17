@@ -411,6 +411,10 @@ frequencyFitRun <- function(sim) {
                 filename = filenameToUse)
         }
       }
+
+      #rescale M once again for this final prediction
+      m <- rescaleVars(m, sim$ignitionRescalers)
+
       #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
       system.time({
         fittedNoRE <- predict(object = bestModel, newdata = m, se.fit = FALSE, re.form = NA,
@@ -418,8 +422,6 @@ frequencyFitRun <- function(sim) {
         # Cache(.functionName = "predict_forFitted_v_Obs_Ignitions",
         #       omitArgs = "object", .cacheExtra = forms[whBest])
       })
-
-      # fittedVals <- fitted(bestModel)
 
       plotData <- data.table(fireSense_ignitionCovariates)
       plotData[,  rows := 1:nrow(plotData)]
