@@ -71,8 +71,8 @@ defineModule(sim, list(
   ),
   inputObjects = bindrows(
     expectsInput("climateVariablesForFire", "list",
-                 desc = paste("The column name(s) in the `fireSense_ignitionCovariates` that is climate,",
-                 "in a named list, .e.g. `climateVariablesForFire = list('ignition' = 'MDC')`")),
+                 desc = paste("The column name in the `fireSense_ignitionCovariates` that is climate,",
+                              "in a named list, .e.g. `climateVariablesForFire = list('ignition' = 'MDC')`")),
     expectsInput("fireSense_ignitionCovariates", "data.frame",
                  desc = "table of aggregated ignition covariates with annual ignitions"),
     expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
@@ -88,11 +88,8 @@ defineModule(sim, list(
                  desc = "formula - as a character - describing the model to be fitted."),
   ),
   outputObjects = bindrows(
-    createsOutput("covMinMax_ignition", "data.table",
-                  desc = "Table of the original ranges (min and max) of covariates"),
     createsOutput("fireSense_IgnitionFitted", "fireSense_IgnitionFit",
-                  desc = "A fitted model object of class `fireSense_IgnitionFit`."),
-    createsOutput("ignitionRescalers", "integer", "scaling vector if rescaling variables to 0-10 range")
+                  desc = "A fitted model object of class `fireSense_IgnitionFit`.")
   )
 ))
 
@@ -182,8 +179,8 @@ frequencyFitRun <- function(sim) {
     needRescale <- sapply(rescalers, FUN = function(x) !inRange(x, 0, 10))
     cols <- names(rescalers)[which(needRescale)]
     message("rescaling the following variables: ", paste(cols, collapse = ", "))
-    sim$ignitionRescalers <- 10^floor(log10(abs(rescalers[cols])))
-    fireSense_ignitionCovariates <- rescaleVars(fireSense_ignitionCovariates, sim$ignitionRescalers)
+    ignitionRescalers <- 10^floor(log10(abs(rescalers[cols])))
+    fireSense_ignitionCovariates <- rescaleVars(fireSense_ignitionCovariates, ignitionRescalers)
   }
 
 
@@ -348,8 +345,8 @@ frequencyFitRun <- function(sim) {
         titl2 <- paste0(round(pseudoR2, 3))
 
         if (isTRUE(P(sim)$rescaleVars)) {
-          pAll <- rescaleVars(pAll, 1/sim$ignitionRescalers) # invert it
-          m <- rescaleVars(m, 1/sim$ignitionRescalers) #in case climate is rescaled
+          pAll <- rescaleVars(pAll, 1/ignitionRescalers) # invert it
+          m <- rescaleVars(m, 1/ignitionRescalers) #in case climate is rescaled
         }
 
 
@@ -395,7 +392,7 @@ frequencyFitRun <- function(sim) {
           pAll2[, lower := expit(preds$fit - preds$se.fit)]
 
           if (isTRUE(P(sim)$rescaleVars)) {
-            pAll2 <- rescaleVars(pAll2, 1/sim$ignitionRescalers) # invert it
+            pAll2 <- rescaleVars(pAll2, 1/ignitionRescalers) # invert it
           }
 
           filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName, "_fullCoverAndBiomass_", climVar)
@@ -413,7 +410,7 @@ frequencyFitRun <- function(sim) {
       }
 
       #rescale M once again for this final prediction
-      m <- rescaleVars(m, sim$ignitionRescalers)
+      m <- rescaleVars(m, ignitionRescalers)
 
       #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
       system.time({
@@ -468,7 +465,7 @@ frequencyFitRun <- function(sim) {
     #formula, data, coef, coef.se, convergence should all be attainable.
     # formula = forms[[whBest]],
     # convergence = bestModel$fit$convergence,
-    rescales = sim$ignitionRescalers,
+    rescales = ignitionRescalers,
     fittingRes = res(sim$ignitionFitRTM)[1],
     lambdaRescaleFactor = lambdaRescaleFactor)
 
