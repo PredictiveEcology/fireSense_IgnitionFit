@@ -18,7 +18,7 @@ defineModule(sim, list(
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   loadOrder = list(after = "fireSense_dataPrepFit"),
   reqdPkgs = list("data.table", "dplyr",
-                  "PredictiveEcology/fireSenseUtils@lccFix (>= 0.0.5.9065)",
+                  "PredictiveEcology/fireSenseUtils@development (>= 0.0.5.9090)",
                   "glmmTMB",
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
@@ -180,7 +180,9 @@ frequencyFitRun <- function(sim) {
     cols <- names(rescalers)[which(needRescale)]
     message("rescaling the following variables: ", paste(cols, collapse = ", "))
     ignitionRescalers <- 10^floor(log10(abs(rescalers[cols])))
-    fireSense_ignitionCovariates <- rescaleVars(fireSense_ignitionCovariates, ignitionRescalers)
+    fireSense_ignitionCovariates <- rescaleVarsByMagnitude(fireSense_ignitionCovariates, ignitionRescalers)
+  } else {
+    ignitionRescalers <- NULL #so that fire fireSense_IgnitionFit can add it
   }
 
 
@@ -345,8 +347,8 @@ frequencyFitRun <- function(sim) {
         titl2 <- paste0(round(pseudoR2, 3))
 
         if (isTRUE(P(sim)$rescaleVars)) {
-          pAll <- rescaleVars(pAll, 1/ignitionRescalers) # invert it
-          m <- rescaleVars(m, 1/ignitionRescalers) #in case climate is rescaled
+          pAll <- rescaleVarsByMagnitude(pAll, 1/ignitionRescalers) # invert it
+          m <- rescaleVarsByMagnitude(m, 1/ignitionRescalers) #in case climate is rescaled
         }
 
 
@@ -392,7 +394,7 @@ frequencyFitRun <- function(sim) {
           pAll2[, lower := expit(preds$fit - preds$se.fit)]
 
           if (isTRUE(P(sim)$rescaleVars)) {
-            pAll2 <- rescaleVars(pAll2, 1/ignitionRescalers) # invert it
+            pAll2 <- rescaleVarsByMagnitude(pAll2, 1/ignitionRescalers) # invert it
           }
 
           filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", P(sim)$.studyAreaName, "_fullCoverAndBiomass_", climVar)
@@ -410,7 +412,7 @@ frequencyFitRun <- function(sim) {
       }
 
       #rescale M once again for this final prediction
-      m <- rescaleVars(m, ignitionRescalers)
+      m <- rescaleVarsByMagnitude(m, ignitionRescalers)
 
       #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
       system.time({
@@ -512,14 +514,6 @@ plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab,
     theme_bw()
 }
 
-rescaleVars <- function(dt, rescalers) {
-  cols <- names(rescalers)
-  dt[, (cols) := mapply(FUN = function(x, vec) {x / vec},
-                        x = .SD, vec = rescalers,
-                        SIMPLIFY = FALSE),
-     .SDcols = cols]
-  dt[]
-}
 
 .inputObjects <- function(sim) {
   if (!suppliedElsewhere("fireSense_ignitionCovariates", sim)) {
