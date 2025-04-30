@@ -43,6 +43,8 @@ defineModule(sim, list(
                                  "use it to rescale variables as `var / rescalers['var']`. ",
                                  "Otherwise, `scale()` will be used to rescale variables to `[0,1]`,",
                                  "if they are not already within this range.")),
+    defineParameter("whichProcessesToFit", "character", c("ignition", "escape"), NA, NA,
+                    "which processes to fit: ignition, escape, or both (the default)"),
     defineParameter(".plots", "character", default = "screen",
                     desc = "See ?Plots. There are a few plots that are made within this module, if set."),
     defineParameter(".plotInitialTime", "numeric", default = NULL,
@@ -113,6 +115,7 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
       }
     },
     checkData = {
+
       sim <- Init(sim)
     },
     run = {
@@ -131,17 +134,19 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
 ### template initialization
 Init <- function(sim) {
 
-  if (!"pixelID" %in% colnames(sim$fireSense_ignitionCovariates)) {
-    stop("fireSense_ignitionCovariates must have a 'pixelID' column")
+  if ("ignition" %in% P(sim)$whichProcessesToFit) {
+    if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) ||
+        length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
+      stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
+    }
+    checkData(formula = sim$fireSense_ignitionFormula,
+              covariates = sim$fireSense_ignitionCovariates, type = "ignition")
   }
-
-  if (is.empty.model(as.formula(sim$fireSense_ignitionFormula, env = .GlobalEnv))) {
-    stop(moduleName, "> The formula describes an empty model.")
+  if ("escape" %in% P(sim)$whichProcessesToFit) {
+    checkData(sim$fireSense_escapeFormula, sim$fireSense_escapeCovariates, "escape")
   }
-
-  if (is.null(attributes(sim$ignitionFitRTM)$nonNAs) ||
-      length(attributes(sim$ignitionFitRTM)$nonNAs) == 0) {
-    stop("sim$ignitionFitRTM@data@attributes$nonNAs must be a non-empty/non-NULL numeric")
+  if (!any(c("ignition", "escape") %in% P(sim)$whichProcessesToFit)) {
+    stop("please review P(sim)$whichProcesesToFit...ensure lower-case")
   }
 
   return(invisible(sim))
@@ -149,110 +154,47 @@ Init <- function(sim) {
 
 frequencyFitRun <- function(sim) {
 
-  moduleName <- current(sim)$moduleName
+  ####1 prepare
+  if ("ignition" %in% P(sim)$whichProcessesToFit) {
+      ignitionData <- prepareCovariates(formula = sim$fireSense_ignitionFormula,
+                                        covariates = sim$fireSense_ignitionCovariates,
+                                        rescaleVars =P(sim)$rescaleVars)
+      ignitionModel <- buildModel(covariates = ignitionData$covariates,
+                                  formula= ignitionData$formula, type = "ignition")
+      #ignition specific
+      origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
+      finalNoPix <- nrow(ignitionData$fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
+      lambdaRescaleFactor <- finalNoPix/origNoPix
 
-  fireSense_ignitionFormula <- as.formula(sim$fireSense_ignitionFormula, env = .GlobalEnv)
-  terms <- terms.formula(fireSense_ignitionFormula)
-
-
-  fireSense_ignitionCovariates <- sim$fireSense_ignitionCovariates
-  fireSense_ignitionCovariates <- copy(setDT(fireSense_ignitionCovariates))
-
-  if (attr(terms, "response")) {
-    y <- fireSense_ignitionFormula[[2L]]
-  } else {
-    stop(moduleName, "> Incomplete formula, the LHS is missing.")
+      modelList <- list(
+        model = ignitionModel$bestModel,
+        rescales = ignitionRescalers,
+        fittingRes = res(sim$ignitionFitRTM)[1],
+        lambdaRescaleFactor = lambdaRescaleFactor)
+      sim$fireSense_IgnitionFitted <- modelList
+      class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
   }
 
-  if (any(c("year", "yr") %in% tolower(names(fireSense_ignitionCovariates)))) {
-    xvar <- intersect(c("year", "yr"), tolower(names(fireSense_ignitionCovariates)))
-  } else {
-    xvar <- rows
+  if ("escape" %in% P(sim)$whichProcessesToFit) {
+    browser()
+    escapeData <- prepareCovariates(formula = sim$fireSense_escapeFormula,
+                                      covariates = sim$fireSense_escapeCovariates,
+                                      rescaleVars =P(sim)$rescaleVars)
+    #TODO: RHS is NOT ignitionsNoGT1 - figure out what it is
+    ignitionModel <- buildModel(covariates = ignitionData$covariates,
+                                formula= ignitionData$formula, type = "escape")
+
+    #TODO: what goes in escape?
   }
 
-  if (isTRUE(P(sim)$rescaleVars)) {
-    # rescalers <- abs(sapply(fireSense_ignitionCovariates[, .SD, .SDcol = toRescale], FUN = max))
-    message("Variables outside of [0,10] range will be rescaled to [0,10]")
-    toRescale <- setdiff(names(fireSense_ignitionCovariates),
-                         c("pixelID", "ignitions", "year", "yearChar", "ignitionsNoGT1"))
-    rescalers <- sapply(fireSense_ignitionCovariates[, .SD, .SDcol = toRescale], max)
-    needRescale <- sapply(rescalers, FUN = function(x) !inRange(x, 0, 10))
-    cols <- names(rescalers)[which(needRescale)]
-    message("rescaling the following variables: ", paste(cols, collapse = ", "))
-    ignitionRescalers <- 10^floor(log10(abs(rescalers[cols])))
-    fireSense_ignitionCovariates <- rescaleVarsByMagnitude(fireSense_ignitionCovariates, ignitionRescalers)
-  } else {
-    ignitionRescalers <- NULL #so that fire fireSense_IgnitionFit can add it
-  }
+  #TODO: you need to abstract the plotting still, assuming the above actually works
+  #I suspect it will break where RHS is used
 
 
-  # convert to data.table --> easier to work with
-  m <- as.data.table(fireSense_ignitionCovariates)
-  family <- P(sim)$family
 
-  # Run 2 models ... the full one passed, plus a simplified one without interactions
-  forms <- list()
-  forms[["full"]] <- as.formula(fireSense_ignitionFormula, env = .GlobalEnv)
-  # drop interactions
-  formChar <- as.character(forms[["full"]])
-  terms <- lapply(formChar, function(x) {
-    allTermsNoMinus <- strsplit(x, " *\\- *")[[1]]
-    allTermsNoMinus <- lapply(allTermsNoMinus, function(y) {
-      allTerms <- strsplit(y, " *\\+ *")[[1]]
-      noInteractions <- grep(":", allTerms, value = TRUE, invert = TRUE)
-      paste0(noInteractions, collapse = " + ")
-    })
-    paste0(allTermsNoMinus, collapse = " - ")
-  })
-  forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
 
-  # make minor modifications to dataset --> remove cases of >1 ignition per pixel (logit link for poisson model)
-  climVar <- sim$climateVariablesForFire$ignition
-
-  for (i in c("year", "ignitionsNoGT1"))
-    set(m, NULL, i, as.integer(m[[i]]))
-  for (i in c("yearChar"))
-    set(m, NULL, i, factor(m[[i]]))
-
-  # m <- m[sample(NROW(m), NROW(m)/4), ]
-  system.time({
-    mods <- Map(
-      nam = names(forms), form = forms,
-      MoreArgs = list(dat = m, family = family),
-      function(form, nam, dat, family) {
-        en <- new.env(parent = .GlobalEnv)
-        ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
-        # form <- as.formula(paste0("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + ",
-        #                           "nonForest_lowFlam + class2 + class3"), env = en)
-        objNames <- c("dat", "family", "form", "ziform", "nam")
-        objs <- mget(objNames)
-        dig <- en$dig <- .robustDigest(objs)
-        list2env(objs, envir = en)
-        message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
-                messageFormulaFn(form))
-
-        out <- local({
-          glmmTMB(form, data = dat,
-                  ziformula = ziform, ## TODO this needs to be
-                  family = eval(family)) |>
-            ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
-            Cache(.functionName = paste0("glmmTMB_forIgnitions_", nam),
-                  omitArgs = formalArgs(glmmTMB),
-                  .cacheExtra = dig)},
-          envir = en)
-        # a <- identifyEnvs(out, en)
-        out
-      })
-  })
-
-  AICs <- sapply(mods, AIC)
-  ## even if the AIC is <2 better, should take simpler model;
-  ## in tests, turned many to non-significant when had interactions
-  whBest <- which.min(c(AICs[["full"]] + 2, AICs[["NoInteractions"]]))
-  # whBest <- 1
-  bestModel <- mods[[whBest]]
-  messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
-  summ <- summary(bestModel)
+  #do the same for escape
+#TODO: this is where the plotting begins
 
   if (anyPlotting(P(sim)$.plots)) {
     ff <- as.character(bestModel$call$formula)
@@ -458,21 +400,7 @@ frequencyFitRun <- function(sim) {
     }
   }
 
-  origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
-  finalNoPix <- nrow(fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
-  lambdaRescaleFactor <- finalNoPix/origNoPix
 
-  modelList <- list(
-    model = bestModel,
-    #formula, data, coef, coef.se, convergence should all be attainable.
-    # formula = forms[[whBest]],
-    # convergence = bestModel$fit$convergence,
-    rescales = ignitionRescalers,
-    fittingRes = res(sim$ignitionFitRTM)[1],
-    lambdaRescaleFactor = lambdaRescaleFactor)
-
-  sim$fireSense_IgnitionFitted <- modelList
-  class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
 
   return(invisible(sim))
 }
@@ -512,6 +440,126 @@ plotFnLogitIgnition <- function(pAll, subtitle = NULL, ggylab,
     labs(y = ggylab, title = ggTitle, col = fillTitle, subtitle = subtitle) +
     guides(lwd = "none", alpha = "none") +
     theme_bw()
+}
+
+checkData <- function(formula, covariates, type) {
+  if (!"pixelID" %in% colnames(covariates)) {
+    stop("covariates for ", type, " must have a 'pixelID' column")
+  }
+
+  if (is.empty.model(as.formula(formula, env = .GlobalEnv))) {
+    stop("formula for ", type, " describes an empty model.")
+  }
+}
+
+prepareCovariates <- function(formula, covariates, rescaleVars) {
+
+  formula <- as.formula(formula, env = .GlobalEnv)
+  terms <- terms.formula(formula)
+
+  covariates <- copy(setDT(covariates))
+
+  if (attr(terms, "response")) {
+    y <- formula[[2L]]
+  } else {
+    stop("Incomplete formula, the LHS is missing.")
+  }
+
+  if (any(c("year", "yr") %in% tolower(names(covariates)))) {
+    xvar <- intersect(c("year", "yr"), tolower(names(covariates)))
+  } else {
+    xvar <- rows #TODO what is this?
+  }
+
+  if (rescaleVars) {
+    # rescalers <- abs(sapply(covariates[, .SD, .SDcol = toRescale], FUN = max))
+    message("Variables outside of [0,10] range will be rescaled to [0,10]")
+    browser()
+    toRescale <- setdiff(names(covariates),
+                         c("pixelID", "ignitions", "year", "yearChar", "ignitionsNoGT1"))
+    rescalers <- sapply(covariates[, .SD, .SDcol = toRescale], max)
+    needRescale <- sapply(rescalers, FUN = function(x) !inRange(x, 0, 10))
+    cols <- names(rescalers)[which(needRescale)]
+    message("rescaling the following variables: ", paste(cols, collapse = ", "))
+    ignitionRescalers <- 10^floor(log10(abs(rescalers[cols])))
+    covariates <- rescaleVarsByMagnitude(covariates, ignitionRescalers)
+  } else {
+    ignitionRescalers <- NULL #so that fire fireSense_IgnitionFit can add it
+  }
+
+  return(list(covariates, formula, ignitionRescalers, xvar))
+}
+
+buildModel <- function(covariates, formula,  type = "ignition",
+                       climVar = sim$climateVariablesForFire$ignition,
+                       family = P(sim)$family) {
+  # convert to data.table --> easier to work with
+  m <- as.data.table(covariates)
+
+  # Run 2 models ... the full one passed, plus a simplified one without interactions
+  forms <- list()
+  forms[["full"]] <- as.formula(formula, env = .GlobalEnv)
+  # drop interactions
+  formChar <- as.character(forms[["full"]])
+  terms <- lapply(formChar, function(x) {
+    allTermsNoMinus <- strsplit(x, " *\\- *")[[1]]
+    allTermsNoMinus <- lapply(allTermsNoMinus, function(y) {
+      allTerms <- strsplit(y, " *\\+ *")[[1]]
+      noInteractions <- grep(":", allTerms, value = TRUE, invert = TRUE)
+      paste0(noInteractions, collapse = " + ")
+    })
+    paste0(allTermsNoMinus, collapse = " - ")
+  })
+  forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
+
+  # make minor modifications to dataset --> remove cases of >1 ignition per pixel (logit link for poisson model)
+
+  for (i in c("year", RHS))
+    set(m, NULL, i, as.integer(m[[i]]))
+  for (i in c("yearChar"))
+    set(m, NULL, i, factor(m[[i]]))
+
+
+  system.time({
+    mods <- Map(
+      nam = names(forms), form = forms,
+      MoreArgs = list(dat = m, family = family),
+      function(form, nam, dat, family) {
+        en <- new.env(parent = .GlobalEnv)
+        ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
+        # form <- as.formula(paste0("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + ",
+        #                           "nonForest_lowFlam + class2 + class3"), env = en)
+        objNames <- c("dat", "family", "form", "ziform", "nam")
+        objs <- mget(objNames)
+        dig <- en$dig <- .robustDigest(objs)
+        list2env(objs, envir = en)
+        message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
+                messageFormulaFn(form))
+
+        out <- local({
+          glmmTMB(form, data = dat,
+                  ziformula = ziform,
+                  family = eval(family)) |>
+            ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
+            Cache(.functionName = paste0("glmmTMB_for", type, "_", nam),
+                  omitArgs = formalArgs(glmmTMB),
+                  .cacheExtra = dig)},
+          envir = en)
+        # a <- identifyEnvs(out, en)
+        out
+      })
+  })
+
+  AICs <- sapply(mods, AIC)
+  ## even if the AIC is <2 better, should take simpler model;
+  ## in tests, turned many to non-significant when had interactions
+  whBest <- which.min(c(AICs[["full"]] + 2, AICs[["NoInteractions"]]))
+  # whBest <- 1
+  bestModel <- mods[[whBest]]
+  messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
+  summ <- summary(bestModel)
+
+  return(bestModel)
 }
 
 
