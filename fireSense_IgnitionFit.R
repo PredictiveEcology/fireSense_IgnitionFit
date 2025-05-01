@@ -28,7 +28,13 @@ defineModule(sim, list(
                   "RhpcBLASctl",
                   "PredictiveEcology/SpaDES.core@development (>= 2.0.2.9006)", "terra"),
   parameters = bindrows(
-    defineParameter("family", "function, character", default = quote(poisson(link = "logit")),
+    defineParameter("escapeFamily", "function, character", default = quote(poisson(link = "log")),
+                    desc = paste("a family function (must be wrapped with `quote()`) or a",
+                                 "character string naming a family function.",
+                                 "Only the negative binomial has been implemented",
+                                 "For additional details see `?family`. This was formerly ",
+                                 "`quote(MASS::negative.binomial(theta = 1, link = 'identity'))`.")),
+    defineParameter("ignitionFamily", "function, character", default = quote(poisson(link = "log")),
                     desc = paste("a family function (must be wrapped with `quote()`) or a",
                                  "character string naming a family function.",
                                  "Only the negative binomial has been implemented",
@@ -160,7 +166,8 @@ frequencyFitRun <- function(sim) {
                                         covariates = sim$fireSense_ignitionCovariates,
                                         rescaleVars =P(sim)$rescaleVars)
       ignitionModel <- buildModel(covariates = ignitionData$covariates,
-                                  formula= ignitionData$formula, type = "ignition")
+                                  formula= ignitionData$formula, type = "ignition",
+                                  family = P(sim)$ignitionFamily)
       #ignition specific
       origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
       finalNoPix <- nrow(ignitionData$fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
@@ -176,13 +183,14 @@ frequencyFitRun <- function(sim) {
   }
 
   if ("escape" %in% P(sim)$whichProcessesToFit) {
-    browser()
+
     escapeData <- prepareCovariates(formula = sim$fireSense_escapeFormula,
                                       covariates = sim$fireSense_escapeCovariates,
-                                      rescaleVars =P(sim)$rescaleVars)
+                                      rescaleVars = P(sim)$rescaleVars)
     #TODO: RHS is NOT ignitionsNoGT1 - figure out what it is
-    ignitionModel <- buildModel(covariates = ignitionData$covariates,
-                                formula= ignitionData$formula, type = "escape")
+    escapeModel <- buildModel(covariates = escapeData$covariates,
+                                formula= escapeData$formula, type = "escape",
+                                family = P(sim)$escapeFamily)
 
     #TODO: what goes in escape?
   }
@@ -492,7 +500,7 @@ prepareCovariates <- function(formula, covariates, rescaleVars) {
 
 buildModel <- function(covariates, formula,  type = "ignition",
                        climVar = sim$climateVariablesForFire$ignition,
-                       family = P(sim)$family) {
+                       family) {
   # convert to data.table --> easier to work with
   m <- as.data.table(covariates)
 
