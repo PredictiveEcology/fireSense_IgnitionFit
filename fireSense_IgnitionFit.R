@@ -162,12 +162,15 @@ frequencyFitRun <- function(sim) {
 
   ####1 prepare
   if ("ignition" %in% P(sim)$whichProcessesToFit) {
+
       ignitionData <- prepareCovariates(formula = sim$fireSense_ignitionFormula,
                                         covariates = sim$fireSense_ignitionCovariates,
                                         rescaleVars =P(sim)$rescaleVars)
       ignitionModel <- buildModel(covariates = ignitionData$covariates,
+                                  climVar = sim$climateVariablesForFire$ignition,
                                   formula= ignitionData$formula, type = "ignition",
                                   family = P(sim)$ignitionFamily)
+      browser()
       #ignition specific
       origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
       finalNoPix <- nrow(ignitionData$fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
@@ -175,7 +178,7 @@ frequencyFitRun <- function(sim) {
 
       modelList <- list(
         model = ignitionModel$bestModel,
-        rescales = ignitionRescalers,
+        rescales = ignitionData$ignitionRescalers,
         fittingRes = res(sim$ignitionFitRTM)[1],
         lambdaRescaleFactor = lambdaRescaleFactor)
       sim$fireSense_IgnitionFitted <- modelList
@@ -187,22 +190,18 @@ frequencyFitRun <- function(sim) {
     escapeData <- prepareCovariates(formula = sim$fireSense_escapeFormula,
                                       covariates = sim$fireSense_escapeCovariates,
                                       rescaleVars = P(sim)$rescaleVars)
-    #TODO: RHS is NOT ignitionsNoGT1 - figure out what it is
     escapeModel <- buildModel(covariates = escapeData$covariates,
                                 formula= escapeData$formula, type = "escape",
                                 family = P(sim)$escapeFamily)
 
-    #TODO: what goes in escape?
+
   }
 
   #TODO: you need to abstract the plotting still, assuming the above actually works
-  #I suspect it will break where RHS is used
-
-
-
+  #I suspect it will break where LHS is used
 
   #do the same for escape
-#TODO: this is where the plotting begins
+  #TODO: this is where the plotting begins
 
   if (anyPlotting(P(sim)$.plots)) {
     ff <- as.character(bestModel$call$formula)
@@ -297,8 +296,8 @@ frequencyFitRun <- function(sim) {
         titl2 <- paste0(round(pseudoR2, 3))
 
         if (isTRUE(P(sim)$rescaleVars)) {
-          pAll <- rescaleVarsByMagnitude(pAll, 1/ignitionRescalers) # invert it
-          m <- rescaleVarsByMagnitude(m, 1/ignitionRescalers) #in case climate is rescaled
+          pAll <- rescaleVarsByMagnitude(pAll, 1/ignitionData$ignitionRescalers) # invert it
+          m <- rescaleVarsByMagnitude(m, 1/ignitionData$ignitionRescalers) #in case climate is rescaled
         }
 
 
@@ -482,9 +481,9 @@ prepareCovariates <- function(formula, covariates, rescaleVars) {
   if (rescaleVars) {
     # rescalers <- abs(sapply(covariates[, .SD, .SDcol = toRescale], FUN = max))
     message("Variables outside of [0,10] range will be rescaled to [0,10]")
-    browser()
+
     toRescale <- setdiff(names(covariates),
-                         c("pixelID", "ignitions", "year", "yearChar", "ignitionsNoGT1"))
+                         c("pixelID", "ignitions", "year", "yearChar"))
     rescalers <- sapply(covariates[, .SD, .SDcol = toRescale], max)
     needRescale <- sapply(rescalers, FUN = function(x) !inRange(x, 0, 10))
     cols <- names(rescalers)[which(needRescale)]
@@ -495,12 +494,17 @@ prepareCovariates <- function(formula, covariates, rescaleVars) {
     ignitionRescalers <- NULL #so that fire fireSense_IgnitionFit can add it
   }
 
-  return(list(covariates, formula, ignitionRescalers, xvar))
+  return(list(covariates = covariates,
+              formula = formula,
+              ignitionRescalers = ignitionRescalers,
+              xvar = xvar))
 }
 
 buildModel <- function(covariates, formula,  type = "ignition",
                        climVar = sim$climateVariablesForFire$ignition,
                        family) {
+
+
   # convert to data.table --> easier to work with
   m <- as.data.table(covariates)
 
@@ -521,12 +525,15 @@ buildModel <- function(covariates, formula,  type = "ignition",
   forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
 
   # make minor modifications to dataset --> remove cases of >1 ignition per pixel (logit link for poisson model)
-
-  for (i in c("year", RHS))
+  #TODO: LHS is missing...
+  LHS <- "ignitions"
+  if (type == "escape") {
+    LHS <- c(LHS, "escapes")
+  }
+  for (i in c("year", "ignitions"))
     set(m, NULL, i, as.integer(m[[i]]))
   for (i in c("yearChar"))
     set(m, NULL, i, factor(m[[i]]))
-
 
   system.time({
     mods <- Map(
@@ -535,7 +542,7 @@ buildModel <- function(covariates, formula,  type = "ignition",
       function(form, nam, dat, family) {
         en <- new.env(parent = .GlobalEnv)
         ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
-        # form <- as.formula(paste0("ignitionsNoGT1 ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + ",
+        # form <- as.formula(paste0("ignitions ~ (1 | yearChar) + MDCc + youngAge + nonForest_highFlam + ",
         #                           "nonForest_lowFlam + class2 + class3"), env = en)
         objNames <- c("dat", "family", "form", "ziform", "nam")
         objs <- mget(objNames)
@@ -549,7 +556,7 @@ buildModel <- function(covariates, formula,  type = "ignition",
                   ziformula = ziform,
                   family = eval(family)) |>
             ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
-            Cache(.functionName = paste0("glmmTMB_for", type, "_", nam),
+            Cache(.functionName = paste0("glmmTMB_for", "_", nam),
                   omitArgs = formalArgs(glmmTMB),
                   .cacheExtra = dig)},
           envir = en)
