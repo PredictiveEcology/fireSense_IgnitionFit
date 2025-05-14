@@ -10,6 +10,7 @@ IgEscapePlots <- function(
     ignitionFitRTM = sim$ignitionFitRTM,
     oPath = outputPath(sim), studyAreaName = P(sim)$.studyAreaName) {
 
+  if (fsProcess == "escape") {browser()}
   #general things
   dt <- copy(dt)
   ff <- as.character(bestModel$call$formula)

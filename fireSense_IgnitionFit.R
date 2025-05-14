@@ -166,17 +166,13 @@ frequencyFitRun <- function(sim) {
     ignitionData <- prepareCovariates(formula = sim$fireSense_ignitionFormula,
                                       covariates = sim$fireSense_ignitionCovariates,
                                       rescaleVars =P(sim)$rescaleVars)
-    #use only a sample of zeroes...
-    # zeroes <- ignitionData$covariates[ignitions == 0]
-    # nonzeroes <- ignitionData$covariates[ignitions > 0]
-    # #take 10 times more zeroes than igs
-    # sampleZeroes <- zeroes[sample(nrow(zeroes), size = nrow(nonzeroes) * 10, replace = FALSE)]
-    # igSample <- rbind(nonzeroes, sampleZeroes)
 
     ignitionModel <- buildModel(covariates = ignitionData$covariates,
                                 climVar = sim$climateVariablesForFire$ignition,
                                 formula= ignitionData$formula, type = "ignition",
-                                family = P(sim)$ignitionFamily)
+                                family = P(sim)$ignitionFamily) |>
+      Cache() #TODO: the inner cache is not working..
+
     #ignition specific
     origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
     finalNoPix <- nrow(ignitionData$fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
@@ -187,6 +183,7 @@ frequencyFitRun <- function(sim) {
       rescales = ignitionData$ignitionRescalers,
       fittingRes = res(sim$ignitionFitRTM)[1],
       lambdaRescaleFactor = lambdaRescaleFactor)
+
     sim$fireSense_IgnitionFitted <- modelList
     class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
 
@@ -210,7 +207,17 @@ frequencyFitRun <- function(sim) {
     escapeModel <- buildModel(covariates = escapeData$covariates,
                               climVar = sim$climateVariablesForFire$ignition,
                               formula= escapeData$formula, type = "escape",
-                              family = P(sim)$escapeFamily)
+                              family = P(sim)$escapeFamily) |>
+      Cache()
+
+    modelList <- list(
+      model = escapeModel$bestModel,
+      rescales = escapeData$ignitionRescalers,
+      fittingRes = res(sim$escapeFitRTM)[1],
+      lambdaRescaleFactor = lambdaRescaleFactor)
+
+    sim$fireSense_EscapeFitted <- modelList
+    class(sim$fireSense_EscapeFitted) <- "fireSense_EscapeFit"
 
     if (anyPlotting(P(sim)$.plots)) {
 
