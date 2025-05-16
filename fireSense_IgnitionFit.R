@@ -179,7 +179,7 @@ frequencyFitRun <- function(sim) {
     lambdaRescaleFactor <- finalNoPix/origNoPix
 
     modelList <- list(
-      model = ignitionModel$bestModel,
+      model = ignitionModel,
       rescales = ignitionData$ignitionRescalers,
       fittingRes = res(sim$ignitionFitRTM)[1],
       lambdaRescaleFactor = lambdaRescaleFactor)
@@ -211,16 +211,15 @@ frequencyFitRun <- function(sim) {
       Cache()
 
     modelList <- list(
-      model = escapeModel$bestModel,
+      model = escapeModel,
       rescales = escapeData$ignitionRescalers,
-      fittingRes = res(sim$escapeFitRTM)[1],
+      fittingRes = res(sim$ignitionFitRTM)[1],
       lambdaRescaleFactor = lambdaRescaleFactor)
 
     sim$fireSense_EscapeFitted <- modelList
     class(sim$fireSense_EscapeFitted) <- "fireSense_EscapeFit"
 
     if (anyPlotting(P(sim)$.plots)) {
-
       IgEscapePlots(dt = escapeData$covariates, bestModel = escapeModel,
                     climVar = sim$climateVariablesForFire$ignition,
                     fsProcess = "escape", family =  P(sim)$escapeFamily,
@@ -309,13 +308,13 @@ buildModel <- function(covariates, formula,  type = "ignition",
     allTermsNoMinus <- strsplit(x, " *\\- *")[[1]]
     allTermsNoMinus <- lapply(allTermsNoMinus, function(y) {
       allTerms <- strsplit(y, " *\\+ *")[[1]]
-      noInteractions <- grep(":", allTerms, value = TRUE, invert = TRUE)
-      paste0(noInteractions, collapse = " + ")
+      InterceptOnly <- grep(":", allTerms, value = TRUE, invert = TRUE)
+      paste0(InterceptOnly, collapse = " + ")
     })
     paste0(allTermsNoMinus, collapse = " - ")
   })
 
-  forms[["NoInteractions"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
+  forms[["InterceptOnly"]] <- as.formula(paste0(terms[c(2,1,3)], collapse = " "), env = .GlobalEnv)
   forms[["climateOnly"]] <-  as.formula(paste0(
     paste0(terms[c(2,1,3)], collapse = " "),
     paste0(" + ", climVar)),
@@ -369,7 +368,7 @@ buildModel <- function(covariates, formula,  type = "ignition",
   AICs <- sapply(mods, AIC)
   ## even if the AIC is <2 better, should take simpler model;
   ## in tests, turned many to non-significant when had interactions
-  whBest <- which.min(c(AICs[["full"]] + 2, AICs[["NoInteractions"]], AICs[["climateOnly"]]))
+  whBest <- which.min(c(AICs[["full"]] + 2, AICs[["InterceptOnly"]], AICs[["climateOnly"]]))
   # whBest <- 1
   bestModel <- mods[[whBest]]
   messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")

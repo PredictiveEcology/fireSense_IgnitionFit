@@ -1,5 +1,3 @@
-#plotFnLogitIgnition renamed plotFnLogIgnition as logit is incorrect
-
 IgEscapePlots <- function(
     dt = ignitionData$covariates, bestModel = ignitionModel,
     climVar = sim$climateVariablesForFire$ignition,
@@ -10,7 +8,6 @@ IgEscapePlots <- function(
     ignitionFitRTM = sim$ignitionFitRTM,
     oPath = outputPath(sim), studyAreaName = P(sim)$.studyAreaName) {
 
-  if (fsProcess == "escape") {browser()}
   #general things
   dt <- copy(dt)
   ff <- as.character(bestModel$call$formula)
@@ -26,8 +23,7 @@ IgEscapePlots <- function(
   ## https://stackoverflow.com/a/68684973 -- NOT VERY APPROPRIATE FOR RE model
   pseudoR2 <- as.numeric(1 - logLik(bestModel) / logLik(nullModel))
 
-  #plotting
-  #TODO: NULL model already produced in buildModel - avoid duplicating it?
+  #do not plot if bestModel is null
   if (terms(nullModel) != terms(bestModel)) {
     #### Plotting glmmTMB ####
     ## build two prediction datasets
@@ -82,6 +78,11 @@ IgEscapePlots <- function(
       set(pAll, which(!pAll$val %in% c(val1, termsUsingCover)), val1, minBiomass)
     }
 
+    if (fsProcess == "escape") {
+      #simulate x ignitions along climate increment
+      pAll[, ignitions := 1]
+    }
+
     #copy pAll for plot #2 before the data are modified for plot #1
     pAll2 <- copy(pAll)
 
@@ -95,12 +96,19 @@ IgEscapePlots <- function(
     pAll[, lower := expit(preds$fit - preds$se.fit)]
 
     resInKm2 <- prod(res(ignitionFitRTM)) / 1e6 ## 1e6 m^2 == 1 km^2
-    labelToUse <- paste("Ignition rate per", resInKm2, "km^2")
-    filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_",
+
+    FSPro <- capitalize(fsProcess)
+    switch(fsProcess,
+           "ignition" = {
+             labelToUse <- paste(FSPro,  "rate per", resInKm2, "km^2")},
+           "escape" = {
+             labelToUse <- paste(FSPro,  "rate per 1 ignition")}
+           )
+    filenameToUse <- paste0(FSPro, "RatePer", resInKm2, "km2_",
                             studyAreaName, "_meanByClass_", climVar)
 
-    titl <- paste0("fireSense_IgnitionFit:", studyAreaName,
-                   " (", basename(oPath), ")",
+    titl <- paste0("fireSense_", FSPro, "Fit:", studyAreaName,
+                   # " (", basename(oPath), ")", #TOOD: unsure if needed - title getting too large
                    " -- Pseudo ")
     titl2 <- paste0(round(pseudoR2, 3))
 
@@ -108,9 +116,6 @@ IgEscapePlots <- function(
       pAll <- rescaleVarsByMagnitude(pAll, 1/rescalers) # invert it
       dt <- rescaleVarsByMagnitude(dt, 1/rescalers) #in case climate is rescaled
     }
-
-
-
     Plots(data = pAll, fn = plotFnLogIgnition, # xColName = colName,
           ggylab = labelToUse,
           subtitle = "using mean cover and biomass per pixel",
@@ -155,7 +160,7 @@ IgEscapePlots <- function(
         pAll2 <- rescaleVarsByMagnitude(pAll2, 1/rescalers) # invert it
       }
 
-      filenameToUse <- paste0("IgnitionRatePer", resInKm2, "km2_", studyAreaName, "_fullCoverAndBiomass_", climVar)
+      filenameToUse <- paste0(FSPro, "RatePer", resInKm2, "km2_", studyAreaName, "_fullCoverAndBiomass_", climVar)
       Plots(data = pAll2, fn = plotFnLogIgnition,
             ggylab = labelToUse,
             subtitle = paste0("per ", BunitForLabel, " g B/m2 or 100% cover"),
@@ -163,7 +168,7 @@ IgEscapePlots <- function(
             .plotInitialTime = NULL, # this means "ignore what `.plotInitialTime says; use only .plots`
             climateVar = climVar,
             rawClimate = dt[[climVar]],
-            # origXmax = max(sim$fireSense_ignitionCovariates[[colName]]), ## if supplied, adds bar to plot
+            # origXmax = max(dt[[colName]]), ## if supplied, adds bar to plot
             ggTitle = bquote(.(titl)~R^2 == .(titl2)),
             filename = filenameToUse)
     }
@@ -172,6 +177,7 @@ IgEscapePlots <- function(
     dt <- rescaleVarsByMagnitude(dt, rescalers)
 
     #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
+    dt
     system.time({
       fittedNoRE <- predict(object = bestModel, newdata = dt, se.fit = FALSE, re.form = NA,
                             type = "response") #|>
@@ -181,20 +187,37 @@ IgEscapePlots <- function(
 
     plotData <- data.table(dt)
     plotData[,  rows := 1:nrow(plotData)]
-    cols <- unique(c(paste(y), xvar, "rows"))
+
+
+    if (fsProcess == "ignition") {
+      cols <- unique(c(paste(y), xvar, "rows"))
+     } else {
+      cols <- c("ignitions", "escapes", xvar, "rows")
+     }
+
     plotData <- plotData[, ..cols]
     plotData <- cbind(plotData, fittedNoRE = fittedNoRE)
 
-    predDT <- rbindlist(lapply(1:100,  FUN = function(x, DT) {
-      rpoisPred <- rpois(nrow(DT), lambda = DT$fittedNoRE)
+
+    switch(fsProcess,
+           "ignition" = {predFun <- quote(rpois(nrow(DT), DT$fittedNoRE))},
+           "escape" = {predFun <- quote(rbinom(nrow(DT), DT$ignitions, DT$fittedNoRE))}
+    )
+
+    predDT <- rbindlist(lapply(1:100,  FUN = function(x, DT, Pred = predFun) {
+      Pred <- eval(Pred)
       n <- rep(x, nrow(DT))
-      data.table(rpoisPred = rpoisPred, n = n, rows = DT$rows)
+      data.table(Pred = Pred, n = n, rows = DT$rows)
     }, DT = plotData))
 
     plotData <- plotData[predDT, on = "rows"]
 
+    if (fsProcess == "escape") {
+      y <- quote(escapes) #don't need y anymore - don't care about ignitions
+    }
+
     plotData <- plotData[, list(obsFires = sum(eval(y), na.rm = TRUE),
-                                predFires = sum(rpoisPred, na.rm = TRUE)),
+                                predFires = sum(Pred, na.rm = TRUE)),
                          by = c(xvar, "n")]
     plotData[, obsFires := as.integer(obsFires)]
     plotData[, predFires := as.integer(predFires)]
@@ -204,10 +227,11 @@ IgEscapePlots <- function(
 
     plotData <- melt(plotData, id.var = c(xvar, "n"))
 
+    yVar <- ifelse(fsProcess == "ignition", "ignitions", "escapes")
     Plots(data = plotData, fn = fittedVsObservedPlot,
           xColName = xvar, .plotInitialTime = NULL,
-          ggylab = "num. fires",
-          ggTitle = paste(studyAreaName, "fireSense_IgnitionFit: obs. vs. fit"),
+          ggylab = paste0("num. ", yVar),
+          ggTitle = paste(studyAreaName, "fireSense_", FSPro, "Fit: obs. vs. fit"),
           ggSubtitle = paste0("Correlation = ", round(correl, 2)),
           filename = paste0(fsProcess, "_NumFiresFitted_", studyAreaName))
 
