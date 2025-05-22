@@ -2996,7 +2996,7 @@ border-radius: 0px;
 
 <h1 class="title toc-ignore">fireSense_IgnitionFit Manual</h1>
 <h3 class="subtitle">v.1.0.0</h3>
-<h4 class="date">Last updated: 2025-04-24</h4>
+<h4 class="date">Last updated: 2025-05-22</h4>
 
 </div>
 
@@ -3148,13 +3148,33 @@ paramDesc
 <tbody>
 <tr>
 <td style="text-align:left;">
-family
+escapeFamily
 </td>
 <td style="text-align:left;">
 function….
 </td>
 <td style="text-align:left;">
-poisson,….
+binomial….
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+a family function (must be wrapped with <code>quote()</code>) or a character string naming a family function. Only the negative binomial has been implemented For additional details see <code>?family</code>. This was formerly <code>quote(MASS::negative.binomial(theta = 1, link = &#39;identity&#39;))</code>.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ignitionFamily
+</td>
+<td style="text-align:left;">
+function….
+</td>
+<td style="text-align:left;">
+poisson, log
 </td>
 <td style="text-align:left;">
 NA
@@ -3203,6 +3223,26 @@ NA
 </td>
 <td style="text-align:left;">
 Attempt to rescale variables? If <code>rescalers</code> is defined, use it to rescale variables as <code>var / rescalers[&#39;var&#39;]</code>. Otherwise, <code>scale()</code> will be used to rescale variables to <code>[0,1]</code>, if they are not already within this range.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+whichProcessesToFit
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+ignition….
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+which processes to fit: ignition, escape, or both (the default)
 </td>
 </tr>
 <tr>
