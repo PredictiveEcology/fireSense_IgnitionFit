@@ -167,7 +167,8 @@ frequencyFitRun <- function(sim) {
 
     ignitionData <- prepareCovariates(formula = sim$fireSense_ignitionFormula,
                                       covariates = sim$fireSense_ignitionCovariates,
-                                      rescaleVars =P(sim)$rescaleVars)
+                                      rescaleVars =P(sim)$rescaleVars) |>
+      Cache()
 
     ignitionModel <- buildModel(covariates = ignitionData$covariates,
                                 climVar = sim$climateVariablesForFire$ignition,
@@ -177,7 +178,7 @@ frequencyFitRun <- function(sim) {
 
     #ignition specific
     origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
-    finalNoPix <- nrow(ignitionData$fireSense_ignitionCovariates)     ## nrow(postSampleData) in eg above
+    finalNoPix <- nrow(ignitionData$covariates)     ## nrow(postSampleData) in eg above
     lambdaRescaleFactor <- finalNoPix/origNoPix
 
     modelList <- list(
@@ -204,7 +205,8 @@ frequencyFitRun <- function(sim) {
   if ("escape" %in% P(sim)$whichProcessesToFit) {
     escapeData <- prepareCovariates(formula = sim$fireSense_escapeFormula,
                                     covariates = sim$fireSense_escapeCovariates,
-                                    rescaleVars = P(sim)$rescaleVars)
+                                    rescaleVars = P(sim)$rescaleVars) |>
+      Cache()
 
     escapeModel <- buildModel(covariates = escapeData$covariates,
                               climVar = sim$climateVariablesForFire$ignition,
