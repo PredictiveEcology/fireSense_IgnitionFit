@@ -96,6 +96,8 @@ defineModule(sim, list(
                  desc = "formula - as a character - describing the model to be fitted."),
   ),
   outputObjects = bindrows(
+    createsOutput("fireSense_EscapeFitted", "fireSense_EscapeFit",
+                  desc = "A fitted model object of class `fireSense_EscapeFit`"),
     createsOutput("fireSense_IgnitionFitted", "fireSense_IgnitionFit",
                   desc = "A fitted model object of class `fireSense_IgnitionFit`.")
   )
