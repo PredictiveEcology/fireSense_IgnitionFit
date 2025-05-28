@@ -177,7 +177,6 @@ IgEscapePlots <- function(
     dt <- rescaleVarsByMagnitude(dt, rescalers)
 
     #TODO: caching preds is not currently working with reproducible 2.1.2 or 2.1.2.9007 (recursion error)
-    dt
     system.time({
       fittedNoRE <- predict(object = bestModel, newdata = dt, se.fit = FALSE, re.form = NA,
                             type = "response") #|>

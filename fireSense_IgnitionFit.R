@@ -162,6 +162,7 @@ Init <- function(sim) {
 
 frequencyFitRun <- function(sim) {
 
+  #TODO: make cache smart by digest args in advance
   if ("ignition" %in% P(sim)$whichProcessesToFit) {
 
 
@@ -174,7 +175,7 @@ frequencyFitRun <- function(sim) {
                                 climVar = sim$climateVariablesForFire$ignition,
                                 formula= ignitionData$formula, type = "ignition",
                                 family = P(sim)$ignitionFamily) |>
-      Cache() #TODO: the inner cache is not working..
+      Cache()
 
     #ignition specific
     origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
@@ -198,7 +199,8 @@ frequencyFitRun <- function(sim) {
                     plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
                     ignitionFitRTM = sim$ignitionFitRTM,
                     studyAreaName = P(sim)$.studyAreaName,
-                    oPath = outputPath(sim))
+                    oPath = outputPath(sim)) |>
+        Cache()
     }
   }
 
@@ -231,7 +233,8 @@ frequencyFitRun <- function(sim) {
                     plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
                     ignitionFitRTM = sim$ignitionFitRTM,
                     studyAreaName = P(sim)$.studyAreaName,
-                    oPath = outputPath(sim))
+                    oPath = outputPath(sim)) |>
+        Cache()
     }
   }
 
