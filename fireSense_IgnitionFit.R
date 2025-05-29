@@ -114,9 +114,9 @@ doEvent.fireSense_IgnitionFit = function(sim, eventTime, eventType, debug = FALS
     init = {
       #the reason this is not scheduling Init is because it is only performing sanity checks on data
       # which is created during other modules non-init events. And since Inits are all scheduled first...
-      sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "checkData", eventPriority = 2)
+      sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "checkData")
 
-      sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "run", eventPriority = 5.11)
+      sim <- scheduleEvent(sim, P(sim)$.runInitialTime, moduleName, "run")
 
       if (!is.na(P(sim)$.saveInitialTime)) {
         sim <- scheduleEvent(sim, P(sim)$.saveInitialTime, moduleName, "save", .last())
