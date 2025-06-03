@@ -434,24 +434,30 @@ buildModel <- function(covariates, formula,  type = "ignition",
   for (i in c("yearChar"))
     set(m, NULL, i, factor(m[[i]]))
 
+  dat <- m
+  envir <- environment()
   system.time({
     mods <- Map(
       nam = names(forms), form = forms,
-      MoreArgs = list(dat = m, family = family, type = type),
-      f = function(form, nam, dat, family, type) {
+      # putting dat = m here causes it to become unresonsive --> a feature of "MoreArgs" in Map --> a list is evaluated
+      MoreArgs = list(# dat = m, family = family,  # putting family = family here causes it to evaluated
+                      type = type, envir = envir),
+      f = function(form, nam, type, envir) {
         en <- new.env(parent = .GlobalEnv)
         if (type == "ignition") {
           ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
         } else {
           ziform <- as.formula(~0, env = en)
         }
-        objNames <- c("dat", "family", "form", "ziform", "nam")
-        objs <- mget(objNames)
+        objNamesOutside <- c("dat", "family")
+        objNamesInside <- c("form", "ziform", "nam")
+        objsOutside <- mget(objNamesOutside, envir = envir)
+        objsInside <- mget(objNamesInside)
+        objs <- append(objsInside, objsOutside)
         dig <- en$dig <- .robustDigest(objs)
         list2env(objs, envir = en)
         message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
                 messageFormulaFn(form))
-
 
         out <- local({
           glmmTMB(form, data = dat,
@@ -474,9 +480,10 @@ buildModel <- function(covariates, formula,  type = "ignition",
   ## in tests, turned many to non-significant when had interactions
   whBest <- which.min(c(AICs[["full"]] + 2, AICs[["InterceptOnly"]], AICs[["climateOnly"]]))
   # whBest <- 1
+
   bestModel <- mods[[whBest]]
   messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
-  summ <- summary(bestModel)
+  # summ <- summary(bestModel)
 
   return(bestModel)
 }
@@ -497,4 +504,18 @@ buildModel <- function(covariates, formula,  type = "ignition",
   }
 
   return(sim)
+}
+
+
+igOrEscNames <- function(igOrEsc, pre = "fireSense_", post, case = c("lower", "camel", "sentence", "title")) {
+  if (startsWith(tolower(case[1]), prefix = "cam"))
+    igOrEsc <- camelCase(igOrEsc)
+  if (startsWith(tolower(case[1]), prefix = "sen") || startsWith(tolower(case[1]), prefix = "tit"))
+    igOrEsc <- tools::toTitleCase(igOrEsc) # only has one word, so OK
+  paste0(pre, igOrEsc, post)
+}
+
+
+camelCase <- function(x) {
+  gsub("(^|[^[:alnum:]])([[:alnum:]])", "\\U\\2", x, perl = TRUE)
 }
