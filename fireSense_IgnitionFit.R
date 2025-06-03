@@ -482,6 +482,9 @@ buildModel <- function(covariates, formula,  type = "ignition",
   # whBest <- 1
 
   bestModel <- mods[[whBest]]
+  # Remove the huge datasets
+  bestModel$y <- NULL
+  bestModel$data <- new.env(parent = emptyenv())
   messageColoured("Best model is:\n", messageFormulaFn(bestModel$call$formula), colour = "magenta")
   # summ <- summary(bestModel)
 
