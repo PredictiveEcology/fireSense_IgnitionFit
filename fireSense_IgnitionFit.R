@@ -163,29 +163,47 @@ Init <- function(sim) {
 frequencyFitRun <- function(sim) {
 
   #TODO: make cache smart by digest args in advance
+  whichProcessesToFit <- P(sim)$whichProcessesToFit
+  names(whichProcessesToFit) <- igOrEscNames(whichProcessesToFit, post = "Fitted", case = "sen")
+
   mir <- list()
   on.exit(lapply(mir, stop_mirai))
+  fireSense_FittedModels <-
+    Map(igOrEsc = whichProcessesToFit,
+        function(igOrEsc) {
+          formulaHere <- igOrEscNames(igOrEsc, post = "Formula") # paste0("fireSense_", igOrEsc, "Formula")
+          covariatesHere <- igOrEscNames(igOrEsc, post = "Covariates") # paste0("fireSense_", igOrEsc, "Covariates")
+          objsNeeded <- c(covariatesHere, formulaHere)
+          modelFamily <- igOrEscNames(igOrEsc, pre = "", post = "Family") # paste0(igOrEsc, "Family")
+          digestOfData <- .robustDigest(mget(objsNeeded, envir = envir(sim)))
 
-    ignitionModel <- buildModel(covariates = ignitionData$covariates,
-                                climVar = sim$climateVariablesForFire$ignition,
-                                formula= ignitionData$formula, type = "ignition",
-                                family = P(sim)$ignitionFamily) |>
-      Cache()
+          data <- prepareCovariates(formula = sim[[formulaHere]],
+                                    covariates = sim[[covariatesHere]],
+                                    rescaleVars =P(sim)$rescaleVars) |>
+            Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestOfData)
 
-    #ignition specific
-    origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
-    finalNoPix <- nrow(ignitionData$covariates)     ## nrow(postSampleData) in eg above
-    lambdaRescaleFactor <- finalNoPix/origNoPix
 
-    modelList <- list(
-      model = ignitionModel,
-      rescales = ignitionData$ignitionRescalers,
-      fittingRes = res(sim$ignitionFitRTM)[1],
-      lambdaRescaleFactor = lambdaRescaleFactor)
+          family <- P(sim)[[modelFamily]]
+          modelHere <- buildModel(covariates = data$covariates,
+                                  climVar = sim$climateVariablesForFire$ignition,
+                                  formula= data$formula, type = "ignition",
+                                  family = family) |>
+            Cache(omitArgs = c("covariates", "formula"), .cacheExtra = c(digestOfData, 1))
 
-    sim$fireSense_IgnitionFitted <- modelList
-    class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
+          #ignition specific
+          origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
+          finalNoPix <- nrow(data$covariates)     ## nrow(postSampleData) in eg above
+          lambdaRescaleFactor <- finalNoPix/origNoPix
 
+          modelList <- list(
+            model = modelHere,
+            rescales = data$ignitionRescalers,
+            fittingRes = res(sim$ignitionFitRTM)[1],
+            lambdaRescaleFactor = lambdaRescaleFactor)
+
+          class(modelList) <- igOrEscNames(igOrEsc, post = "Fit", case = "Title")
+
+          if (anyPlotting(P(sim)$.plots)) {
             library(mirai)
             try(daemons(2, dispatcher = FALSE), silent = TRUE) # this is ignored the 2nd time
             message("Plotting ", igOrEsc, "...")
@@ -216,6 +234,106 @@ frequencyFitRun <- function(sim) {
               },
               .args = argsAll)  # this tells mirai which objects are needed
 
+            # IgEscapePlots(dt = data$covariates, bestModel = modelHere,
+            #               climVar = sim$climateVariablesForFire[[igOrEsc]],
+            #               rescalers = data$ignitionRescalers,
+            #               fsProcess = "ignition", family = P(sim)$ignitionFamily,
+            #               plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
+            #               ignitionFitRTM = sim$ignitionFitRTM,
+            #               studyAreaName = P(sim)$.studyAreaName,
+            #               oPath = outputPath(sim)) |>
+            #   Cache(omitArgs = c("dt", "bestModel"), .cacheExtra = digestOfData)
+          }
+          modelList
+        })
+
+  # put to sim sim$fireSense_IgnitionFitted, sim$fireSense_EscapeFitted
+  list2env(fireSense_FittedModels, envir = envir(sim))
+  on.exit() # let the mirai keep going, so remove the on.exit close of the mirai object
+  return(invisible(sim))
+
+
+  # ##############################
+  # if ("ignition" %in% P(sim)$whichProcessesToFit) {
+  #   digestIgnitionData <- .robustDigest(mget(c("fireSense_ignitionCovariates", "fireSense_ignitionFormula"),
+  #                                            envir = envir(sim)))
+  #
+  #   ignitionData <- prepareCovariates(formula = sim$fireSense_ignitionFormula,
+  #                                     covariates = sim$fireSense_ignitionCovariates,
+  #                                     rescaleVars =P(sim)$rescaleVars) |>
+  #     Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestIgnitionData)
+  #
+  #
+  #   ignitionModel <- buildModel(covariates = ignitionData$covariates,
+  #                               climVar = sim$climateVariablesForFire$ignition,
+  #                               formula= ignitionData$formula, type = "ignition",
+  #                               family = P(sim)$ignitionFamily) |>
+  #     Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestIgnitionData)
+  #
+  #   #ignition specific
+  #   origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
+  #   finalNoPix <- nrow(ignitionData$covariates)     ## nrow(postSampleData) in eg above
+  #   lambdaRescaleFactor <- finalNoPix/origNoPix
+  #
+  #   modelList <- list(
+  #     model = ignitionModel,
+  #     rescales = ignitionData$ignitionRescalers,
+  #     fittingRes = res(sim$ignitionFitRTM)[1],
+  #     lambdaRescaleFactor = lambdaRescaleFactor)
+  #
+  #   sim$fireSense_IgnitionFitted <- modelList
+  #   class(sim$fireSense_IgnitionFitted) <- "fireSense_IgnitionFit"
+  #
+  #   if (anyPlotting(P(sim)$.plots)) {
+  #
+  #     IgEscapePlots(dt = ignitionData$covariates, bestModel = ignitionModel,
+  #                   climVar = sim$climateVariablesForFire$ignition,
+  #                   rescalers = ignitionData$ignitionRescalers,
+  #                   fsProcess = "ignition", family = P(sim)$ignitionFamily,
+  #                   plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
+  #                   ignitionFitRTM = sim$ignitionFitRTM,
+  #                   studyAreaName = P(sim)$.studyAreaName,
+  #                   oPath = outputPath(sim)) |>
+  #       Cache(omitArgs = c("dt", "bestModel"), .cacheExtra = digestIgnitionData)
+  #   }
+  # }
+  #
+  # if ("escape" %in% P(sim)$whichProcessesToFit) {
+  #   digestEscapeData <- .robustDigest(mget(c("fireSense_ignitionCovariates", "fireSense_ignitionFormula"),
+  #                                            envir = envir(sim)))
+  #
+  #   escapeData <- prepareCovariates(formula = sim$fireSense_escapeFormula,
+  #                                   covariates = sim$fireSense_escapeCovariates,
+  #                                   rescaleVars = P(sim)$rescaleVars) |>
+  #     Cache()
+  #
+  #   escapeModel <- buildModel(covariates = escapeData$covariates,
+  #                             climVar = sim$climateVariablesForFire$ignition,
+  #                             formula= escapeData$formula, type = "escape",
+  #                             family = P(sim)$escapeFamily) |>
+  #     Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestEscapeData)
+  #
+  #   modelList <- list(
+  #     model = escapeModel,
+  #     rescales = escapeData$ignitionRescalers,
+  #     fittingRes = res(sim$ignitionFitRTM)[1],
+  #     lambdaRescaleFactor = lambdaRescaleFactor)
+  #
+  #   sim$fireSense_EscapeFitted <- modelList
+  #   class(sim$fireSense_EscapeFitted) <- "fireSense_EscapeFit"
+  #
+  #   if (anyPlotting(P(sim)$.plots)) {
+  #     IgEscapePlots(dt = escapeData$covariates, bestModel = escapeModel,
+  #                   climVar = sim$climateVariablesForFire$ignition,
+  #                   fsProcess = "escape", family = P(sim)$escapeFamily,
+  #                   rescalers = escapeData$ignitionRescalers,
+  #                   plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
+  #                   ignitionFitRTM = sim$ignitionFitRTM,
+  #                   studyAreaName = P(sim)$.studyAreaName,
+  #                   oPath = outputPath(sim)) |>
+  #       Cache()
+  #   }
+  # }
 
   return(invisible(sim))
 }
