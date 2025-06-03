@@ -205,6 +205,8 @@ frequencyFitRun <- function(sim) {
 
           if (anyPlotting(P(sim)$.plots)) {
             library(mirai)
+            # This says, "create 2 workers", no more. So, no matter how many mirai are started, they
+            #   just stay at 2 cores max.
             try(daemons(2, dispatcher = FALSE), silent = TRUE) # this is ignored the 2nd time
             message("Plotting ", igOrEsc, "...")
             argsForDigest <- list(climVar = sim$climateVariablesForFire[[igOrEsc]],
