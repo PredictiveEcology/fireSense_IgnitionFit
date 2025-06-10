@@ -787,6 +787,101 @@ buildModelsFitModels <- function(igOrEsc, sim, mir) {
   #  }
 }
 
+trimModelObjectForPrediction <- function(x, origDat, filename) {
+  opts <- options(reproducible.showSimilar = FALSE)
+  on.exit(options(opts))
+  headDat <- head(origDat)
+  dig <- .robustDigest(headDat)
+
+  rr <- try(ranef(x))
+  frame <- x$frame
+  if (is(rr, "try-error")) {
+    keep <- sample(NROW(x$frame), size = 20)
+  } else {
+    # keep 1 row with each ranef
+    keep <- as.data.table(frame)[, .I[1], by = names(rr$cond)]$V1
+  }
+  code <- character()
+  if (!file.exists(filename)) {
+
+    if ( (is.environment(x) || is.list(x) ) ) {
+      for (y in setdiff(names(x), "")) {
+        if ((is(x[[y]], "list") || is.call(x[[y]]) || is.environment(x[[y]])) ) {
+          for (z in setdiff(names(x[[y]]), "")) {
+            if ((is(x[[y]][[z]], "list") || is.call(x[[y]][[z]]) || is.environment(x[[y]][[z]])) ) {
+              for (w in setdiff(names(x[[y]][[z]]), "")) {
+                orig <- x[[y]][[z]][[w]]
+                x[[y]][[z]][[w]] <- c()
+                pre <- try(predict(x, newdata = headDat) |>
+                             Cache(omitArgs = c("newdata"), .cacheExtra = dig))
+                theSymb <- paste0(y, "$", z, "$", w)
+                if (is(pre, "try-error")) {
+                  message("Failed: --------------> ", theSymb)
+                  x[[y]][[z]][[w]] <- orig
+                } else {
+
+                  code <- c(code, paste0("out$", theSymb, " <- list()"))
+                  message("Replaced: ", theSymb)
+                }
+              }
+            } else if (is(x[[y]][[z]], "data.frame")) {
+              x[[y]][[z]] <- head(x[[y]][[z]])
+              pre <- try(predict(x, newdata = headDat) |>
+                           Cache(omitArgs = c("newdata"), .cacheExtra = dig))
+              theSymb <- paste0(y, "$", z)
+              if (is(pre, "try-error")) {
+                message("Failed: --------------> ", theSymb)
+                x[[y]][[z]] <- orig
+              } else {
+                code <- c(code, paste0("out$", theSymb, " <- list()"))
+                message("Replaced: ", )
+              }
+            } else {
+              orig <- x[[y]][[z]]
+              x[[y]][[z]] <- c()
+              pre <- try(predict(x, newdata = headDat) |>
+                           Cache(omitArgs = c("newdata"), .cacheExtra = dig))
+              theSymb <- paste0(y, "$", z)
+              if (is(pre, "try-error")) {
+                message("Failed: --------------> ", theSymb)
+                x[[y]][[z]] <- orig
+              } else {
+                code <- c(code, paste0("out$", theSymb, " <- list()"))
+                message("Replaced: ", theSymb)
+              }
+            }
+          }
+        } else if (is(x[[y]], "data.frame")) {
+          x[[y]] <- head(x[[y]])
+          pre <- try(predict(x, newdata = headDat) |>
+                       Cache(omitArgs = c("newdata"), .cacheExtra = dig))
+        } else {
+          orig <- x[[y]]
+          x[[y]] <- c()
+          pre <- try(predict(x, newdata = head(dat)))
+          theSymb <- paste0(y)
+          if (is(pre, "try-error")) {
+            message("Failed: --------------> ", theSymb)
+            x[[y]] <- orig
+          } else {
+            code <- c(code, paste0("out$", theSymb, " <- list()"))
+            message("Replaced: ", theSymb)
+          }
+        }
+      }
+    }
+    code <- c("a <- function(out) {", code, "out", "}")
+    cat(code, sep = "\n", file = filename)
+  } else {
+    fn <- eval(parse(filename), envir = .GlobalEnv)
+    x2 <- fn(x)
+  }
+
+  x$frame <- frame[keep, ]
+  x
+}
+
+
 MapRunGlmmTMB <- function(ind, forms, dat, family, type, climVar) {
   nam <- names(forms)[[ind]]
   form <- forms[[ind]]
