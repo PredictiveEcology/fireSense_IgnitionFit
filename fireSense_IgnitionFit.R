@@ -51,6 +51,8 @@ defineModule(sim, list(
                                  "if they are not already within this range.")),
     defineParameter("whichProcessesToFit", "character", c("ignition", "escape"), NA, NA,
                     "which processes to fit: ignition, escape, or both (the default)"),
+    defineParameter("useMirai", "logical", FALSE, NA, NA,
+                    "if `TRUE`, then this module will use parallism for fitting and plotting"),
     defineParameter(".plots", "character", default = "screen",
                     desc = "See ?Plots. There are a few plots that are made within this module, if set."),
     defineParameter(".plotInitialTime", "numeric", default = NULL,
@@ -167,87 +169,105 @@ frequencyFitRun <- function(sim) {
   names(whichProcessesToFit) <- igOrEscNames(whichProcessesToFit, post = "Fitted", case = "sen")
 
   mir <- list()
+  on.exit(daemons(0))
   on.exit(lapply(mir, stop_mirai))
-  fireSense_FittedModels <-
-    Map(igOrEsc = whichProcessesToFit,
-        function(igOrEsc) {
-          formulaHere <- igOrEscNames(igOrEsc, post = "Formula") # paste0("fireSense_", igOrEsc, "Formula")
-          covariatesHere <- igOrEscNames(igOrEsc, post = "Covariates") # paste0("fireSense_", igOrEsc, "Covariates")
-          objsNeeded <- c(covariatesHere, formulaHere)
-          modelFamily <- igOrEscNames(igOrEsc, pre = "", post = "Family") # paste0(igOrEsc, "Family")
-          digestOfData <- .robustDigest(mget(objsNeeded, envir = envir(sim)))
+  if (Par$useMirai) {
+    library(mirai)
+    try(daemons(2, dispatcher = FALSE), silent = TRUE) # this is ignored the 2nd time
+    fireSense_FittedModels <- mirai_map(.x = whichProcessesToFit, .args = list(sim = sim, mir = mir),
+                                        .f = buildModelsFitModels)
+    message("waiting for mirai fitting")
+    while(any(sapply(fireSense_FittedModels, unresolved))) Sys.sleep(1)
+  } else {
+    fireSense_FittedModels <-
+      Map(igOrEsc = whichProcessesToFit, MoreArgs = list(sim = sim, mir = mir),
+          buildModelsFitModels)
+  }
+  # browser()
 
-          data <- prepareCovariates(formula = sim[[formulaHere]],
-                                    covariates = sim[[covariatesHere]],
-                                    rescaleVars =P(sim)$rescaleVars) |>
-            Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestOfData)
-
-
-          family <- P(sim)[[modelFamily]]
-          modelHere <- buildModel(covariates = data$covariates,
-                                  climVar = sim$climateVariablesForFire$ignition,
-                                  formula= data$formula, type = "ignition",
-                                  family = family) |>
-            Cache(omitArgs = c("covariates", "formula"), .cacheExtra = c(digestOfData, 1))
-
-          #ignition specific
-          origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
-          finalNoPix <- nrow(data$covariates)     ## nrow(postSampleData) in eg above
-          lambdaRescaleFactor <- finalNoPix/origNoPix
-
-          modelList <- list(
-            model = modelHere,
-            rescales = data$ignitionRescalers,
-            fittingRes = res(sim$ignitionFitRTM)[1],
-            lambdaRescaleFactor = lambdaRescaleFactor)
-
-          class(modelList) <- igOrEscNames(igOrEsc, post = "Fit", case = "Title")
-
-          if (anyPlotting(P(sim)$.plots)) {
-            library(mirai)
-            # This says, "create 2 workers", no more. So, no matter how many mirai are started, they
-            #   just stay at 2 cores max.
-            try(daemons(2, dispatcher = FALSE), silent = TRUE) # this is ignored the 2nd time
-            message("Plotting ", igOrEsc, "...")
-            argsForDigest <- list(climVar = sim$climateVariablesForFire[[igOrEsc]],
-                                  # rescalers = data$ignitionRescalers,
-                                  fsProcess = igOrEsc, family = P(sim)[[modelFamily]],
-                                  plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
-                                  ignitionFitRTM = sim$ignitionFitRTM,
-                                  studyAreaName = P(sim)$.studyAreaName,
-                                  oPath = outputPath(sim), IgEscapePlots = IgEscapePlots,
-                                  digestOfData = digestOfData)
-            digestForPlot <- .robustDigest(argsForDigest)
-            argsAll <- append(list(data = data, bestModel = modelHere, digestForPlot = digestForPlot),
-                              argsForDigest)
-
-            mir[[igOrEsc]] <<- mirai(.expr = {
-              library(glmmTMB)
-              library(reproducible)
-              IgEscapePlots(dt = data$covariates, bestModel = bestModel,
-                            climVar = climVar,
-                            rescalers = data$ignitionRescalers,
-                            fsProcess = fsProcess, family = family,
-                            plotBiomass = plotBiomass,
-                            ignitionFitRTM = ignitionFitRTM,
-                            studyAreaName = studyAreaName,
-                            oPath = oPath) |>
-                Cache(omitArgs = formalArgs(IgEscapePlots), .cacheExtra = append(digestForPlot, digestOfData))
-              },
-              .args = argsAll)  # this tells mirai which objects are needed
-
-            # IgEscapePlots(dt = data$covariates, bestModel = modelHere,
-            #               climVar = sim$climateVariablesForFire[[igOrEsc]],
-            #               rescalers = data$ignitionRescalers,
-            #               fsProcess = "ignition", family = P(sim)$ignitionFamily,
-            #               plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
-            #               ignitionFitRTM = sim$ignitionFitRTM,
-            #               studyAreaName = P(sim)$.studyAreaName,
-            #               oPath = outputPath(sim)) |>
-            #   Cache(omitArgs = c("dt", "bestModel"), .cacheExtra = digestOfData)
-          }
-          modelList
-        })
+  # <- function(sim, mir)
+        # function(igOrEsc) {
+        #   formulaHere <- igOrEscNames(igOrEsc, post = "Formula") # paste0("fireSense_", igOrEsc, "Formula")
+        #   covariatesHere <- igOrEscNames(igOrEsc, post = "Covariates") # paste0("fireSense_", igOrEsc, "Covariates")
+        #   objsNeeded <- c(covariatesHere, formulaHere)
+        #   modelFamily <- igOrEscNames(igOrEsc, pre = "", post = "Family") # paste0(igOrEsc, "Family")
+        #   digestOfData <- .robustDigest(mget(objsNeeded, envir = envir(sim)))
+        #
+        #   data <- prepareCovariates(formula = sim[[formulaHere]],
+        #                             covariates = sim[[covariatesHere]],
+        #                             rescaleVars =P(sim)$rescaleVars) |>
+        #     Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestOfData)
+        #
+        #
+        #   family <- P(sim)[[modelFamily]]
+        #   modelHere <- buildModel(covariates = data$covariates,
+        #                           climVar = sim$climateVariablesForFire$ignition,
+        #                           formula= data$formula, type = "ignition",
+        #                           family = family) |>
+        #     Cache(omitArgs = c("covariates", "formula"), .cacheExtra = c(digestOfData, 1))
+        #
+        #   #ignition specific
+        #   origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
+        #   finalNoPix <- nrow(data$covariates)     ## nrow(postSampleData) in eg above
+        #   lambdaRescaleFactor <- finalNoPix/origNoPix
+        #
+        #   browser()
+        #   modelList <- list(
+        #     model = modelHere,
+        #     rescales = data$ignitionRescalers,
+        #     fittingRes = res(sim$ignitionFitRTM)[1],
+        #     lambdaRescaleFactor = lambdaRescaleFactor,
+        #     family = family)
+        #
+        #   class(modelList) <- igOrEscNames(igOrEsc, post = "Fit", case = "Title")
+        #
+        #   if (anyPlotting(P(sim)$.plots)) {
+        #     library(mirai)
+        #     # This says, "create 2 workers", no more. So, no matter how many mirai are started, they
+        #     #   just stay at 2 cores max.
+        #     try(daemons(2, dispatcher = FALSE), silent = TRUE) # this is ignored the 2nd time
+        #     message("Plotting ", igOrEsc, "...")
+        #     argsForDigest <- list(climVar = sim$climateVariablesForFire[[igOrEsc]],
+        #                           # rescalers = data$ignitionRescalers,
+        #                           fsProcess = igOrEsc, family = P(sim)[[modelFamily]],
+        #                           plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
+        #                           ignitionFitRTM = sim$ignitionFitRTM,
+        #                           studyAreaName = P(sim)$.studyAreaName,
+        #                           oPath = outputPath(sim), IgEscapePlots = IgEscapePlots,
+        #                           digestOfData = digestOfData)
+        #     digestForPlot <- .robustDigest(argsForDigest)
+        #     argsAll <- append(list(data = data, bestModel = modelHere, digestForPlot = digestForPlot),
+        #                       argsForDigest)
+        #
+        #     mir[[igOrEsc]] <<- mirai(.expr = {
+        #       library(glmmTMB)
+        #       library(reproducible)
+        #       IgEscapePlots(dt = data$covariates, bestModel = bestModel,
+        #                     climVar = climVar,
+        #                     rescalers = data$ignitionRescalers,
+        #                     fsProcess = fsProcess, family = family,
+        #                     plotBiomass = plotBiomass,
+        #                     ignitionFitRTM = ignitionFitRTM,
+        #                     studyAreaName = studyAreaName,
+        #                     oPath = oPath) |>
+        #         Cache(omitArgs = formalArgs(IgEscapePlots), .cacheExtra = append(digestForPlot, digestOfData))
+        #       },
+        #       .args = argsAll)  # this tells mirai which objects are needed
+        #
+        #     # IgEscapePlots(dt = data$covariates, bestModel = modelHere,
+        #     #               climVar = sim$climateVariablesForFire[[igOrEsc]],
+        #     #               rescalers = data$ignitionRescalers,
+        #     #               fsProcess = "ignition", family = P(sim)$ignitionFamily,
+        #     #               plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
+        #     #               ignitionFitRTM = sim$ignitionFitRTM,
+        #     #               studyAreaName = P(sim)$.studyAreaName,
+        #     #               oPath = outputPath(sim)) |>
+        #     #   Cache(omitArgs = c("dt", "bestModel"), .cacheExtra = digestOfData)
+        #   }
+        #   modelList
+        # })
+  # browser()
+  #print(fireSense_FittedModels$fireSense_IgnitionFitted$data)
 
   # put to sim sim$fireSense_IgnitionFitted, sim$fireSense_EscapeFitted
   list2env(fireSense_FittedModels, envir = envir(sim))
@@ -400,7 +420,7 @@ prepareCovariates <- function(formula, covariates, rescaleVars) {
 
 buildModel <- function(covariates, formula,  type = "ignition",
                        climVar = sim$climateVariablesForFire$ignition,
-                       family) {
+                       family, useMirai = FALSE) {
 
   # convert to data.table --> easier to work with
   m <- as.data.table(covariates)
@@ -438,48 +458,76 @@ buildModel <- function(covariates, formula,  type = "ignition",
 
   dat <- m
   envir <- environment()
-  system.time({
-    mods <- Map(
-      nam = names(forms), form = forms,
-      # putting dat = m here causes it to become unresonsive --> a feature of "MoreArgs" in Map --> a list is evaluated
-      MoreArgs = list(# dat = m, family = family,  # putting family = family here causes it to evaluated
-                      type = type, envir = envir),
-      f = function(form, nam, type, envir) {
-        en <- new.env(parent = .GlobalEnv)
-        if (type == "ignition") {
-          ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
-        } else {
-          ziform <- as.formula(~0, env = en)
-        }
-        objNamesOutside <- c("dat", "family")
-        objNamesInside <- c("form", "ziform", "nam")
-        objsOutside <- mget(objNamesOutside, envir = envir)
-        objsInside <- mget(objNamesInside)
-        objs <- append(objsInside, objsOutside)
-        dig <- en$dig <- .robustDigest(objs)
-        list2env(objs, envir = en)
-        message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
-                messageFormulaFn(form))
+  mods <- list()
+  if (useMirai) {
+    library(mirai)
+    on.exit(daemons(0), add = TRUE)
+    try(daemons(3, dispatcher = FALSE), silent = TRUE) # this is ignored the 2nd time
+    mods <- mirai::mirai_map(seq_along(forms), .f = MapRunGlmmTMB,
+                             .args = list(family = family, dat = dat, type = type, climVar = climVar))
+    while(any(sapply(mods, unresolved))) Sys.sleep(1)
 
-        out <- local({
-          glmmTMB(form, data = dat,
-                  ziformula = ziform,
-                  family = eval(family)) |>
-            ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
-            #TODO: will nam be an issue if it is identical for escape and ignition models?
-            Cache(.functionName = paste0("glmmTMB_for", "_", nam),
-                  omitArgs = formalArgs(glmmTMB),
-                  .cacheExtra = dig)},
-          envir = en)
+  } else {
+    # Don't use Map because of the HUGE footpring when saving
+    for (ind in seq_along(forms)) {
+      nam <- names(forms)[[ind]]
+      form <- forms[[ind]]
+      mods[[nam]] <- runGlmmTMB(nam, form, dat, family, type, climVar)
+    }
+  }
 
-        # a <- identifyEnvs(out, en)
-        out
-      })
-  })
+
+  # system.time({
+    # mods <- Map(
+    #   nam = names(forms), form = forms,
+    #   # putting dat = m here causes it to become unresonsive --> a feature of "MoreArgs" in Map --> a list is evaluated
+    #   MoreArgs = list(dat = m, family = quote(family),  # putting family = family here causes it to evaluated
+    #                   envir = envir,
+    #                   type = type,
+    #                   climVar = climVar),
+    #   f = runGlmmTMB)
+      # f = function(form, nam, type) {
+      #   browser()
+      #   en <- new.env(parent = .GlobalEnv)
+      #   if (type == "ignition") {
+      #     ziform <- as.formula(paste0("~", paste0(climVar, collapse = "+")), env = en)
+      #   } else {
+      #     ziform <- as.formula(~0, env = en)
+      #   }
+      #   objNamesOutside <- c("dat", "family")
+      #   objNamesInside <- c("form", "ziform", "nam")
+      #   objsOutside <- mget(objNamesOutside, envir = envir)
+      #   objsInside <- mget(objNamesInside)
+      #   objs <- append(objsInside, objsOutside)
+      #   dig <- en$dig <- .robustDigest(objs)
+      #   list2env(objs, envir = en)
+      #   message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
+      #           messageFormulaFn(form))
+      #
+      #   out <- local({
+      #     glmmTMB(form, data = dat,
+      #             ziformula = ziform,
+      #             family = eval(family)) |>
+      #       ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
+      #       #TODO: will nam be an issue if it is identical for escape and ignition models?
+      #       Cache(.functionName = paste0("glmmTMB_for", "_", nam),
+      #             omitArgs = formalArgs(glmmTMB),
+      #             .cacheExtra = dig)},
+      #     envir = en)
+      #   out$y <- NULL
+      #   out$data <- new.env(parent = emptyenv())
+      #
+      #
+      #   # a <- identifyEnvs(out, en)
+      #   browser()
+      #   out
+      # })
+  # })
 
   AICs <- sapply(mods, AIC)
   ## even if the AIC is <2 better, should take simpler model;
   ## in tests, turned many to non-significant when had interactions
+  # browser()
   whBest <- which.min(c(AICs[["full"]] + 2, AICs[["InterceptOnly"]], AICs[["climateOnly"]]))
   # whBest <- 1
 
