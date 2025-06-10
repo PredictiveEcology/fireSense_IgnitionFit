@@ -881,10 +881,35 @@ trimModelObjectForPrediction <- function(x, origDat, filename) {
   x
 }
 
-
 MapRunGlmmTMB <- function(ind, forms, dat, family, type, climVar) {
   nam <- names(forms)[[ind]]
   form <- forms[[ind]]
   mod <- runGlmmTMB(nam, form, dat, family, type, climVar)
 }
 
+
+## Below:  These are likely not needed
+os <- function(x, level = 2) {
+  if (is.list(x) && level > 0) {
+    Map(x = x, function(x) os(x, level = level - 1))
+  } else if (is.environment(x))  {
+    os(as.list(x, all.names = TRUE), level = level - 1)
+    # Map(x = x, function(x) os(as.list(x)[-1]))
+  } else {
+    obj_size(x)
+  }
+}
+os2 <- function(x, level = 2) {
+  os(x) |> unlist() |> sort()
+}
+notFns <- function(x, level = 2) {
+  if (is.list(x) && level > 0) {
+    out <- Map(y = as.list(x), function(y) if(is.function(y)) NULL else notFns(y, level = level - 1))
+  } else if (is.environment(x) && level > 0) {
+    out <- notFns(as.list(x), level = level - 1)
+  } else {
+    out <- os(x, level = 0)
+  }
+  out <- out[!sapply(out, is.null)]
+  out |> unlist() |> sort()
+}
