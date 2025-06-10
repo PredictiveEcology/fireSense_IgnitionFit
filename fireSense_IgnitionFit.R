@@ -572,3 +572,224 @@ igOrEscNames <- function(igOrEsc, pre = "fireSense_", post, case = c("lower", "c
 camelCase <- function(x) {
   gsub("(^|[^[:alnum:]])([[:alnum:]])", "\\U\\2", x, perl = TRUE)
 }
+
+
+
+runGlmmTMB <- function(nam, form, dat, family, type, climVar) {
+  en <- new.env(parent = asNamespace("fireSenseUtils"))
+  enObjs <- new.env(parent = en)
+  if (type == "ignition") {
+    ziform <- paste0("~", paste0(climVar, collapse = "+"))
+  } else {
+    ziform <- "~0"
+  }
+  # objNamesOutside <- c("dat", "family")
+  # objNamesInside <- c("form", "ziform", "type", "nam", "dat", "family", "climVar")
+  objs <- c("form", "ziform", "family", "nam", "ranForm2", "form2")
+  other <- "dat"
+
+  ziform <- as.formula(ziform, env = .GlobalEnv)
+  tt <- terms(form)
+  whRanTerms <- grep("\\|", attributes(tt)$term.labels, value = TRUE)
+  whRanTerms2 <- gsub("\\|", "\\\\|", whRanTerms)
+  fixedTerms <- gsub(paste0("\\( *", whRanTerms2, " *\\) *\\+"), "", form[-(1:2)])
+  form2 <- as.formula(paste0(format(form[[2]]), format(form[[1]]), fixedTerms), env = .GlobalEnv)
+  ranForm2 <- as.formula(paste0("~", whRanTerms), env = .GlobalEnv)
+
+  # objsOutside <- mget(objNamesOutside, envir = envir)
+  # set.seed(123)
+  # dat <- dat[sample(NROW(dat), 100000),] # ELIOT TO REMOVE
+  # objsInside <- mget(objNamesInside)
+  objs <- Map(obj = objs, function(obj) get(obj))
+  dig <- .robustDigest(objs)
+  objs$dig <- dig
+  # objs$dig$dig <- .robustDigest(objs$dig)
+  other <- mget(other)
+  # objs <- append(objsInside, objsOutside)
+  # en$dig <- .GlobalEnv$dig <- dig
+  list2env(objs, envir = enObjs)
+  list2env(other, envir = en)
+  # list2env(objs, envir = .GlobalEnv)
+  # list2env(other, envir = .GlobalEnv)
+  message("Running glmmTMB with Zero-Inflated, Mixed effect, Poisson, using:\n",
+          messageFormulaFn(form))
+
+  library(GLMMadaptive)
+  print(system.time(
+    out <- local({GLMMadaptive::mixed_model(form2, random = ranForm2, data = dat, family = zi.negative.binomial,
+                                     zi_fixed = ziform, control = list(iter_EM = 0))} |>
+    Cache(.functionName = paste0("mixed_model_for", "_", nam),
+          omitArgs = c(formalArgs(GLMMadaptive::mixed_model), "level", "x", "origDat"),
+          # omitArgs = formalArgs(local),
+          .cacheExtra = dig),
+    # envir = en) # en
+    envir = enObjs)
+  ))
+  return(out)
+  browser()
+
+  print(st2 <- system.time(mu2 <- predict(fit2, newdata = dat, se.fit = FALSE, type_pred = "response", type = "mean_subject")))
+  disp2 <- exp(fit2$phis)
+  #aa3 <- rnbinom(n = length(mu2), mu = mu2, size = disp2)
+  #table(aa3)
+  aa2 <- list()
+  N <- 100
+  for (i in 1:N) aa2[[i]] <- rnbinom(n = length(mu2), mu = mu2, size = log(disp2))
+  aa3 <- do.call(cbind, aa2)
+  bb3 <- table(aa3)/N
+  # cc <- apply(aa1, 2, table)
+  sum(as.numeric(names(bb3)) * bb3)
+
+
+
+  print(system.time(fit <- glmm.zinb(fixed = ignitions ~  youngAge:CMDsm + nfLCC_100:CMDsm +
+                                 nfLCC_50_80:CMDsm + Betu_pap:CMDsm + Pc_gl.Lr_la:CMDsm +
+                                 Pice_mar:CMDsm + Pn_co.Pn_ba:CMDsm + Pp_ba.Pp_tr:CMDsm,
+                               random = ~ 1 | yearChar, data = dat, zi_fixed = ~CMDsm, niter  = 100) ))
+  #system.time(out <- glmmTMB(form, data = dat,
+  #                           ziformula = ziform,
+  #                           family = nbinom1(link = "logit")))
+  mu <- predict(fit, newdata = dat, level = 0, se.fit = FALSE, type = "response")
+  mu <- exp(mu)
+  # disp <- sigma(fit)
+  disp <- fit$theta
+  aa2 <- rnbinom(n = length(mu), mu = mu, size = disp)
+  bb2 <- table(aa2)
+  sum(as.numeric(names(bb2)) * bb2)
+  ccc <- table(dat$ignitions)
+  print(sum(as.numeric(names(ccc))*ccc))
+  aa <- list()
+  N <- 10
+  for (i in 1:N) aa[[i]] <- rnbinom(n = length(mu), mu = mu, size = disp)
+  aa1 <- do.call(cbind, aa)
+  bb <- table(aa1)/N
+  cc <- apply(aa1, 2, table)
+  sum(as.numeric(names(bb)) * bb)
+
+
+  print(st4 <- system.time(out <- glmmTMB(form, data = dat,
+          ziformula = ziform,
+          family = nbinom1(link = "log"))))
+  print(st5 <- system.time(mu1 <- predict(out, newdata = dat, se.fit = FALSE, type = "response")))
+  # mu1 <- expit(mu1)
+  disp1 <- sigma(out)
+  aa3 <- rnbinom(n = length(mu1), mu = mu1, size = 1/disp1)
+  aa3t <- table(aa3)
+  sum(as.numeric(names(aa3t)) * aa3t)
+
+  # https://win-vector.com/2014/05/30/trimming-the-fat-from-glm-models-in-r/
+  out <- local({
+    glmmTMB(form, data = dat,
+            ziformula = ziform,
+            family = eval(family))} |>
+      # trimModelObjectForPrediction(origDat = dat)}  |>
+      Cache(.functionName = paste0("glmmTMB_for", "_", nam),
+            omitArgs = c(formalArgs(glmmTMB), "level", "x", "origDat"),
+            # omitArgs = formalArgs(local),
+            .cacheExtra = dig),
+    # envir = en) # en
+   envir = enObjs) # en
+   # envir = .GlobalEnv) # en
+    ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
+    #TODO: will nam be an issue if it is identical for escape and ignition models?
+
+  # out2 <- trimModelObjectForPrediction(
+  #   out, origDat = dat,
+  #   filename = paste0("trimModelObject_", class(out), ".txt")) # |> Cache()
+
+  # a <- identifyEnvs(out, en)
+  out
+}
+
+
+
+buildModelsFitModels <- function(igOrEsc, sim, mir) {
+  # function(igOrEsc) {
+  library(SpaDES.tools); library(fireSenseUtils); library(reproducible)
+  formulaHere <- igOrEscNames(igOrEsc, post = "Formula") # paste0("fireSense_", igOrEsc, "Formula")
+  covariatesHere <- igOrEscNames(igOrEsc, post = "Covariates") # paste0("fireSense_", igOrEsc, "Covariates")
+  objsNeeded <- c(covariatesHere, formulaHere)
+  modelFamily <- igOrEscNames(igOrEsc, pre = "", post = "Family") # paste0(igOrEsc, "Family")
+  digestOfData <- .robustDigest(mget(objsNeeded, envir = envir(sim)))
+
+  data <- prepareCovariates(formula = sim[[formulaHere]],
+                            covariates = sim[[covariatesHere]],
+                            rescaleVars =P(sim)$rescaleVars) |>
+    Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestOfData)
+
+
+  family <- P(sim)[[modelFamily]]
+  modelHere <- buildModel(covariates = data$covariates,
+                          climVar = sim$climateVariablesForFire$ignition,
+                          formula= data$formula, type = "ignition",
+                          family = family, useMirai = P(sim)$useMirai) |>
+    Cache(omitArgs = c("covariates", "formula"), .cacheExtra = c(digestOfData, 1))
+
+  #ignition specific
+  origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
+  finalNoPix <- nrow(data$covariates)     ## nrow(postSampleData) in eg above
+  lambdaRescaleFactor <- finalNoPix/origNoPix
+
+  modelList <- list(
+    model = modelHere,
+    rescales = data$ignitionRescalers,
+    fittingRes = res(sim$ignitionFitRTM)[1],
+    lambdaRescaleFactor = lambdaRescaleFactor,
+    family = family)
+
+  class(modelList) <- igOrEscNames(igOrEsc, post = "Fit", case = "Title")
+
+  if (anyPlotting(P(sim)$.plots)) {
+    library(mirai)
+    # This says, "create 2 workers", no more. So, no matter how many mirai are started, they
+    #   just stay at 2 cores max.
+    # on.exit(daemons(0), add = TRUE)
+    try(daemons(2, dispatcher = FALSE), silent = TRUE) # this is ignored the 2nd time
+    message("Plotting ", igOrEsc, "...")
+    argsForDigest <- list(climVar = sim$climateVariablesForFire[[igOrEsc]],
+                          # rescalers = data$ignitionRescalers,
+                          fsProcess = igOrEsc, family = P(sim)[[modelFamily]],
+                          plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
+                          ignitionFitRTM = sim$ignitionFitRTM,
+                          studyAreaName = P(sim)$.studyAreaName,
+                          oPath = outputPath(sim), IgEscapePlots = IgEscapePlots,
+                          digestOfData = digestOfData)
+    digestForPlot <- .robustDigest(argsForDigest)
+    argsAll <- append(list(data = data, bestModel = modelHere, digestForPlot = digestForPlot),
+                      argsForDigest)
+
+    mir[[igOrEsc]] <- mirai(.expr = {
+      library(glmmTMB)
+      library(reproducible)
+      IgEscapePlots(dt = data$covariates, bestModel = bestModel,
+                    climVar = climVar,
+                    rescalers = data$ignitionRescalers,
+                    fsProcess = fsProcess, family = family,
+                    plotBiomass = plotBiomass,
+                    ignitionFitRTM = ignitionFitRTM,
+                    studyAreaName = studyAreaName,
+                    oPath = oPath) |>
+        Cache(omitArgs = formalArgs(IgEscapePlots), .cacheExtra = append(digestForPlot, digestOfData))
+    },
+    .args = argsAll)  # this tells mirai which objects are needed
+
+    # IgEscapePlots(dt = data$covariates, bestModel = modelHere,
+    #               climVar = sim$climateVariablesForFire[[igOrEsc]],
+    #               rescalers = data$ignitionRescalers,
+    #               fsProcess = "ignition", family = P(sim)$ignitionFamily,
+    #               plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
+    #               ignitionFitRTM = sim$ignitionFitRTM,
+    #               studyAreaName = P(sim)$.studyAreaName,
+    #               oPath = outputPath(sim)) |>
+    #   Cache(omitArgs = c("dt", "bestModel"), .cacheExtra = digestOfData)
+  }
+  modelList
+  #  }
+}
+
+MapRunGlmmTMB <- function(ind, forms, dat, family, type, climVar) {
+  nam <- names(forms)[[ind]]
+  form <- forms[[ind]]
+  mod <- runGlmmTMB(nam, form, dat, family, type, climVar)
+}
+
