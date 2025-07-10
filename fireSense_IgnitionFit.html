@@ -2996,7 +2996,7 @@ border-radius: 0px;
 
 <h1 class="title toc-ignore">fireSense_IgnitionFit Manual</h1>
 <h3 class="subtitle">v.1.0.1</h3>
-<h4 class="date">Last updated: 2025-06-10</h4>
+<h4 class="date">Last updated: 2025-07-10</h4>
 
 </div>
 
@@ -3148,6 +3148,26 @@ paramDesc
 <tbody>
 <tr>
 <td style="text-align:left;">
+crossValType
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+time-ord….
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+How the cross validation should happen, time-ordered or regular k-fold crossValidation
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
 escapeFamily
 </td>
 <td style="text-align:left;">
@@ -3247,22 +3267,22 @@ which processes to fit: ignition, escape, or both (the default)
 </tr>
 <tr>
 <td style="text-align:left;">
-useMirai
+modelAlgorithm
 </td>
 <td style="text-align:left;">
-logical
+character
 </td>
 <td style="text-align:left;">
-FALSE
-</td>
-<td style="text-align:left;">
-NA
+xgboost
 </td>
 <td style="text-align:left;">
 NA
 </td>
 <td style="text-align:left;">
-if <code>TRUE</code>, then this module will use parallism for fitting and plotting
+NA
+</td>
+<td style="text-align:left;">
+Can be <code>xgboost</code>, <code>glmmtmb</code>, <code>glm.nb</code>, <code>glmmadaptive</code>, <code>glm</code>; only <code>xgboost</code> is supported currently
 </td>
 </tr>
 <tr>
