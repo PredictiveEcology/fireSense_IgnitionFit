@@ -1,27 +1,40 @@
 IgEscapePlots <- function(
-    dt = ignitionData$covariates, bestModel = ignitionModel,
-    climVar = sim$climateVariablesForFire$ignition,
+    dt, # = ignitionData$covariates,
+    bestModel, # = ignitionModel,
+    modelAlgorithm,
+    climVar,# = sim$climateVariablesForFire$ignition,
     fsProcess = "ignition", #or escape
-    family = P(sim)$ignitionFamily,
-    rescalers = ignitionData$ignitionRescalers, #will be identical to escape
-    plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
-    ignitionFitRTM = sim$ignitionFitRTM,
-    oPath = outputPath(sim), studyAreaName = P(sim)$.studyAreaName) {
+    family, # = P(sim)$ignitionFamily,
+    rescalers, # = ignitionData$ignitionRescalers, #will be identical to escape
+    plotBiomass, # = P(sim)$plot_fuelBiomassPerPrediction,
+    ignitionFitRTM, # = sim$ignitionFitRTM,
+    oPath, # = outputPath(sim),
+    studyAreaName# = P(sim)$.studyAreaName
+    ) {
 
   #general things
   dt <- copy(dt)
-  ff <- as.character(bestModel$call$formula)
-  y <- bestModel$call$formula[[2L]]
-  if (any(c("year", "yr") %in% tolower(names(dt)))) {
-    xvar <- intersect(c("year", "yr"), tolower(names(dt)))
-  } else {
-    xvar <- rows
-  }
-  formForNull <- as.formula(paste0(ff[[2]], ff[[1]], "1"), env = .GlobalEnv)
-  nullModel <- glmmTMB(formForNull, dat = dt, family = eval(family))
+  if (any(grepl("xgb", modelAlgorithm) %in% FALSE)) {
+    ff <- as.character(bestModel$call$formula)
+    y <- bestModel$call$formula[[2L]]
+    if (any(c("year", "yr") %in% tolower(names(dt)))) {
+      xvar <- intersect(c("year", "yr"), tolower(names(dt)))
+    } else {
+      xvar <- rows
+    }
+    formForNull <- as.formula(paste0(ff[[2]], ff[[1]], "1"), env = .GlobalEnv)
+    nullModel <- glmmTMB(formForNull, dat = dt, family = eval(family))
 
-  ## https://stackoverflow.com/a/68684973 -- NOT VERY APPROPRIATE FOR RE model
-  pseudoR2 <- as.numeric(1 - logLik(bestModel) / logLik(nullModel))
+    ## https://stackoverflow.com/a/68684973 -- NOT VERY APPROPRIATE FOR RE model
+    pseudoR2 <- as.numeric(1 - logLik(bestModel) / logLik(nullModel))
+  } else {
+    browser()
+    out <- Map(bm = bestModel, function(bm) {
+      predict(bm, dt)
+    })
+    out2 <- do.call(cbind, out)
+
+  }
 
   #do not plot if bestModel is null
   if (terms(nullModel) != terms(bestModel)) {
