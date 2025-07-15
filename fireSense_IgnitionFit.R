@@ -537,6 +537,12 @@ buildModelsFitModels <- function(igOrEsc, sim) {
     Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestOfData)
 
 
+  if (identical(igOrEsc, "escape")) {
+    # Escape should not have lightning
+    # if don't explicitly copy, then Cache above returns the "lightning"-removed data.table
+    data$covariates <- data.table::copy(data$covariates)
+    set(data$covariates, NULL, "lightning", NULL)
+  }
   nFolds <- 5
 
   crossValType <- Par$crossValType
@@ -615,7 +621,7 @@ buildModelsFitModels <- function(igOrEsc, sim) {
       Cache(omitArgs = c("dat", "modelOnly"),
             .cacheExtra = list(digestOfData = digestOfData, digModels = digModels, plotPredictions = plotPredictions),
             .functionName = paste0(".functionName_", igOrEsc))
-    fn1 <- functionNameHelper("FuelClimateLightning_predicted", igOrEsc, Par$crossValType[1])
+    fn1 <- functionNameHelper("FuelClimate", ifelse(igOrEsc == "escape", "", "Lightning"), "predicted", igOrEsc, Par$crossValType[1])
     fn <- functionNameHelper(fn1, format(Sys.time()))
     bb <- quote(ggarrange(plotlist = aa))
 
@@ -1040,41 +1046,41 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
         list(valData = valData, mod = mTweedie, shap_long = shap_long)
       })
   )
-  #   stStart <- Sys.time()
-  #       m <- mirai::mirai(
-  #         .args = list(dig = dig, shap_long = shap_long, basefilename = figPath, kFold = kFold,
-  #                      digValInd = digValInd),
-  #         {
-  #           library(reproducible)
-  #           library(SpaDES.core)
-  #           library(SHAPforxgboost)
-  #           library(ggplot2)
+  # stStart <- Sys.time()
+  # m <- mirai::mirai(
+  #   .args = list(dig = dig, shap_long = shap_long, basefilename = figPath, kFold = kFold,
+  #                digValInd = digValInd),
+  #   {
+  #     library(reproducible)
+  #     library(SpaDES.core)
+  #     library(SHAPforxgboost)
+  #     library(ggplot2)
   #
-  #           # These plots take 45 minutes for dataset with 4.5M rows
-  #           # plt <- Plots(shap.plot.summary(shap_long),
-  #           #              path = basefilename, filename = paste0("Ignitions_SHAP model_", kFold),
-  #           #              type = "png") |>
-  #           #   Cache(omitArgs = "data", .cacheExtra = c(dig, digValInd),
-  #           #         ,
-  #           #         .functionName = "shap.plot.summary")
+  #     # These plots take 45 minutes for dataset with 4.5M rows
+  #     # plt <- Plots(shap.plot.summary(shap_long),
+  #     #              path = basefilename, filename = paste0("Ignitions_SHAP model_", kFold),
+  #     #              type = "png") |>
+  #     #   Cache(omitArgs = "data", .cacheExtra = c(dig, digValInd),
+  #     #         ,
+  #     #         .functionName = "shap.plot.summary")
   #
-  #           plt2 <- Plots(
-  #             shap.plot.dependence(data_long = shap_long,
-  #                                  x = 'CMDsm',
-  #                                  y = 'Pice_mar',
-  #                                  color_feature = 'Column_WV') +
-  #               ggtitle("SHAP values of Pice_var vs. CMDsm"),
+  #     plt2 <- Plots(
+  #       shap.plot.dependence(data_long = shap_long,
+  #                            x = 'CMDsm',
+  #                            y = 'Pice_mar',
+  #                            color_feature = 'Column_WV') +
+  #         ggtitle("SHAP values of Pice_var vs. CMDsm"),
   #
-  #             path = basefilename, filename = paste0("Ignitions_SHAP model_dependencies", kFold),
-  #             types = "png") |>
-  #             Cache(omitArgs = "data", .cacheExtra = c(dig, digValInd, "plotDep"),
-  #                   .functionName = "shap.plot.dependence")
+  #       path = basefilename, filename = paste0("Ignitions_SHAP model_dependencies", kFold),
+  #       types = "png") |>
+  #       Cache(omitArgs = "data", .cacheExtra = c(dig, digValInd, "plotDep"),
+  #             .functionName = "shap.plot.dependence")
   #
-  #           # g2 <- shap.plot.dependence(data_long = shap_long, x = 'dayint', y = 'Column_WV', color_feature = 'Column_WV') +  ggtitle("(B) SHAP values of CWV vs. Time trend")
+  #     # g2 <- shap.plot.dependence(data_long = shap_long, x = 'dayint', y = 'Column_WV', color_feature = 'Column_WV') +  ggtitle("(B) SHAP values of CWV vs. Time trend")
   #
-  #         })
-  #       stEnd <- Sys.time()
-  #
+  #   })
+  # stEnd <- Sys.time()
+
   #       # set(valData, NULL, c("predTweedie"), list(pred2))
   #
   #       list(valData = valData, mod = mTweedie)
