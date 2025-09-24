@@ -17,18 +17,19 @@ defineModule(sim, list(
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
   loadOrder = list(after = "fireSense_dataPrepFit"),
-  reqdPkgs = list("data.table", "dplyr",
+  reqdPkgs = list("data.table", "dplyr", "PredictiveEcology/SpaDES.core@box (>= 2.1.6.9002)",
                   "PredictiveEcology/fireSenseUtils@development (>= 0.0.5.9090)",
                   "glmmTMB", "mirai",
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
                   "PredictiveEcology/pemisc@development",
-                  "PredictiveEcology/reproducible@AI (>= 2.1.2)",
+                  "PredictiveEcology/reproducible@AI (>= 2.1.2.9062)",
                   #TODO correct this when reproducible is merged - it is due to cache(predict)
                   "RhpcBLASctl", # "Matrix", # "ModelOriented/EIX",
                   "caret", "pROC",
-                  "SHAPforxgboost", "xgboost", # install.packages('xgboost', repos = c('https://dmlc.r-universe.dev', 'https://cloud.r-project.org'))
-                  "PredictiveEcology/SpaDES.core@development (>= 2.0.2.9006)", "terra"),
+                  "PredictiveEcology/SHAPforxgboost (>= 0.1.3.9001)", "xgboost (>=3.0.0)", "lightgbm", # install.packages('xgboost', repos = c('https://dmlc.r-universe.dev', 'https://cloud.r-project.org'))
+                  # "PredictiveEcology/SpaDES.core@development (>= 2.0.2.9006)",
+                  "terra"),
   parameters = bindrows(
     defineParameter("crossValType", "character", c("time-ordered", "crossValidation"), NA, NA,
                     "How the cross validation should happen, time-ordered or regular k-fold crossValidation"),
@@ -179,8 +180,8 @@ frequencyFitRun <- function(sim) {
   fireSense_FittedModels <-
     purrr::pmap(.l  = list(igOrEsc = whichProcessesToFit), sim = sim,
                 .f = buildModelsFitModels)
-    # Map(igOrEsc = whichProcessesToFit, MoreArgs = list(sim = sim),
-    #     buildModelsFitModels)
+  # Map(igOrEsc = whichProcessesToFit, MoreArgs = list(sim = sim),
+  #     buildModelsFitModels)
 
   # put to sim sim$fireSense_IgnitionFitted, sim$fireSense_EscapeFitted
   list2env(fireSense_FittedModels, envir = envir(sim))
@@ -451,9 +452,9 @@ runGlmmTMB <- function(nam, form, dat, family, type, climVar) {
 
 
   print(system.time(fit <- glmm.zinb(fixed = ignitions ~  youngAge:CMDsm + nfLCC_100:CMDsm +
-                                 nfLCC_50_80:CMDsm + Betu_pap:CMDsm + Pc_gl.Lr_la:CMDsm +
-                                 Pice_mar:CMDsm + Pn_co.Pn_ba:CMDsm + Pp_ba.Pp_tr:CMDsm,
-                               random = ~ 1 | yearChar, data = dat, zi_fixed = ~CMDsm, niter  = 100) ))
+                                       nfLCC_50_80:CMDsm + Betu_pap:CMDsm + Pc_gl.Lr_la:CMDsm +
+                                       Pice_mar:CMDsm + Pn_co.Pn_ba:CMDsm + Pp_ba.Pp_tr:CMDsm,
+                                     random = ~ 1 | yearChar, data = dat, zi_fixed = ~CMDsm, niter  = 100) ))
   #system.time(out <- glmmTMB(form, data = dat,
   #                           ziformula = ziform,
   #                           family = nbinom1(link = "logit")))
@@ -476,8 +477,8 @@ runGlmmTMB <- function(nam, form, dat, family, type, climVar) {
 
 
   print(st4 <- system.time(out <- glmmTMB(form, data = dat,
-          ziformula = ziform,
-          family = nbinom1(link = "log"))))
+                                          ziformula = ziform,
+                                          family = nbinom1(link = "log"))))
   print(st5 <- system.time(mu1 <- predict(out, newdata = dat, se.fit = FALSE, type = "response")))
   # mu1 <- expit(mu1)
   disp1 <- sigma(out)
@@ -496,10 +497,10 @@ runGlmmTMB <- function(nam, form, dat, family, type, climVar) {
             # omitArgs = formalArgs(local),
             .cacheExtra = dig),
     # envir = en) # en
-   envir = enObjs) # en
-   # envir = .GlobalEnv) # en
-    ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
-    #TODO: will nam be an issue if it is identical for escape and ignition models?
+    envir = enObjs) # en
+  # envir = .GlobalEnv) # en
+  ## Use .cacheExtra: there are lots of arguments to glmmTMB that seemed to be "always different"
+  #TODO: will nam be an issue if it is identical for escape and ignition models?
 
   # out2 <- trimModelObjectForPrediction(
   #   out, origDat = dat,
@@ -633,15 +634,15 @@ buildModelsFitModels <- function(igOrEsc, sim) {
             .functionName = paste0(".functionName_", igOrEsc)) |> reproducible:::suppressWarningsSpecific("appears to have a much larger size on disk than in memory")
 
     if (FALSE)
-    IgEscapePlots(dt = data$covariates, bestModel = modelOnly,
-                  modelAlgorithm = Par$modelAlgorithm,
-                  climVar = sim$climateVariablesForFire[[igOrEsc]],
-                  rescalers = data$ignitionRescalers,
-                  fsProcess = "ignition", family = P(sim)$ignitionFamily,
-                  plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
-                  ignitionFitRTM = sim$ignitionFitRTM,
-                  studyAreaName = P(sim)$.studyAreaName,
-                  oPath = outputPath(sim)) |>
+      IgEscapePlots(dt = data$covariates, bestModel = modelOnly,
+                    modelAlgorithm = Par$modelAlgorithm,
+                    climVar = sim$climateVariablesForFire[[igOrEsc]],
+                    rescalers = data$ignitionRescalers,
+                    fsProcess = "ignition", family = P(sim)$ignitionFamily,
+                    plotBiomass = P(sim)$plot_fuelBiomassPerPrediction,
+                    ignitionFitRTM = sim$ignitionFitRTM,
+                    studyAreaName = P(sim)$.studyAreaName,
+                    oPath = outputPath(sim)) |>
       Cache(omitArgs = c("dt", "bestModel"), .cacheExtra = digestOfData)
   }
   list(modelList = modelList, scaleData = attr(data$covariates, "scaleData"))
@@ -990,8 +991,8 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
     mm <- purrr::pmap(
       list(valInd = trainIndexK, kFold = seq(nFolds)),
       function(valInd, kFold)#, indexName = indexNames, digInner = dig, dat3ForxgboostInner = dat3Forxgboost,
-      #         dat3ForxgboostNoIgnInner = dat3ForxgboostNoIgn)
-    {
+        #         dat3ForxgboostNoIgnInner = dat3ForxgboostNoIgn)
+      {
 
         wholeDataset <- valInd[[indexNames[[1]]]]
         valInd <- valInd[[indexNames[[2]]]]
@@ -1031,7 +1032,7 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
           (roc_curveTweedie <- roc(ignZeroAndOnes, valData[["predTweedie"]]))
         }
 
-        class(mTweedie) <- c("lgb.Booster", class(mTweedie)) # bug in next function; needs to be this class
+        # class(mTweedie) <- c("lgb.Booster", class(mTweedie)) # bug in next function; needs to be this class
         shap_values <- shap.values(mTweedie, dat3ForxgboostNoIgn) |>
           Cache(omitArgs = formalArgs(shap.values),
                 .functionName = functionNameHelper("shap.values", type, kFold),
@@ -1132,27 +1133,27 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
       guides(col = guide_legend(reverse = FALSE, col = factor(df$predictedProb)))
   }
 
-#
-#   set(df, NULL, "varFac", factor(df$variable, levels = colnamesNoIgn)) # keeps colours constant
-#   set(df, NULL, "varInt", as.integer(df$varFac))
-#
-#   levels(df$varFac) # gives order that ggplot2 will use
-#   setorderv(df, "varFac")
-#
-#   vals <- unique(importance$Feature)
-#   vals <- levels(df$varFac) # MUST USE THIS FOR GGPLOT2 TO GET CORRECT LABELS
-#   # vals <- colnamesNoIgn # stays constant colour regardless of importance
-#   colors <- RColorBrewer::brewer.pal(length(vals), "Paired")
-#   names(colors) <- vals
-#   labels <- rep("Fuel", length(vals))
-#   names(labels) <- vals
-#   climateGrep <- "CMD|light"
-#   climateInd <- grep(climateGrep, vals) # this is how I identify climate vars: not robust!!!!!
-#   set(df, NULL, "FuelOrClimate", "Fuel")
-#   set(df, which(df$variable %in% names(labels[climateInd])), "FuelOrClimate", "Climate")
-#
-#   labels[climateInd] <- "Climate"
-#   FuelInd <- -climateInd
+  #
+  #   set(df, NULL, "varFac", factor(df$variable, levels = colnamesNoIgn)) # keeps colours constant
+  #   set(df, NULL, "varInt", as.integer(df$varFac))
+  #
+  #   levels(df$varFac) # gives order that ggplot2 will use
+  #   setorderv(df, "varFac")
+  #
+  #   vals <- unique(importance$Feature)
+  #   vals <- levels(df$varFac) # MUST USE THIS FOR GGPLOT2 TO GET CORRECT LABELS
+  #   # vals <- colnamesNoIgn # stays constant colour regardless of importance
+  #   colors <- RColorBrewer::brewer.pal(length(vals), "Paired")
+  #   names(colors) <- vals
+  #   labels <- rep("Fuel", length(vals))
+  #   names(labels) <- vals
+  #   climateGrep <- "CMD|light"
+  #   climateInd <- grep(climateGrep, vals) # this is how I identify climate vars: not robust!!!!!
+  #   set(df, NULL, "FuelOrClimate", "Fuel")
+  #   set(df, which(df$variable %in% names(labels[climateInd])), "FuelOrClimate", "Climate")
+  #
+  #   labels[climateInd] <- "Climate"
+  #   FuelInd <- -climateInd
 
   # a <- ggplot(df, aes(x = value, y = predictedProb, group = varFac, col = varFac)) +
   #   geom_point(# data = df[varFac %in% names(labels)[labels %in% "Climate"]],
@@ -1248,7 +1249,7 @@ escapesTxt <- "escapes"
 
 functionNameHelper <- function(..., sep = "_") {
   paste(..., sep = sep)
-#   paste(fnName, type, kFold, sep = sep)
+  #   paste(fnName, type, kFold, sep = sep)
 }
 
 
