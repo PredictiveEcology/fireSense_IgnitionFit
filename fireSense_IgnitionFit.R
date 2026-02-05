@@ -16,7 +16,8 @@ defineModule(sim, list(
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
   documentation = list("README.txt", "fireSense_IgnitionFit.Rmd"),
-  loadOrder = list(after = "fireSense_dataPrepFit"),
+  loadOrder = list(after = "fireSense_dataPrepFit",
+                   before = "fireSense_dataPrepPredict"),
   reqdPkgs = list("data.table", "dplyr", "PredictiveEcology/SpaDES.core@box (>= 2.1.8.9006)",
                   "PredictiveEcology/fireSenseUtils@development (>= 0.0.5.9090)",
                   "glmmTMB", "mirai",
@@ -92,8 +93,6 @@ defineModule(sim, list(
                               "in a named list, .e.g. `climateVariablesForFire = list('ignition' = 'MDC')`")),
     expectsInput("fireSense_ignitionCovariates", "data.frame",
                  desc = "table of aggregated ignition covariates with annual ignitions"),
-    expectsInput("flammableRTM", "SpatRaster", sourceURL = NA,
-                 "RTM without ice/rocks/urban/water. Flammable map with 0 and 1."),
     expectsInput("ignitionFitRTM", "SpatRaster",
                  desc = paste("A (template) raster with information with regards to the spatial",
                               "resolution and geographical extent of `fireSense_ignitionCovariates`.",
@@ -1330,11 +1329,16 @@ setupPlots <- function(modelOnly, dat, igOrEsc) {
   # vals <- unique(importance$Feature)
   # vals <- levels(df$varFac) # MUST USE THIS FOR GGPLOT2 TO GET CORRECT LABELS
   vals <- cnNoIgnNoEsc # stays constant colour regardless of importance
+  colors <- NULL
+  colOptions <- c("Paired", "Gr")
+  # if(length(vals) != length(colors)) {
   colors <- RColorBrewer::brewer.pal(length(vals), "Paired")
+  if (length(vals) != length(colors))
+    colors <- colorRampPalette(colors)(length(vals))
   names(colors) <- vals
   labels <- rep("Fuel", length(vals))
   names(labels) <- vals
-  climateGrep <- "CMD|light"
+  climateGrep <- "CMD|light|positiveCG"
   climateInd <- grep(climateGrep, vals) # this is how I identify climate vars: not robust!!!!!
   set(df, NULL, "FuelOrClimate", "Fuel")
   set(df, which(df$variable %in% names(labels[climateInd])), "FuelOrClimate", "Climate")
