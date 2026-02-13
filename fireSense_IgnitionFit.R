@@ -962,7 +962,13 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
 
   } else {
     crossValType <- "crossValidation"
-    trainIndexK <- caret::createFolds(dat3Forxgboost[, ignitions], k = nFolds, list = TRUE, returnTrain = FALSE)
+    vals <- dat3Forxgboost[, ignitions]
+    # there is a bug in caret::createFolds --> if there is only 1 unique value. 
+    # Create a single value that is a tiny bit different, all OK
+    if (length(unique(vals)) == 1) { 
+      vals[length(vals)] <- vals[length(vals)] + 0.00001
+    }
+    trainIndexK <- caret::createFolds(vals, k = nFolds, list = TRUE, returnTrain = FALSE)
     trainIndexK <- Map(tr = trainIndexK, function(tr) {
       list(seq(NROW(dat3Forxgboost)), tr) |> setNames(indexNames)
     })
