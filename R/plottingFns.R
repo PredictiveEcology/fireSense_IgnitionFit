@@ -75,7 +75,7 @@ IgEscapePlots <- function(
     pAll <- rbindlist(lapply(seq(termsNoInteraction), function(x) p))
     pAll[, val := rep(termsNoInteraction, each = N)]
 
-    termsUsingCover <- as.vector(dt[, lapply(.SD, max), .SDcol = termsNoInteraction])
+    termsUsingCover <- as.vector(dt[, lapply(.SD, max), .SDcols = termsNoInteraction])
     termsUsingBiomass <- names(termsUsingCover[termsUsingCover > 1])
     termsUsingCover <- setdiff(names(termsUsingCover), termsUsingBiomass)
 
@@ -85,7 +85,7 @@ IgEscapePlots <- function(
     }
 
     #set minimum biomass as whatever is in data (likely log(100)-1)
-    minBiomass <- min(dt[, .SD, .SDcol = termsUsingBiomass])
+    minBiomass <- min(dt[, .SD, .SDcols = termsUsingBiomass])
 
     for (val1 in c(termsUsingBiomass)) {
       set(pAll, which(!pAll$val %in% c(val1, termsUsingCover)), val1, minBiomass)
