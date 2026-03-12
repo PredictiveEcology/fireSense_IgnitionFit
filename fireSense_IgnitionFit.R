@@ -207,86 +207,6 @@ checkData <- function(formula, covariates, type) {
   }
 }
 
-prepareCovariates <- function(formula, covariates, rescaleVars, modelAlgorithm) {
-
-  covariates <- copy(setDT(covariates))
-  if (any(c("year", "yr") %in% tolower(names(covariates)))) {
-    xvar <- intersect(c("year", "yr"), tolower(names(covariates)))
-  } else {
-    xvar <- rows #TODO what is this?
-  }
-
-
-  if (grepl("xgb", modelAlgorithm) %in% FALSE) {
-    formula <- as.formula(formula, env = .GlobalEnv)
-    terms <- terms.formula(formula)
-
-    if (attr(terms, "response")) {
-      y <- formula[[2L]]
-    } else {
-      stop("Incomplete formula, the LHS is missing.")
-    }
-  }
-
-  # if (!is.data.table(covariates))
-  #   covariates <- as.data.table(covariates)
-
-  if (rescaleVars) {
-    if (grepl("xgb", modelAlgorithm) %in% FALSE) {
-      # rescalers <- abs(sapply(covariates[, .SD, .SDcol = toRescale], FUN = max))
-      message("Variables outside of [0,10] range will be rescaled to [0,10]")
-      toRescale <- setdiff(names(covariates),
-                           c("pixelID", ignitionsTxt, escapesTxt, "year", "yearChar"))
-      rescalers <- sapply(covariates[, .SD, .SDcol = toRescale], max)
-      needRescale <- sapply(rescalers, FUN = function(x) !inRange(x, 0, 10))
-      cols <- names(rescalers)[which(needRescale)]
-      message("rescaling the following variables: ", paste(cols, collapse = ", "))
-      ignitionRescalers <- 10^(floor(log10(abs(rescalers[cols])))) # if range is 0,1, need + 1
-      covariates <- rescaleVarsByMagnitude(covariates, ignitionRescalers)
-    } else {
-
-      SDcols <- setdiff(colnames(covariates), c("yearChar", ignitionsTxt, "escapes"))
-      scaledData <- scale(covariates[, ..SDcols])
-      origIgnitions <- covariates[[ignitionsTxt]]
-      origEscapes <- covariates[["escapes"]]
-      centeringData <- attributes(scaledData)
-      covariates <- as.data.table(scaledData)
-      set(covariates, NULL, ignitionsTxt, origIgnitions)
-      if (!is.null(origEscapes))
-        set(covariates, NULL, "escapes", origEscapes)
-
-      # covariates <- covariates[,
-      #                          append(
-      #                            list(# yearChar = yearChar,
-      #                              ignitions = ignitions
-      #                              #, nfLCC_100 = nfLCC_100,
-      #                              #, nfLCC_50_80 = nfLCC_50_80,
-      #                              #, youngAge = youngAge
-      #                            ),
-      #                            lapply(.SD, scale, scale = TRUE)),
-      #                          .SDcols = setdiff(colnames(covariates), c("yearChar", ignitionsTxt))
-      #                          #.SDcols = c("CMDsm", "Betu_pap", "Pc_gl.Lr_la", "Pice_mar",
-      #                          #"Pn_co.Pn_ba", "Pp_ba.Pp_tr", "lightning")
-      # ]
-      # cols <- grep("V1", value = TRUE, colnames(covariates))
-      # setnames(covariates, old = cols, new = gsub(".V1", "", cols))
-      # if (escapesTxt %in% colnames(covariates)) {
-      #   set(covariates, NULL, escapesTxt, covariates[[escapesTxt]])
-      # }
-
-      setattr(covariates, name = "scaleData", value = centeringData)
-      ignitionRescalers <- NULL #so that fire fireSense_IgnitionFit can add it
-
-    }
-  } else {
-    ignitionRescalers <- NULL #so that fire fireSense_IgnitionFit can add it
-  }
-
-  return(list(covariates = covariates,
-              formula = formula,
-              ignitionRescalers = ignitionRescalers,
-              xvar = xvar))
-}
 
 buildModel <- function(covariates, formula, type = "ignition",
                        climVar,# = sim$climateVariablesForFire$ignition,
@@ -321,9 +241,9 @@ buildModel <- function(covariates, formula, type = "ignition",
       paste0(" + ", climVar)),
       env = .GlobalEnv)
   }
-  varToInt <- ignitionsTxt
+  varToInt <- fireSenseUtils::ignitionsTxt
   if (type == "escape") {
-    varToInt <- c(ignitionsTxt, escapesTxt)
+    varToInt <- c(fireSenseUtils::ignitionsTxt, fireSenseUtils::escapesTxt)
   }
   if (!any(grepl("xgb", modelAlgorithm)))
     varToInt <- c(varToInt, "year")
@@ -396,14 +316,6 @@ buildModel <- function(covariates, formula, type = "ignition",
   return(sim)
 }
 
-
-igOrEscNames <- function(igOrEsc, pre = "fireSense_", post, case = c("lower", "camel", "sentence", "title")) {
-  if (startsWith(tolower(case[1]), prefix = "cam"))
-    igOrEsc <- camelCase(igOrEsc)
-  if (startsWith(tolower(case[1]), prefix = "sen") || startsWith(tolower(case[1]), prefix = "tit"))
-    igOrEsc <- tools::toTitleCase(igOrEsc) # only has one word, so OK
-  paste0(pre, igOrEsc, post)
-}
 
 
 camelCase <- function(x) {
@@ -513,36 +425,41 @@ runGlmmTMB <- function(nam, form, dat, family, type, climVar) {
 
 buildModelsFitModels <- function(igOrEsc, sim) {
   # function(igOrEsc) {
-
   covariatesHere <- igOrEscNames(igOrEsc, post = "Covariates") # paste0("fireSense_", igOrEsc, "Covariates")
-  objsNeeded <- c(covariatesHere)
-  if (grepl("xgb", Par$modelAlgorithm) %in% FALSE) {
-    formulaHere <- igOrEscNames(igOrEsc, post = "Formula") # paste0("fireSense_", igOrEsc, "Formula")
-    objsNeeded <- c(objsNeeded, formulaHere)
-    modelFamily <- igOrEscNames(igOrEsc, pre = "", post = "Family") # paste0(igOrEsc, "Family")
-    family <- P(sim)[[modelFamily]]
-    formulaHere <- sim[[formulaHere]] # pull from simList
-  } else {
-    formulaHere <- NULL
-    family <- NULL
-  }
-
-  # This takes time for large datasets
-  digestOfData <- .robustDigest(mget(objsNeeded, envir = envir(sim)))
-
-  data <- prepareCovariates(formula = formulaHere,
-                            covariates = sim[[covariatesHere]],
-                            rescaleVars = P(sim)$rescaleVars,
-                            modelAlgorithm = Par$modelAlgorithm) |>
-    Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestOfData)
-
-
-  if (identical(igOrEsc, "escape")) {
-    # Escape should not have lightning
-    # if don't explicitly copy, then Cache above returns the "lightning"-removed data.table
-    data$covariates <- data.table::copy(data$covariates)
-    set(data$covariates, NULL, "lightning", NULL)
-  }
+  data <- prepareCovariatesOuter(sim[[covariatesHere]], 
+                                 algorithm = Par$modelAlgorithm, 
+                                 rescaleVars = Par$rescaleVars)
+  # if (FALSE) {
+  #   objsNeeded <- c(covariatesHere)
+  #   if (grepl("xgb", Par$modelAlgorithm) %in% FALSE) {
+  #     formulaHere <- igOrEscNames(igOrEsc, post = "Formula") # paste0("fireSense_", igOrEsc, "Formula")
+  #     objsNeeded <- c(objsNeeded, formulaHere)
+  #     modelFamily <- igOrEscNames(igOrEsc, pre = "", post = "Family") # paste0(igOrEsc, "Family")
+  #     family <- P(sim)[[modelFamily]]
+  #     formulaHere <- sim[[formulaHere]] # pull from simList
+  #   } else {
+  #     formulaHere <- NULL
+  #     family <- NULL
+  #   }
+  #   
+  #   # This takes time for large datasets
+  #   digestOfData <- .robustDigest(mget(objsNeeded, envir = envir(sim)))
+  #   
+  #   data <- rescaleCovariates(formula = formulaHere,
+  #                             covariates = sim[[covariatesHere]],
+  #                             rescaleVars = P(sim)$rescaleVars,
+  #                             modelAlgorithm = Par$modelAlgorithm) |>
+  #     Cache(omitArgs = c("covariates", "formula"), .cacheExtra = digestOfData)
+  #   
+  #   
+  #   if (identical(igOrEsc, "escape")) {
+  #     # Escape should not have lightning
+  #     # if don't explicitly copy, then Cache above returns the "lightning"-removed data.table
+  #     data$covariates <- data.table::copy(data$covariates)
+  #     set(data$covariates, NULL, "lightning", NULL)
+  #   }
+  # }
+  
   nFolds <- 5
 
   crossValType <- Par$crossValType
@@ -556,12 +473,12 @@ buildModelsFitModels <- function(igOrEsc, sim) {
                           # type = "ignition",
                           crossValType = crossValType,
                           family = family, # useMirai = P(sim)$useMirai,
-                          digestOfData = digestOfData,
+                          digestOfData = data$digestOfData,
                           modelAlgorithm = Par$modelAlgorithm,
                           formsToRun = c("full", "InterceptOnly", "climateOnly")[1]) |>
     Cache(omitArgs = c("covariates", "formula"),
           .functionName = paste0("buildModel for ", igOrEsc),
-          .cacheExtra = c(digestOfData, 1), cacheSaveFormat = "rds") # doesn't work with qs
+          .cacheExtra = c(data$digestOfData, 1), cacheSaveFormat = "rds") # doesn't work with qs
   # options(opt) # redundant; but necessary so stuff below has qs (or original csf)
   #ignition specific
   origNoPix <- attributes(sim$ignitionFitRTM)$nonNAs   ## nrow(preSampleData) in eg above
@@ -611,7 +528,7 @@ buildModelsFitModels <- function(igOrEsc, sim) {
     # },
     # .args = argsAll)  # this tells mirai which objects are needed
 
-    # cnNoIgnNoEsc <- colnames(data$covariates) |> setdiff(c(ignitionsTxt, escapesTxt, "year", "pixelID"))
+    # cnNoIgnNoEsc <- colnames(data$covariates) |> setdiff(c(fireSenseUtils::ignitionsTxt, fireSenseUtils::escapesTxt, "year", "pixelID"))
     # dat <- data$covariates[, ..cnNoIgnNoEsc]
 
     figPath <- figurePath(sim)
@@ -619,7 +536,7 @@ buildModelsFitModels <- function(igOrEsc, sim) {
     modelOnly <- modelHere[grep("Fold", names(modelHere))]
     aa <- setupPlots(modelOnly, dat = data$covariates, igOrEsc) |>
       Cache(omitArgs = c("dat", "modelOnly"),
-            .cacheExtra = list(digestOfData = digestOfData, digModels = digModels, plotPredictions = plotPredictions),
+            .cacheExtra = list(digestOfData = data$digestOfData, digModels = digModels, plotPredictions = plotPredictions),
             .functionName = paste0(".functionName_", igOrEsc))
     fn1 <- functionNameHelper("FuelClimate", ifelse(igOrEsc == "escape", "", "Lightning"), "predicted", igOrEsc, Par$crossValType[1])
     fn <- functionNameHelper(fn1, format(Sys.time()))
@@ -627,10 +544,11 @@ buildModelsFitModels <- function(igOrEsc, sim) {
 
     a <- Plots(bb, path = figPath,
                filename = fn,
-               type = "png", ggsaveArgs = list(width = 8, height = 5, scale = 1.5)) |>
-      Cache(omitArgs = c("data", "filename"),
-            .cacheExtra = list(digestOfData = digestOfData, digModels = digModels, filename = fn1),
-            .functionName = paste0(".functionName_", igOrEsc)) |> reproducible:::suppressWarningsSpecific("appears to have a much larger size on disk than in memory")
+               type = "png", ggsaveArgs = list(width = 8, height = 5, scale = 1.5), useCache = TRUE)
+    # |>
+    #   Cache(omitArgs = c("data", "filename"),
+    #         .cacheExtra = list(digestOfData = data$digestOfData, digModels = digModels, filename = fn1),
+    #         .functionName = paste0(".functionName_", igOrEsc)) |> reproducible:::suppressWarningsSpecific("appears to have a much larger size on disk than in memory")
 
     if (FALSE)
       IgEscapePlots(dt = data$covariates, bestModel = modelOnly,
@@ -642,7 +560,7 @@ buildModelsFitModels <- function(igOrEsc, sim) {
                     ignitionFitRTM = sim$ignitionFitRTM,
                     studyAreaName = P(sim)$.studyAreaName,
                     oPath = outputPath(sim)) |>
-      Cache(omitArgs = c("dt", "bestModel"), .cacheExtra = digestOfData)
+      Cache(omitArgs = c("dt", "bestModel"), .cacheExtra = data$digestOfData)
   }
   list(modelList = modelList, scaleData = attr(data$covariates, "scaleData"))
   #  }
@@ -983,7 +901,7 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
   # sim <- get("sim", whereInStack("sim")) # work around--> correct way is to pass figPath
   # figPath <- figurePath(sim)
   # rm(sim)
-  colnamesNoIgn <- grep(paste0(ignitionsTxt,"|",escapesTxt), colnames(dat3Forxgboost), value = TRUE, invert = TRUE) |>
+  colnamesNoIgn <- grep(paste0(fireSenseUtils::ignitionsTxt,"|",fireSenseUtils::escapesTxt), colnames(dat3Forxgboost), value = TRUE, invert = TRUE) |>
     sort() # make alphabetical
   dat3ForxgboostNoIgn <- dat3Forxgboost[, ..colnamesNoIgn]
 
@@ -1098,7 +1016,7 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
   # # Map(nam = cn, function(nam) data.frame(0) |> setNames(cn))
   #
   # df <- Map(fold = seq(nFolds), function(fold) {
-  #   df <- Map(nam = setdiff(cn, c(ignitionsTxt, escapesTxt)), function(nam) {
+  #   df <- Map(nam = setdiff(cn, c(ignitionsTxt, fireSenseUtils::escapesTxt)), function(nam) {
   #     rr <- range(dat3Forxgboost[, ..nam], na.rm = TRUE) * 10
   #     rr[1] <- floor(rr[1])
   #     rr[2] <- ceiling(rr[2])
@@ -1249,9 +1167,6 @@ runGLM.NB <- function(dat) {
   (roc_curveNB <- roc(ignZeroAndOnes, predNB))
 }
 
-ignitionsTxt <- "ignitions"
-escapesTxt <- "escapes"
-
 functionNameHelper <- function(..., sep = "_") {
   paste(..., sep = sep)
   #   paste(fnName, type, kFold, sep = sep)
@@ -1303,7 +1218,7 @@ plotPredictions <- function(df, fuelOrClimate, labels, value, jitter, colors, fu
 
 setupPlots <- function(modelOnly, dat, igOrEsc) {
 
-  cnNoIgnNoEsc <- colnames(dat) |> setdiff(c(ignitionsTxt, escapesTxt, "year", "pixelID"))
+  cnNoIgnNoEsc <- colnames(dat) |> setdiff(c(fireSenseUtils::ignitionsTxt, fireSenseUtils::escapesTxt, "year", "pixelID"))
   dat <- dat[, ..cnNoIgnNoEsc]
 
   df <- Map(fold = seq_along(modelOnly), function(fold) {
