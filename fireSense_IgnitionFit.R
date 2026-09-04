@@ -5,10 +5,10 @@ defineModule(sim, list(
   keywords = c("fire frequency", "optimization", "additive property", "poisson",
                "negative binomial", "fireSense"),
   authors = c(
-    person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = c("aut")),
-    person("Eliot", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca", role = "aut"),
-    person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca", role = c("aut", "cre")),
-    person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = c("ctb"))
+    person("Eliot", "McIntire", email = "eliot.mcintire@nrcan-rncan.gc.ca", role = c("aut", "cre")),
+    person("Ian", "Eddy", email = "ian.eddy@nrcan-rncan.gc.ca", role = "aut"),
+    person("Jean", "Marchal", email = "jean.d.marchal@gmail.com", role = "aut"),
+    person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = "ctb")
   ),
   childModules = character(),
   version = list(fireSense_IgnitionFit = "1.0.1"),
