@@ -24,7 +24,7 @@ defineModule(sim, list(
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
                   "PredictiveEcology/pemisc@development",
-                  "PredictiveEcology/reproducible@AI (>= 2.1.2.9067)",
+                  "PredictiveEcology/reproducible@development (>= 2.1.2.9067)",
                   #TODO correct this when reproducible is merged - it is due to cache(predict)
                   "RhpcBLASctl", # "Matrix", # "ModelOriented/EIX",
                   "caret", "pROC",
