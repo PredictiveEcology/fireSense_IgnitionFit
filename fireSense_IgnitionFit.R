@@ -1138,20 +1138,12 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
   #   theme_bw()
   #
 
-  rocs <- lapply(mm, function(d) {
-    ignZeroAndOnes <- pmin(1L, d$valData[[ignOrEscapeColName]])
-    # (roc_curvePoisson <- roc(ignZeroAndOnes, d$valData$predPoisson))
-    (roc_curveTweedie <- pROC::roc(ignZeroAndOnes, d$valData[["predTweedie"]]))
-    roc_curveTweedie
-  })
-
-  tweedie <- mapply(r = rocs, function(r) {
-    as.numeric(r$auc)
-  })
+  rocs <- rocPerFold(mm, ignOrEscapeColName)
+  tweedie <- aucPerFold(rocs)
   # poiss <- mapply(r = rocs, function(r) {
   #   as.numeric(r$roc_curvePoisson$auc)
   # })
-  print(paste("mean roc: ", format(mean(tweedie), digits = 3)))
+  print(meanRocMessage(tweedie))
   # mean(poiss)
   mm2 <- Map(m = mm, function(m) m$mod)
   mm2 <- append(mm2, list(rocs = rocs))
@@ -1159,6 +1151,39 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
   return(mm2)
 }
 
+
+## ROC curve per validation fold, and the mean AUC message.
+##
+## AUC needs both outcomes present. A validation fold can legitimately hold only one --
+## for escape in a small study area, every fire escaped or none did -- and `pROC::roc()`
+## stops there with "'response' must have two levels". That used to abort the whole fit,
+## which is the wrong trade: these curves are a diagnostic, printed and returned alongside
+## the models, and nothing about the fitted model (`m$mod`) depends on them. A fold with
+## one outcome therefore reports no AUC and the fit stands.
+rocPerFold <- function(mm, ignOrEscapeColName) {
+  lapply(mm, function(d) {
+    ignZeroAndOnes <- pmin(1L, d$valData[[ignOrEscapeColName]])
+    # (roc_curvePoisson <- roc(ignZeroAndOnes, d$valData$predPoisson))
+    if (length(unique(ignZeroAndOnes)) < 2L) {
+      message("  ... a validation fold of ", ignOrEscapeColName, " holds only the value ",
+              unique(ignZeroAndOnes), "; AUC is undefined for it, so it is skipped")
+      return(NULL)
+    }
+    pROC::roc(ignZeroAndOnes, d$valData[["predTweedie"]])
+  })
+}
+
+aucPerFold <- function(rocs) {
+  vapply(rocs, function(r) if (is.null(r)) NA_real_ else as.numeric(r$auc), numeric(1))
+}
+
+meanRocMessage <- function(aucs) {
+  if (all(is.na(aucs)))
+    return("mean roc:  not computed (no validation fold had both outcomes)")
+  paste0("mean roc:  ", format(mean(aucs, na.rm = TRUE), digits = 3),
+         if (anyNA(aucs)) paste0(" (over ", sum(!is.na(aucs)), " of ", length(aucs),
+                                 " folds)") else "")
+}
 
 runGLM.NB <- function(dat) {
   system.time(nb <- glm.nb(ignitions ~., data = dat))
