@@ -880,16 +880,7 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
 
   } else {
     crossValType <- "crossValidation"
-    vals <- dat3Forxgboost[, ignitions]
-    # there is a bug in caret::createFolds --> if there is only 1 unique value. 
-    # Create a single value that is a tiny bit different, all OK
-    if (length(unique(vals)) == 1) { 
-      vals[length(vals)] <- vals[length(vals)] + 0.00001
-    }
-    trainIndexK <- caret::createFolds(vals, k = nFolds, list = TRUE, returnTrain = FALSE)
-    trainIndexK <- Map(tr = trainIndexK, function(tr) {
-      list(seq(NROW(dat3Forxgboost)), tr) |> setNames(indexNames)
-    })
+    trainIndexK <- cvFolds(dat3Forxgboost[[grep(value = TRUE, type, colnames(dat3Forxgboost))]], nFolds)
   }
 
   colOrder <- setdiff(colnames(dat3Forxgboost), c("pixelID", "year"))
@@ -906,6 +897,7 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
   dat3ForxgboostNoIgn <- dat3Forxgboost[, ..colnamesNoIgn]
 
   ignOrEscapeColName <- grep(value = TRUE,type, colnames(dat3Forxgboost))
+  stopIfFoldsLackPositives(dat3Forxgboost[[ignOrEscapeColName]], trainIndexK, type)
   # if (packageVersion("xgboost") <= "3.0.2.1") {
   #   install.packages('xgboost', repos = c('https://dmlc.r-universe.dev', 'https://cloud.r-project.org'))
   #   stop("Please restart R")
@@ -948,6 +940,10 @@ runXGBOOST <- function(dat, dig, type = "ignition", nFolds = 5,
         # Predict probabilities
         valData <- dat3Forxgboost[valInd, ]
         pred2 <- predict(mTweedie, valData)
+        if (!all(is.finite(pred2))) {
+          stop(type, " cross-validation fold ", kFold, ": the model predicted ", sum(!is.finite(pred2)),
+               " non-finite values out of ", length(pred2), call. = FALSE)
+        }
         valData <- cbind(valData, predTweedie = pred2)
         if (FALSE) {
           ignZeroAndOnes <- pmin(1, valData[, ignitions])
@@ -1175,6 +1171,30 @@ rocPerFold <- function(mm, ignOrEscapeColName) {
 
 aucPerFold <- function(rocs) {
   vapply(rocs, function(r) if (is.null(r)) NA_real_ else as.numeric(r$auc), numeric(1))
+}
+
+## Cross-validation folds for runXGBOOST(), stratified on whether each row is positive.
+##
+## Folds built on the raw response put rare positives in one group, so a single fold could hold every
+## positive and train on zeros only (ELF 3.1.2). Stratified on positive / not, the positives are spread
+## across the folds, and every fold trains with some once there are 2 or more.
+cvFolds <- function(response, nFolds) {
+  folds <- caret::createFolds(factor(response > 0), k = nFolds, list = TRUE, returnTrain = FALSE)
+  lapply(folds, function(f) list(keepAll = seq_along(response), keepEval = f))
+}
+
+## Stop when a cross-validation fold would train without any positive observation.
+##
+## xgboost trains each fold's model on `keepAll` without the fold's `eval_set` (`keepEval`). If those
+## rows hold no positive, the model predicts NaN for every row (ELF 3.1.2: one ignition in 2002-2022,
+## which landed in one fold's held-out rows), and pROC::roc() then stops with "No control observation".
+stopIfFoldsLackPositives <- function(response, folds, type) {
+  noPositive <- vapply(folds, function(f) !any(response[setdiff(f$keepAll, f$keepEval)] > 0), logical(1))
+  if (any(noPositive)) {
+    stop("Too few ", type, "s to fit ", length(folds), " cross-validation folds: ",
+         sum(response > 0), " positive observation(s), and ", sum(noPositive),
+         " fold(s) would train without any.", call. = FALSE)
+  }
 }
 
 meanRocMessage <- function(aucs) {
