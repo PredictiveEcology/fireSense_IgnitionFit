@@ -20,7 +20,7 @@ defineModule(sim, list(
                    before = "fireSense_dataPrepPredict"),
   reqdPkgs = list("data.table", "dplyr", "PredictiveEcology/SpaDES.core@development (>= 3.0.4)",
                   "PredictiveEcology/fireSenseUtils@development (>= 0.1.0)",
-                  "glmmTMB", "mirai",
+                  "glmmTMB",
                   "ggplot2", "ggpubr", "MASS", "magrittr",
                   "numDeriv", "parallel", "parallelly",
                   "PredictiveEcology/pemisc@development",
