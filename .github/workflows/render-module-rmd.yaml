@@ -1,0 +1,38 @@
+## Thin caller. The job itself lives in PredictiveEcology/actions, so the pins
+## for install-spatial-deps, install-Require, install-SpaDES and install-Rmd-pkgs
+## live there too and move once, instead of being frozen into every module
+## repository on the day it was created.
+##
+## https://github.com/PredictiveEcology/actions/blob/main/.github/workflows/render-module-rmd.yaml
+
+name: Render module Rmd
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - development
+  push:
+    branches:
+      - main
+      - master
+      - development
+    paths:
+      - .github/workflows/render-module-rmd.yaml
+      - fireSense_IgnitionFit.Rmd
+      - fireSense_IgnitionFit.R
+  workflow_dispatch:
+
+jobs:
+  render-module-rmd:
+    ## The called workflow splits `render` (contents: read, which installs and
+    ## then executes this module's own code) from `commit` (contents: write,
+    ## which runs nothing but git). A called workflow can only reduce what is
+    ## granted here, never widen it, so the write scope has to be granted at the
+    ## call site.
+    permissions:
+      contents: write
+    uses: PredictiveEcology/actions/.github/workflows/render-module-rmd.yaml@main
+    with:
+      module: fireSense_IgnitionFit

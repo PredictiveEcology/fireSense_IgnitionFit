@@ -1,132 +1,112 @@
 ---
-title: "fireSense_IgnitionFit"
-author: "Jean Marchal (jean.d.marchal@gmail.com)"
-date: "`r format(Sys.time(), '%B %Y')`"
+title: "fireSense_IgnitionFit Manual"
+subtitle: "v.`r SpaDES.core::moduleMetadata(module = 'fireSense_IgnitionFit', path = '..')$version`"
+date: "Last updated: `r Sys.Date()`"
 output:
-  html_document: default
-  pdf_document: default
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    theme: sandstone
+    number_sections: false
+    df_print: paged
+    keep_md: yes
+editor_options:
+  chunk_output_type: console
+bibliography: citations/references_fireSense_IgnitionFit.bib
+link-citations: true
+always_allow_html: true
 ---
 
-# Overview
-Fit statistical models that can be used to parameterize the fire ignition component of landscape fire models (e.g. fireSense).
+# fireSense_IgnitionFit Module
 
-# Download the module
-```{r download module, eval = FALSE, echo = TRUE}
-library(SpaDES)
+<!-- the following are text references used in captions for LaTeX compatibility -->
+(ref:fireSense-IgnitionFit) *fireSense_IgnitionFit*
 
-moduleName <- "fireSense_IgnitionFit"
+```{r setup-fireSense-IgnitionFit, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, results = "hold") ## change to eval = TRUE if all chunks are to be evaluated
 
-spadesModulesDirectory <- tempdir() # Location where the module will be downloaded
+dir.create("figures", showWarnings = FALSE)
 
-downloadModule(moduleName, path = spadesModulesDirectory)
+download.file(url = "https://img.shields.io/badge/Made%20with-Markdown-1f425f.png",
+              destfile = "figures/markdownBadge.png",
+              mode = "wb")
 ```
 
-# Usage
-## Module parameters
-Name|Default|Description
-----|:--------------|---------------------------------------------------------------------
-`formula`|`NA`|a formula describing the model to be fitted. Piece-wised terms can be specifed using `pw(variableName, knotName)`.
-`family`|`negative.binomial`|a family function (must be wrapped with `quote()`) or a character string naming a family function. For additional details see `?family`.
-`data`|`"dataFireSense_IgnitionFit"`|a character vector indicating the names of objects in the `simList` environment in which to look for variables present in the model formula. `data` objects should be data.frames.
-`start`|`NULL`|optional starting values for the parameters to be estimated. Those are passed to `nlminb` and can be a single vector, or a list of vectors. In the latter case, only the best solution, that is, the one which minimizes the most the objective function, is kept.
-`lb`|`NULL`|optional named list with up to three elements, 'coef', 'theta' and 'knots', specifying lower bounds for coefficients to be estimated. These must be finite and will be recycled if necessary to match `length(coefficients)`.
-`ub`|`NULL`|optional named list with up to three elements, 'coef', 'theta' and 'knots', specifying upper bounds for coefficients to be estimated. These must be finite and will be recycled if necessary to match `length(coefficients)`.
-`iterDEoptim`|`2000`|integer defining the maximum number of iterations allowed (DEoptim optimizer).
-`iterNlminb`|`500`|if start is not supplied, `iterNlminb` defines the number of trials, or searches, to be performed by the nlminb optimizer in order to find the best solution.
-`cores`|`1`|non-negative integer. Defines the number of logical cores to be used for parallel computation. The default value is 1, which disables parallel computing.
-`trace`|`0`|non-negative integer. If > 0, tracing information on the progress of the optimization are printed every `trace` iteration. If parallel computing is enable, nlminb trace logs are written into the working directory. Log files are prefixed with 'fireSense_IgnitionFit_trace' followed by the nodename (see ?Sys.info) and the subprocess pid. Default is 0, which turns off tracing.
-`nlminb.control`|`list(iter.max = 5e3L,`<br>&emsp;&emsp;&emsp;`eval.max=5e3L`)|optional list of control parameters to be passed to the `nlminb` optimizer. See `?nlminb`.
-`.runInitialTime`|`start(simList)`|when to start this module? By default, the start time of the simulation.
-`.runInterval`|`NA`|optional. Interval between two runs of this module, expressed in units of simulation time. By default, NA, which means that this module only runs once per simulation.
-`.saveInitialTime`|`NA`|optional. When to start saving output to a file.
-`.saveInterval`|`NA`|optional. Interval between save events.
-|||
+[![made-with-Markdown](figures/markdownBadge.png)](https://commonmark.org)
 
-## Usage example
-```{r module usage example, eval = FALSE}
-library(SpaDES)
+<!-- if knitting to pdf remember to add the pandoc_args: ["--extract-media", "."] option to yml in order to get the badge images -->
 
-# Define simulation parameters
-times <- list(start = 1, end = 1, timeunit = "year")
-modules <- list("fireSense_IgnitionFit")
-paths <- list(
-  modulePath = spadesModulesDirectory
-)
+#### Authors:
 
-# Example of model formula with piecewise terms
-model <- n_fires ~ -1 + # Remove the intercept
-                   PcHardwood:MonthlyDroughtCode_July + PcConifer:MonthlyDroughtCode_July +
-                   PcDisturbed:MonthlyDroughtCode_July + PcOther:MonthlyDroughtCode_July +
-                   PcHardwood:pw(MonthlyDroughtCode_July, knotPcHardwood) +
-                   PcConifer:pw(MonthlyDroughtCode_July, knotPcConifer) +
-                   PcDisturbed:pw(MonthlyDroughtCode_July, knotPcDisturbed) +
-                   PcOther:pw(MonthlyDroughtCode_July, knotPcOther)
+`r paste(as.character(SpaDES.core::moduleMetadata(module = "fireSense_IgnitionFit", path = '..')$authors), sep = ', ')`
+<!-- ideally separate authors with new lines, '\n' not working -->
 
-# Define module parameters
-parameters <- list(
-  fireSense_IgnitionFit = list(
-    formula = formula,
-    family = quote(MASS::negative.binomial(theta = 1, link = "identity")),
-    data = "dataFireSense_IgnitionFit"
-  )
-)
+## Module Overview
 
-# Define from where and how data will be loaded in the simList environment
-inputs <- data.frame(
-  objectName = "dataFireSense_IgnitionFit",
-  file = "/path/to/data/input/",
-  fun = "readRDS",
-  package = "base",
-  loadTime = 1
-)
+This module fits a statistical model to estimate the contributions of climate and fuel to fire ignition.
+<!-- TODO -->
+Estimate fire ignition (TODO: fill this out) - [@Marchal:2017a; @Marchal:2017b; @Marchal:2019]
 
-# Create the simList
-sim <- simInit(
-  times = times,
-  modules = modules,
-  params = parameters,
-  paths = paths,
-  inputs = inputs
-)
+### Module summary
 
-sim <- spades(sim)
-sim$fireSense_IgnitionFitted
+Fit a model of fire ignition from climate and fuel covariates.
+
+### Module inputs and parameters
+
+Describe input data required by the module and how to obtain it (e.g., directly from online sources or supplied by other modules) .
+
+Table \@ref(tab:moduleInputs-fireSense-IgnitionFit) shows the full list of module inputs.
+
+```{r moduleInputs-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
+df_inputs <- SpaDES.core::moduleInputs("fireSense_IgnitionFit", "..")
+knitr::kable(df_inputs,
+             caption = "List of (ref:fireSense_IgnitionFit) input objects and their description.") |>
+  kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
 ```
 
-# Events
-Events are scheduled as follows:
+Summary of user-visible parameters (Table \@ref(tab:moduleParams-fireSense-IgnitionFit))
 
-- Module initialisation
-- Model fitting
+```{r moduleParams-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
+df_params <- SpaDES.core::moduleParams("fireSense_IgnitionFit", "..")
+knitr::kable(df_params, caption = "List of (ref:fireSense-IgnitionFit) parameters and their description.") |>
+  kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
+```
 
-# Data dependencies
-## Input data
-- **dataFireSense_IgnitionFit**: one or more data.frames in which to look for variables present in the model formula.
+### Events
 
-## Output data
-- **fireSense_IgnitionFitted**: an object of class `fireSense_IgnitionFit`, i.e. a list containing the following elements:
+<!-- TODO -->
+Describe what happens for each event type.
 
-    - formula (model formula)
-    - family (model family)
-    - coef (fitted coefficients)
-    - coef.se (standard errors of fitted coefficients)
-    - LL (log-likelihood)
-    - AIC (Akaike Information Criterion)
-    - convergence
-    - convergence diagnostic
+### Plotting
 
-  and optionally:
+<!-- TODO -->
+Write what is plotted.
 
-  - if `formula` contains piecewise terms:
-    
-    - knots (knots values)
-    - knots.se (standard errors of knots)
+### Saving
 
-  - if `family` is `negative.binomial`:
-  
-    - theta (dispersion parameter)
-    - theta.se (standard error of theta)
+<!-- TODO -->
+Write what is saved.
 
-# Links to other modules
+### Module outputs
+
+Description of the module outputs (Table \@ref(tab:moduleOutputs-fireSense-IgnitionFit)).
+
+```{r moduleOutputs-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
+df_outputs <- SpaDES.core::moduleOutputs("fireSense_IgnitionFit", "..")
+knitr::kable(df_outputs, caption = "List of (ref:fireSense-IgnitionFit) outputs and their description.") |>
+  kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
+```
+
+### Links to other modules
+
+<!-- TODO: add links to other fireSense modules -->
 This model can be used to parameterize the fire ignition component of landscape fire models such as fireSense.
+
+### Getting help
+
+- <https://github.com/PredictiveEcology/fireSense_IgnitionFit/issues>
+
+## References
+
+<!-- autogenerated from bibligraphy -->
 
