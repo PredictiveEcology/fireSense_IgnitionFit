@@ -44,3 +44,43 @@ test_that("parameters are the expected names", {
            "plot_fuelBiomassPerPrediction", "rescaleVars", "whichProcessesToFit"))
   )
 })
+
+test_that("parameters have the expected classes and defaults", {
+  md <- SpaDES.core::moduleMetadata(module = moduleName, path = modulePath)
+  p <- md$parameters
+  classes <- stats::setNames(unlist(p$paramClass), p$paramName)
+  expect_identical(
+    classes[order(names(classes))],
+    c(.plotInitialTime = "numeric", .plots = "character", .runInitialTime = "numeric",
+      .runInterval = "numeric", .saveInitialTime = "numeric", .saveInterval = "numeric",
+      .seed = "list", .studyAreaName = "character", .useCache = "logical",
+      crossValType = "character", escapeFamily = "function, character",
+      ignitionFamily = "function, character", modelAlgorithm = "character",
+      plot_fuelBiomassPerPrediction = "numeric", rescaleVars = "logical",
+      whichProcessesToFit = "character")
+  )
+
+  default <- function(name) p$default[[match(name, p$paramName)]]
+  expect_identical(default("crossValType"), c("time-ordered", "crossValidation"))
+  expect_identical(default("whichProcessesToFit"), c("ignition", "escape"))
+  expect_identical(default("modelAlgorithm"), "xgboost")
+  expect_identical(default("rescaleVars"), TRUE)
+  expect_identical(default("escapeFamily"), quote(binomial(link = "logit")))
+  expect_identical(default("ignitionFamily"), quote(poisson(link = "log")))
+  expect_identical(default(".plots"), "screen")
+  expect_identical(default(".useCache"), FALSE)
+  for (nm in c("plot_fuelBiomassPerPrediction", ".plotInitialTime", ".seed"))
+    expect_null(default(nm))
+  for (nm in c(".runInterval", ".saveInitialTime", ".saveInterval", ".studyAreaName"))
+    expect_true(is.na(default(nm)))
+  ## the only parameter with bounds
+  i <- match("plot_fuelBiomassPerPrediction", p$paramName)
+  expect_equal(c(p$min[[i]], p$max[[i]]), c(1, 10))
+})
+
+test_that("every package the tests rely on is in reqdPkgs, so CI cannot skip them", {
+  md <- SpaDES.core::moduleMetadata(module = moduleName, path = modulePath)
+  pkgs <- sub("\\s*\\(.*$", "", sub("@.*$", "", sub("^.*/", "", unlist(md$reqdPkgs))))
+  expect_true(all(c("xgboost", "SHAPforxgboost", "caret", "pROC", "MASS", "data.table", "terra",
+                    "ggplot2", "ggpubr", "fireSenseUtils", "reproducible", "SpaDES.core") %in% pkgs))
+})
