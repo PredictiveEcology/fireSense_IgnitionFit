@@ -43,28 +43,46 @@ download.file(url = "https://img.shields.io/badge/Made%20with-Markdown-1f425f.pn
 
 ## Module Overview
 
-This module fits a statistical model to estimate the contributions of climate and fuel to fire ignition.
-<!-- TODO -->
-Estimate fire ignition (TODO: fill this out) - [@Marchal:2017a; @Marchal:2017b; @Marchal:2019]
+Fits models of fire ignition and, optionally, fire escape from climate and fuel covariates.
+The fitted models are used by *fireSense_IgnitionPredict* and *fireSense_dataPrepPredict*.
+The module does not prepare data; *fireSense_dataPrepFit* supplies its inputs.
+Earlier versions fitted the piecewise regression models of @Marchal:2017a, @Marchal:2017b and @Marchal:2019.
 
-### Module summary
+### What it does
 
-Fit a model of fire ignition from climate and fuel covariates.
+For each process in `whichProcessesToFit` (`"ignition"`, `"escape"`):
+
+1. Covariates are centred and scaled (`fireSenseUtils::prepareCovariatesOuter()`), if `rescaleVars = TRUE`.
+   Ignition uses `fireSense_ignitionCovariates`; escape uses `fireSense_escapeCovariates` and only its rows with at least one ignition.
+2. Rows are split into 5 cross-validation folds, stratified on whether the response is positive.
+   The fit stops if any fold would train without a positive observation.
+3. One `xgboost` model (Tweedie objective) is fitted per fold, with the fold as the evaluation set.
+   The AUC of each fold is calculated on its held-out rows and the mean is printed.
+4. The per-fold models are returned together with the values needed to predict from them (see outputs).
+
+Only `modelAlgorithm = "xgboost"` works.
+`crossValType` does not change the fit.
+Fits are cached with `reproducible::Cache()`.
+
+### Events
+
+- `init`: schedules `checkData` and `run` at `.runInitialTime`.
+- `checkData`: stops if `ignitionFitRTM` lacks the `nonNAs` attribute, or if `whichProcessesToFit` names neither process.
+- `run`: fits and, if `.plots` is set, plots. Repeats every `.runInterval` if that is not `NA`.
 
 ### Module inputs and parameters
 
-Describe input data required by the module and how to obtain it (e.g., directly from online sources or supplied by other modules) .
-
-Table \@ref(tab:moduleInputs-fireSense-IgnitionFit) shows the full list of module inputs.
+Table \@ref(tab:moduleInputs-fireSense-IgnitionFit) lists the declared inputs.
+Fitting escape also needs `fireSense_escapeCovariates` (from *fireSense_dataPrepFit*), which is not declared in the metadata.
 
 ```{r moduleInputs-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
 df_inputs <- SpaDES.core::moduleInputs("fireSense_IgnitionFit", "..")
 knitr::kable(df_inputs,
-             caption = "List of (ref:fireSense_IgnitionFit) input objects and their description.") |>
+             caption = "List of (ref:fireSense-IgnitionFit) input objects and their description.") |>
   kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
 ```
 
-Summary of user-visible parameters (Table \@ref(tab:moduleParams-fireSense-IgnitionFit))
+Parameters are in Table \@ref(tab:moduleParams-fireSense-IgnitionFit).
 
 ```{r moduleParams-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
 df_params <- SpaDES.core::moduleParams("fireSense_IgnitionFit", "..")
@@ -72,24 +90,20 @@ knitr::kable(df_params, caption = "List of (ref:fireSense-IgnitionFit) parameter
   kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
 ```
 
-### Events
-
-<!-- TODO -->
-Describe what happens for each event type.
-
 ### Plotting
 
-<!-- TODO -->
-Write what is plotted.
+If `.plots` is set, one figure per process: the predicted response against each covariate, with all other covariates at their mean, for climate and fuel covariates in separate panels.
+It is saved as png in `figurePath(sim)`.
 
 ### Saving
 
-<!-- TODO -->
-Write what is saved.
+Nothing is saved apart from the figure.
 
 ### Module outputs
 
-Description of the module outputs (Table \@ref(tab:moduleOutputs-fireSense-IgnitionFit)).
+Outputs are in Table \@ref(tab:moduleOutputs-fireSense-IgnitionFit).
+`fireSense_IgnitionFitted$modelList$model` is the list of per-fold models (`Fold1`, ...) plus `rocs`, the ROC curve of each fold.
+`lambdaRescaleFactor` is the number of rows in the covariates divided by the number of non-NA cells in `ignitionFitRTM`.
 
 ```{r moduleOutputs-fireSense-IgnitionFit, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE}
 df_outputs <- SpaDES.core::moduleOutputs("fireSense_IgnitionFit", "..")
@@ -97,10 +111,23 @@ knitr::kable(df_outputs, caption = "List of (ref:fireSense-IgnitionFit) outputs 
   kableExtra::kable_styling(latex_options = "scale_down", full_width = TRUE)
 ```
 
+### Usage
+
+```{r usage-fireSense-IgnitionFit}
+## in the same `simInit()` call as fireSense_dataPrepFit, which creates the inputs
+modules <- c("fireSense_dataPrepFit", "fireSense_IgnitionFit")
+params <- list(
+  fireSense_IgnitionFit = list(whichProcessesToFit = c("ignition", "escape"), .plots = "png")
+)
+
+## after `spades()`
+sim$fireSense_IgnitionFitted$modelList$model$Fold1
+```
+
 ### Links to other modules
 
-<!-- TODO: add links to other fireSense modules -->
-This model can be used to parameterize the fire ignition component of landscape fire models such as fireSense.
+- [fireSense_dataPrepFit](https://github.com/PredictiveEcology/fireSense_dataPrepFit) creates the inputs.
+- [fireSense_dataPrepPredict](https://github.com/PredictiveEcology/fireSense_dataPrepPredict) and [fireSense_IgnitionPredict](https://github.com/PredictiveEcology/fireSense_IgnitionPredict) use the outputs.
 
 ### Getting help
 
