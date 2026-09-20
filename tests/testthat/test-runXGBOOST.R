@@ -81,7 +81,7 @@ test_that("runXGBOOST gives the same folds and models when repeated, and restore
                      as.numeric(pmin(1L, dat$ignitions[folds[[fold]]$keepEval])))
 })
 
-test_that("crossValType and the number of folds", {
+test_that("the number of folds", {
   fitCache()
   dat <- scaleCovariates(makeIgnitionCovariates())
   set.seed(42)
@@ -133,11 +133,17 @@ test_that("buildModel with xgboost fits runXGBOOST on integer responses", {
   set.seed(42)
   res <- NULL
   utils::capture.output(suppressWarnings(suppressMessages(
-    res <- buildModel(covariates = dat, formula = NULL, type = "ignition", climVar = "CMDsm",
-                      family = NULL, digestOfData = list(), modelAlgorithm = "xgboost", nFolds = 4)
+    res <- buildModel(covariates = dat, type = "ignition",
+                      dig = "test", modelAlgorithm = "xgboost", nFolds = 4)
   )))
   expect_identical(names(res), c(paste0("Fold", 1:4), "rocs"))            # nFolds is passed on
   expect_equal(unname(aucPerFold(res$rocs)), rep(1, 4))
   expect_type(dat$ignitions, "integer")                                  # converted by reference
   expect_identical(sum(dat$ignitions), 83L)                              # 39 * 1 + 22 * 2
+})
+
+test_that("buildModel refuses a non-xgboost algorithm (that path was removed)", {
+  expect_error(buildModel(covariates = data.table::data.table(ignitions = 0L), type = "ignition",
+                          dig = "test", modelAlgorithm = "glmmadaptive"),
+               "non-xgboost path was removed", fixed = TRUE)
 })

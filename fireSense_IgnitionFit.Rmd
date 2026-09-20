@@ -60,8 +60,8 @@ For each process in `whichProcessesToFit` (`"ignition"`, `"escape"`):
    The AUC of each fold is calculated on its held-out rows and the mean is printed.
 4. The per-fold models are returned together with the values needed to predict from them (see outputs).
 
-Only `modelAlgorithm = "xgboost"` works.
-`crossValType` does not change the fit.
+Only `modelAlgorithm = "xgboost"` works: the non-xgboost modelling path was removed, and `buildModel()` now stops for any other algorithm.
+`crossValType` does not change the fit; it is only used in the plot filename.
 Fits are cached with `reproducible::Cache()`.
 
 ### Events

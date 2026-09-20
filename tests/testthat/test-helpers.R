@@ -1,34 +1,11 @@
 ## Small pure functions: values are worked out by hand in the comments.
 
-test_that("messageFormulaFn returns a long formula as one line with single spaces", {
-  vars <- paste0("covariate_number_", 1:12)
-  form <- stats::as.formula(paste("ignitions ~", paste(vars, collapse = " + ")))
-  ## format() breaks this formula over several indented lines, which is what the function undoes
-  expect_gt(length(format(form)), 1L)
-  expect_identical(messageFormulaFn(form),
-                   paste("ignitions ~", paste(vars, collapse = " + ")))
-  ## a short formula is returned as is
-  expect_identical(messageFormulaFn(y ~ a + b:c - 1), "y ~ a + b:c - 1")
-})
-
 test_that("functionNameHelper joins its arguments with '_' by default", {
   expect_identical(functionNameHelper("xgboost", "ignition", 3L), "xgboost_ignition_3")
   expect_identical(functionNameHelper("a", "b", sep = "-"), "a-b")
   ## an empty piece is kept, as in the escape plot filename `FuelClimate__predicted`
   expect_identical(functionNameHelper("FuelClimate", "", "predicted"), "FuelClimate__predicted")
   expect_identical(functionNameHelper("f", 1:2), c("f_1", "f_2"))
-})
-
-test_that("checkData stops on a missing pixelID column and on an empty model", {
-  cov <- data.frame(pixelID = 1:3, x = c(0.1, 0.2, 0.3))
-  expect_error(checkData("ignitions ~ x", cov[, "x", drop = FALSE], "ignition"),
-               "covariates for ignition must have a 'pixelID' column", fixed = TRUE)
-  expect_error(checkData("escapes ~ 0", cov, "escape"),
-               "formula for escape describes an empty model", fixed = TRUE)
-  expect_error(checkData(escapes ~ -1, cov, "escape"), "describes an empty model")
-  ## a formula given as character or as formula, with an intercept or a term, passes
-  expect_null(checkData("ignitions ~ x", cov, "ignition"))
-  expect_null(checkData(ignitions ~ 1, cov, "ignition"))
 })
 
 test_that("rocPerFold and aucPerFold give the AUC of each fold", {

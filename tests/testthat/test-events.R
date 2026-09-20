@@ -6,8 +6,7 @@ runModule <- function(params = list(), objects = list(), end = 1, run = TRUE, dr
   defaults <- list(
     fireSense_ignitionCovariates = makeIgnitionCovariates(),
     fireSense_escapeCovariates   = makeIgnitionCovariates(escapes = TRUE),
-    ignitionFitRTM               = makeIgnitionFitRTM(),
-    climateVariablesForFire      = list(ignition = "CMDsm")
+    ignitionFitRTM               = makeIgnitionFitRTM()
   )
   defaults[names(objects)] <- objects
   objects <- defaults
@@ -43,7 +42,7 @@ test_that("init schedules checkData then run, and both processes are fitted and 
     fitted <- sim[[nm]]
     expect_identical(names(fitted), c("modelList", "scaleData"))
     ml <- fitted$modelList
-    expect_identical(names(ml), c("model", "rescales", "fittingRes", "lambdaRescaleFactor", "family"))
+    expect_identical(names(ml), c("model", "rescales", "fittingRes", "lambdaRescaleFactor"))
     expect_identical(names(ml$model), c(paste0("Fold", 1:5), "rocs"))
     expect_equal(ml$fittingRes, 250)                       # cell size of ignitionFitRTM, m
     expect_equal(ml$lambdaRescaleFactor, 0.4)              # 400 rows / 1000 non-NA cells
@@ -130,23 +129,9 @@ test_that("checkData stops when whichProcessesToFit names neither process", {
                "please review P(sim)$whichProcesesToFit", fixed = TRUE)
 })
 
-test_that(".inputObjects needs the covariates, and defaults the climate variable to MDC", {
+test_that(".inputObjects needs the covariates", {
   expect_error(runModule(drop = "fireSense_ignitionCovariates", run = FALSE),
                "this module does not produce data", fixed = TRUE)
-
-  ## no climateVariablesForFire and no MDC column: nothing to default to
-  expect_error(runModule(drop = "climateVariablesForFire", run = FALSE),
-               "please supply climateVariablesForFire", fixed = TRUE)
-
-  withMDC <- makeIgnitionCovariates()
-  data.table::setnames(withMDC, "CMDsm", "MDC")
-  sim <- runModule(objects = list(fireSense_ignitionCovariates = withMDC),
-                   drop = "climateVariablesForFire", run = FALSE)
-  expect_identical(sim$climateVariablesForFire, list(ignition = "MDC"))
-
-  ## a supplied value is left alone
-  sim <- runModule(run = FALSE)
-  expect_identical(sim$climateVariablesForFire, list(ignition = "CMDsm"))
 })
 
 test_that("rescaleVars = FALSE fits on the covariates as supplied and returns no scaleData", {
