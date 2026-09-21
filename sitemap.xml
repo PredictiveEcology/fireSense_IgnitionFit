@@ -8,6 +8,22 @@
 <url><loc>/fireSense_IgnitionFit.html</loc></url>
 <url><loc>/index.html</loc></url>
 <url><loc>/news/index.html</loc></url>
+<url><loc>/reference/Init.html</loc></url>
+<url><loc>/reference/aucPerFold.html</loc></url>
+<url><loc>/reference/buildModel.html</loc></url>
+<url><loc>/reference/buildModelsFitModels.html</loc></url>
+<url><loc>/reference/cvFolds.html</loc></url>
+<url><loc>/reference/dataDigest.html</loc></url>
+<url><loc>/reference/doEvent.fireSense_IgnitionFit.html</loc></url>
+<url><loc>/reference/dot-inputObjects.html</loc></url>
+<url><loc>/reference/frequencyFitRun.html</loc></url>
+<url><loc>/reference/functionNameHelper.html</loc></url>
 <url><loc>/reference/index.html</loc></url>
+<url><loc>/reference/meanRocMessage.html</loc></url>
+<url><loc>/reference/plotPredictions.html</loc></url>
+<url><loc>/reference/rocPerFold.html</loc></url>
+<url><loc>/reference/runXGBOOST.html</loc></url>
+<url><loc>/reference/setupPlots.html</loc></url>
+<url><loc>/reference/stopIfFoldsLackPositives.html</loc></url>
 </urlset>
 

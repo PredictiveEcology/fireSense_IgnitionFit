@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">fireSense_IgnitionFit</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.1.9000</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.2</span>
       </span>
     </div>
 
@@ -51,6 +51,22 @@
 
     </div>
 
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="1.0.2" id="firesense_ignitionfit-102">fireSense_IgnitionFit 1.0.2<a class="anchor" aria-label="anchor" href="#firesense_ignitionfit-102"></a></h2>
+<div class="section level3">
+<h3 id="breaking-changes-1-0-2">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-1-0-2"></a></h3>
+<ul><li>Removed the non-xgboost modelling path entirely (<code>runGLMMAdaptiveWithSimplifications()</code>, <code>runGLM.NB()</code>, <code>checkData()</code>, <code>messageFormulaFn()</code>, and the formula/AIC code in <code><a href="../reference/buildModel.html">buildModel()</a></code>), together with the disabled time-ordered branch of <code><a href="../reference/runXGBOOST.html">runXGBOOST()</a></code>. <code><a href="../reference/buildModel.html">buildModel()</a></code> now stops unless <code>modelAlgorithm</code> contains <code>"xgb"</code>.</li>
+<li>Removed defunct parameters: <code>escapeFamily</code>, <code>ignitionFamily</code>, <code>plot_fuelBiomassPerPrediction</code>, <code>.studyAreaName</code>, <code>.plotInitialTime</code>, <code>.saveInitialTime</code>, <code>.saveInterval</code>.</li>
+<li>Removed defunct inputs: <code>fireSense_ignitionFormula</code>, <code>climateVariablesForFire</code>.</li>
+<li>
+<code>modelList</code> no longer carries a <code>family</code> element: it was always the <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">stats::family</a></code> function itself, never a family object, and nothing read it.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-fixes-1-0-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-0-2"></a></h3>
+<ul><li>The digest of the covariates is now actually passed to <code><a href="../reference/runXGBOOST.html">runXGBOOST()</a></code>. The module asked <code>prepareCovariatesOuter()</code> for <code>digestOfData$fireSense_ignitionCovariates</code>, which is not an element of what that function returns, so <code>NULL</code> was passed and the data played no part in the cache key of the per-fold models. <strong>This changes the cache keys: existing caches of the fit are invalidated and the models will be refitted once.</strong>
+</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="page-header" data-toc-text="1.0.1" id="firesense_ignitionfit-101">fireSense_IgnitionFit 1.0.1<a class="anchor" aria-label="anchor" href="#firesense_ignitionfit-101"></a></h2>
 <p>First release from <code>development</code> since <code>master</code> was last updated (2020-04-02). Full history: <a href="https://github.com/PredictiveEcology/fireSense_IgnitionFit/compare/8ea03bc" class="external-link uri">https://github.com/PredictiveEcology/fireSense_IgnitionFit/compare/8ea03bc</a>…v1.0.1</p>
