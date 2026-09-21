@@ -17,9 +17,7 @@ test_that("inputs are the expected names and classes", {
   inputs <- stats::setNames(md$inputObjects$objectClass, md$inputObjects$objectName)
   expect_identical(
     inputs[order(names(inputs))],
-    c(climateVariablesForFire      = "list",
-      fireSense_ignitionCovariates = "data.frame",
-      fireSense_ignitionFormula    = "character",
+    c(fireSense_ignitionCovariates = "data.frame",
       ignitionFitRTM               = "SpatRaster")
   )
 })
@@ -38,9 +36,39 @@ test_that("parameters are the expected names", {
   md <- SpaDES.core::moduleMetadata(module = moduleName, path = modulePath)
   expect_identical(
     sort(md$parameters$paramName),
-    sort(c(".plotInitialTime", ".plots", ".runInitialTime", ".runInterval",
-           ".saveInitialTime", ".saveInterval", ".seed", ".studyAreaName", ".useCache",
-           "crossValType", "escapeFamily", "ignitionFamily", "modelAlgorithm",
-           "plot_fuelBiomassPerPrediction", "rescaleVars", "whichProcessesToFit"))
+    sort(c(".plots", ".runInitialTime", ".runInterval", ".seed", ".useCache",
+           "crossValType", "modelAlgorithm", "rescaleVars", "whichProcessesToFit"))
   )
+})
+
+test_that("parameters have the expected classes and defaults", {
+  md <- SpaDES.core::moduleMetadata(module = moduleName, path = modulePath)
+  p <- md$parameters
+  classes <- stats::setNames(unlist(p$paramClass), p$paramName)
+  expect_identical(
+    classes[order(names(classes))],
+    c(.plots = "character", .runInitialTime = "numeric", .runInterval = "numeric",
+      .seed = "list", .useCache = "logical", crossValType = "character",
+      modelAlgorithm = "character", rescaleVars = "logical",
+      whichProcessesToFit = "character")
+  )
+
+  default <- function(name) p$default[[match(name, p$paramName)]]
+  expect_identical(default("crossValType"), c("time-ordered", "crossValidation"))
+  expect_identical(default("whichProcessesToFit"), c("ignition", "escape"))
+  expect_identical(default("modelAlgorithm"), "xgboost")
+  expect_identical(default("rescaleVars"), TRUE)
+  expect_identical(default(".plots"), "screen")
+  expect_identical(default(".useCache"), FALSE)
+  expect_null(default(".seed"))
+  expect_true(is.na(default(".runInterval")))
+  ## no parameter has bounds any more
+  expect_true(all(vapply(p$min, function(x) is.na(x) || is.null(x), logical(1))))
+})
+
+test_that("every package the tests rely on is in reqdPkgs, so CI cannot skip them", {
+  md <- SpaDES.core::moduleMetadata(module = moduleName, path = modulePath)
+  pkgs <- sub("\\s*\\(.*$", "", sub("@.*$", "", sub("^.*/", "", unlist(md$reqdPkgs))))
+  expect_true(all(c("xgboost", "SHAPforxgboost", "caret", "pROC", "data.table", "terra",
+                    "ggplot2", "ggpubr", "fireSenseUtils", "reproducible", "SpaDES.core") %in% pkgs))
 })

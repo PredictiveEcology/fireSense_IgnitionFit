@@ -2,7 +2,7 @@
 ## loads. SpaDES.core loads every module's reqdPkgs at simInit, so every job process then
 ## carries those threads, and any later fork (parallel::mcMap / mclapply, e.g. in
 ## fireSenseUtils::bufferToArea via fireSense_dataPrepFit) hangs forever on a lock the
-## threads held. All mirai use in this module is commented out, so it must not be listed.
+## threads held. This module does not use mirai, so it must not be listed.
 test_that("reqdPkgs does not list mirai", {
   exprs <- parse(testthat::test_path("..", "..", "fireSense_IgnitionFit.R"), keep.source = FALSE)
   dm <- Filter(function(x) is.call(x) && identical(x[[1]], as.name("defineModule")), exprs)
