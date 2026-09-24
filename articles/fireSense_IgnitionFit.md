@@ -1,7 +1,7 @@
 ---
 title: "fireSense_IgnitionFit Manual"
-subtitle: "v.1.0.2"
-date: "Last updated: 2026-09-21"
+subtitle: "v.1.0.2.9000"
+date: "Last updated: 2026-09-24"
 output:
   bookdown::html_document2:
     toc: true
@@ -173,6 +173,14 @@ Parameters are in Table \@ref(tab:moduleParams-fireSense-IgnitionFit).
    <td style="text-align:left;"> NA </td>
    <td style="text-align:left;"> NA </td>
    <td style="text-align:left;"> Named list of seeds to use for each event (names). E.g., `list('init' = 123)` will `set.seed(123)` at the start of the init event and unset it at the end. Defaults to `NULL`, meaning that no seeds will be set. </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> .studyAreaName </td>
+   <td style="text-align:left;"> character </td>
+   <td style="text-align:left;"> NA </td>
+   <td style="text-align:left;"> NA </td>
+   <td style="text-align:left;"> NA </td>
+   <td style="text-align:left;"> Human-readable name for the study area used. </td>
   </tr>
   <tr>
    <td style="text-align:left;"> .useCache </td>

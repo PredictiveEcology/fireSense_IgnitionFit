@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">fireSense_IgnitionFit</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">1.0.2.9000</span>
       </span>
     </div>
 
@@ -80,25 +80,43 @@
 <div class="section level4">
 <h4 id="authors">Authors:<a class="anchor" aria-label="anchor" href="#authors"></a>
 </h4>
-<p>Jean Marchal <a href="mailto:jean.d.marchal@gmail.com" class="email">jean.d.marchal@gmail.com</a> [aut], Eliot McIntire <a href="mailto:eliot.mcintire@nrcan-rncan.gc.ca" class="email">eliot.mcintire@nrcan-rncan.gc.ca</a> [aut], Ian Eddy <a href="mailto:ian.eddy@nrcan-rncan.gc.ca" class="email">ian.eddy@nrcan-rncan.gc.ca</a> [aut, cre], Alex M Chubaty <a href="mailto:achubaty@for-cast.ca" class="email">achubaty@for-cast.ca</a> [ctb] <!-- ideally separate authors with new lines, '\n' not working --></p>
+<p>Eliot McIntire <a href="mailto:eliot.mcintire@nrcan-rncan.gc.ca" class="email">eliot.mcintire@nrcan-rncan.gc.ca</a> [aut, cre], Ian Eddy <a href="mailto:ian.eddy@nrcan-rncan.gc.ca" class="email">ian.eddy@nrcan-rncan.gc.ca</a> [aut], Jean Marchal <a href="mailto:jean.d.marchal@gmail.com" class="email">jean.d.marchal@gmail.com</a> [aut], Alex M Chubaty <a href="mailto:achubaty@for-cast.ca" class="email">achubaty@for-cast.ca</a> [ctb] <!-- ideally separate authors with new lines, '\n' not working --></p>
 </div>
 <div class="section level2">
 <h2 id="module-overview">Module Overview<a class="anchor" aria-label="anchor" href="#module-overview"></a>
 </h2>
-<p>This module fits a statistical model to estimate the contributions of climate and fuel to fire ignition. <!-- TODO --> Estimate fire ignition (TODO: fill this out) - [@Marchal:2017a; @Marchal:2017b; @Marchal:2019]</p>
+<p>Fits models of fire ignition and, optionally, fire escape from climate and fuel covariates. The fitted models are used by <em>fireSense_IgnitionPredict</em> and <em>fireSense_dataPrepPredict</em>. The module does not prepare data; <em>fireSense_dataPrepFit</em> supplies its inputs. Earlier versions fitted the piecewise regression models of @Marchal:2017a, @Marchal:2017b and @Marchal:2019.</p>
 <div class="section level3">
-<h3 id="module-summary">Module summary<a class="anchor" aria-label="anchor" href="#module-summary"></a>
+<h3 id="what-it-does">What it does<a class="anchor" aria-label="anchor" href="#what-it-does"></a>
 </h3>
-<p>Fit a model of fire ignition from climate and fuel covariates.</p>
+<p>For each process in <code>whichProcessesToFit</code> (<code>"ignition"</code>, <code>"escape"</code>):</p>
+<ol style="list-style-type: decimal">
+<li>Covariates are centred and scaled (<code><a href="https://rdrr.io/pkg/fireSenseUtils/man/prepareCovariatesOuter.html" class="external-link">fireSenseUtils::prepareCovariatesOuter()</a></code>), if <code>rescaleVars = TRUE</code>. Ignition uses <code>fireSense_ignitionCovariates</code>; escape uses <code>fireSense_escapeCovariates</code> and only its rows with at least one ignition.</li>
+<li>Rows are split into 5 cross-validation folds, stratified on whether the response is positive. The fit stops if any fold would train without a positive observation.</li>
+<li>One <code>xgboost</code> model (Tweedie objective) is fitted per fold, with the fold as the evaluation set. The AUC of each fold is calculated on its held-out rows and the mean is printed.</li>
+<li>The per-fold models are returned together with the values needed to predict from them (see outputs).</li>
+</ol>
+<p>Only <code>modelAlgorithm = "xgboost"</code> works: the non-xgboost modelling path was removed, and <code><a href="reference/buildModel.html">buildModel()</a></code> now stops for any other algorithm. <code>crossValType</code> does not change the fit; it is only used in the plot filename. Fits are cached with <code><a href="https://reproducible.predictiveecology.org/reference/Cache.html" class="external-link">reproducible::Cache()</a></code>.</p>
+</div>
+<div class="section level3">
+<h3 id="events">Events<a class="anchor" aria-label="anchor" href="#events"></a>
+</h3>
+<ul>
+<li>
+<code>init</code>: schedules <code>checkData</code> and <code>run</code> at <code>.runInitialTime</code>.</li>
+<li>
+<code>checkData</code>: stops if <code>ignitionFitRTM</code> lacks the <code>nonNAs</code> attribute, or if <code>whichProcessesToFit</code> names neither process.</li>
+<li>
+<code>run</code>: fits and, if <code>.plots</code> is set, plots. Repeats every <code>.runInterval</code> if that is not <code>NA</code>.</li>
+</ul>
 </div>
 <div class="section level3">
 <h3 id="module-inputs-and-parameters">Module inputs and parameters<a class="anchor" aria-label="anchor" href="#module-inputs-and-parameters"></a>
 </h3>
-<p>Describe input data required by the module and how to obtain it (e.g., directly from online sources or supplied by other modules) .</p>
-<p>Table @ref(tab:moduleInputs-fireSense-IgnitionFit) shows the full list of module inputs.</p>
-<table class="table table" style="color: black; margin-left: auto; margin-right: auto;">
+<p>Table @ref(tab:moduleInputs-fireSense-IgnitionFit) lists the declared inputs. Fitting escape also needs <code>fireSense_escapeCovariates</code> (from <em>fireSense_dataPrepFit</em>), which is not declared in the metadata.</p>
+<table class="table table" style="margin-left: auto; margin-right: auto;">
 <caption>
-(#tab:moduleInputs-fireSense-IgnitionFit)(#tab:moduleInputs-fireSense-IgnitionFit)List of (ref:fireSense_IgnitionFit) input objects and their description.
+(#tab:moduleInputs-fireSense-IgnitionFit)(#tab:moduleInputs-fireSense-IgnitionFit)List of (ref:fireSense-IgnitionFit) input objects and their description.
 </caption>
 <thead><tr>
 <th style="text-align:left;">
@@ -117,41 +135,13 @@ sourceURL
 <tbody>
 <tr>
 <td style="text-align:left;">
-climateVariablesForFire
-</td>
-<td style="text-align:left;">
-list
-</td>
-<td style="text-align:left;">
-The column name(s) in the <code>fireSense_ignitionCovariates</code> that is climate, in a named list, .e.g. <code>climateVariablesForFire = list('ignition' = 'MDC')</code>
-</td>
-<td style="text-align:left;">
-NA
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
 fireSense_ignitionCovariates
 </td>
 <td style="text-align:left;">
 data.frame
 </td>
 <td style="text-align:left;">
-table of aggregated ignition covariates with annual ignitions
-</td>
-<td style="text-align:left;">
-NA
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-flammableRTM
-</td>
-<td style="text-align:left;">
-SpatRaster
-</td>
-<td style="text-align:left;">
-RTM without ice/rocks/urban/water. Flammable map with 0 and 1.
+Table of aggregated ignition covariates with annual <code>ignitions</code> counts, one row per <code>pixelID</code> and <code>year</code>.
 </td>
 <td style="text-align:left;">
 NA
@@ -165,21 +155,7 @@ ignitionFitRTM
 SpatRaster
 </td>
 <td style="text-align:left;">
-A (template) raster with information with regards to the spatial resolution and geographical extent of <code>fireSense_ignitionCovariates</code>. Used to pass this information onto <code>fireSense_ignitionFitted</code> Needs to have number of non-NA cells as attribute: (<code>ignitionFitRTM@data@attributes$nonNAs</code>), and optionally, <code>ignitionFitRTM@data@attributes$meanForestB</code>
-</td>
-<td style="text-align:left;">
-NA
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-fireSense_ignitionFormula
-</td>
-<td style="text-align:left;">
-character
-</td>
-<td style="text-align:left;">
-formula - as a character - describing the model to be fitted.
+Template raster at the resolution and extent of <code>fireSense_ignitionCovariates</code>. Its resolution and its number of non-NA cells, which must be in the attribute <code>nonNAs</code> (<code>attributes(ignitionFitRTM)$nonNAs</code>), are stored in the fitted objects.
 </td>
 <td style="text-align:left;">
 NA
@@ -187,8 +163,8 @@ NA
 </tr>
 </tbody>
 </table>
-<p>Summary of user-visible parameters (Table @ref(tab:moduleParams-fireSense-IgnitionFit))</p>
-<table class="table table" style="color: black; margin-left: auto; margin-right: auto;">
+<p>Parameters are in Table @ref(tab:moduleParams-fireSense-IgnitionFit).</p>
+<table class="table table" style="margin-left: auto; margin-right: auto;">
 <caption>
 (#tab:moduleParams-fireSense-IgnitionFit)(#tab:moduleParams-fireSense-IgnitionFit)List of (ref:fireSense-IgnitionFit) parameters and their description.
 </caption>
@@ -215,41 +191,22 @@ paramDesc
 <tbody>
 <tr>
 <td style="text-align:left;">
-family
+crossValType
 </td>
 <td style="text-align:left;">
-function….
+character
 </td>
 <td style="text-align:left;">
-poisson,….
-</td>
-<td style="text-align:left;">
-NA
+time-ord….
 </td>
 <td style="text-align:left;">
 NA
 </td>
 <td style="text-align:left;">
-a family function (must be wrapped with <code><a href="https://rdrr.io/r/base/substitute.html" class="external-link">quote()</a></code>) or a character string naming a family function. Only the negative binomial has been implemented For additional details see <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">?family</a></code>. This was formerly <code>quote(MASS::negative.binomial(theta = 1, link = 'identity'))</code>.
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-plot_fuelBiomassPerPrediction
+NA
 </td>
 <td style="text-align:left;">
-numeric
-</td>
-<td style="text-align:left;">
-</td>
-<td style="text-align:left;">
-1
-</td>
-<td style="text-align:left;">
-10
-</td>
-<td style="text-align:left;">
-when generating plots of climate x fuel class, the log of biomass (g/m2) for which to generate predictions across a gradient of climate values. If supplied, it will override any values in <code>sim$ignitionFitRTM$meanForestB</code>
+Has no effect on the fit: <code><a href="reference/runXGBOOST.html">runXGBOOST()</a></code> always uses k-fold cross validation. The first element is only used in the plot filename.
 </td>
 </tr>
 <tr>
@@ -269,7 +226,47 @@ NA
 NA
 </td>
 <td style="text-align:left;">
-Attempt to rescale variables? If <code>rescalers</code> is defined, use it to rescale variables as <code>var / rescalers['var']</code>. Otherwise, <code><a href="https://rdrr.io/r/base/scale.html" class="external-link">scale()</a></code> will be used to rescale variables to <code>[0,1]</code>, if they are not already within this range.
+If <code>TRUE</code>, covariates are centred and scaled with <code><a href="https://rdrr.io/r/base/scale.html" class="external-link">scale()</a></code> before fitting. The centring and scaling values are returned in the <code>scaleData</code> element of the outputs.
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+whichProcessesToFit
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+ignition….
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+which processes to fit: ignition, escape, or both (the default)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+modelAlgorithm
+</td>
+<td style="text-align:left;">
+character
+</td>
+<td style="text-align:left;">
+xgboost
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+NA
+</td>
+<td style="text-align:left;">
+Model type. Only <code>xgboost</code> (any value containing ‘xgb’) works.
 </td>
 </tr>
 <tr>
@@ -289,26 +286,7 @@ NA
 NA
 </td>
 <td style="text-align:left;">
-See ?Plots. There are a few plots that are made within this module, if set.
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-.plotInitialTime
-</td>
-<td style="text-align:left;">
-numeric
-</td>
-<td style="text-align:left;">
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-when to do plot
+See <code>?Plots</code>. If set, plots the predicted response against each covariate, for climate and fuel covariates separately, and saves it as png in <code>figurePath(sim)</code>.
 </td>
 </tr>
 <tr>
@@ -353,46 +331,6 @@ optional. Interval between two runs of this module, expressed in units of simula
 </tr>
 <tr>
 <td style="text-align:left;">
-.saveInitialTime
-</td>
-<td style="text-align:left;">
-numeric
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-optional. When to start saving output to a file.
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-.saveInterval
-</td>
-<td style="text-align:left;">
-numeric
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-optional. Interval between save events.
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
 .seed
 </td>
 <td style="text-align:left;">
@@ -408,26 +346,6 @@ NA
 </td>
 <td style="text-align:left;">
 Named list of seeds to use for each event (names). E.g., <code>list('init' = 123)</code> will <code>set.seed(123)</code> at the start of the init event and unset it at the end. Defaults to <code>NULL</code>, meaning that no seeds will be set.
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-.studyAreaName
-</td>
-<td style="text-align:left;">
-character
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-NA
-</td>
-<td style="text-align:left;">
-Human-readable name for the study area used. If NA, a hash of <code>studyAreaLarge</code> will be used.
 </td>
 </tr>
 <tr>
@@ -454,28 +372,20 @@ Should this entire module be run with caching activated? This is generally inten
 </table>
 </div>
 <div class="section level3">
-<h3 id="events">Events<a class="anchor" aria-label="anchor" href="#events"></a>
-</h3>
-<!-- TODO -->
-<p>Describe what happens for each event type.</p>
-</div>
-<div class="section level3">
 <h3 id="plotting">Plotting<a class="anchor" aria-label="anchor" href="#plotting"></a>
 </h3>
-<!-- TODO -->
-<p>Write what is plotted.</p>
+<p>If <code>.plots</code> is set, one figure per process: the predicted response against each covariate, with all other covariates at their mean, for climate and fuel covariates in separate panels. It is saved as png in <code>figurePath(sim)</code>.</p>
 </div>
 <div class="section level3">
 <h3 id="saving">Saving<a class="anchor" aria-label="anchor" href="#saving"></a>
 </h3>
-<!-- TODO -->
-<p>Write what is saved.</p>
+<p>Nothing is saved apart from the figure.</p>
 </div>
 <div class="section level3">
 <h3 id="module-outputs">Module outputs<a class="anchor" aria-label="anchor" href="#module-outputs"></a>
 </h3>
-<p>Description of the module outputs (Table @ref(tab:moduleOutputs-fireSense-IgnitionFit)).</p>
-<table class="table table" style="color: black; margin-left: auto; margin-right: auto;">
+<p>Outputs are in Table @ref(tab:moduleOutputs-fireSense-IgnitionFit). <code>fireSense_IgnitionFitted$modelList$model</code> is the list of per-fold models (<code>Fold1</code>, …) plus <code>rocs</code>, the ROC curve of each fold. <code>lambdaRescaleFactor</code> is the number of rows in the covariates divided by the number of non-NA cells in <code>ignitionFitRTM</code>.</p>
+<table class="table table" style="margin-left: auto; margin-right: auto;">
 <caption>
 (#tab:moduleOutputs-fireSense-IgnitionFit)(#tab:moduleOutputs-fireSense-IgnitionFit)List of (ref:fireSense-IgnitionFit) outputs and their description.
 </caption>
@@ -493,13 +403,13 @@ desc
 <tbody>
 <tr>
 <td style="text-align:left;">
-covMinMax_ignition
+fireSense_EscapeFitted
 </td>
 <td style="text-align:left;">
-data.table
+fireSense_EscapeFit
 </td>
 <td style="text-align:left;">
-Table of the original ranges (min and max) of covariates
+List of <code>modelList</code> and <code>scaleData</code>, as <code>fireSense_IgnitionFitted</code>, with <code>modelList</code> of class <code>fireSense_EscapeFit</code>.
 </td>
 </tr>
 <tr>
@@ -510,28 +420,34 @@ fireSense_IgnitionFitted
 fireSense_IgnitionFit
 </td>
 <td style="text-align:left;">
-A fitted model object of class <code>fireSense_IgnitionFit</code>.
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-ignitionRescalers
-</td>
-<td style="text-align:left;">
-integer
-</td>
-<td style="text-align:left;">
-scaling vector if rescaling variables to 0-10 range
+List of <code>modelList</code> (class <code>fireSense_IgnitionFit</code>: <code>model</code>, the per-fold xgboost models and their ROC curves, <code>fittingRes</code>, <code>lambdaRescaleFactor</code>, <code>rescales</code>) and <code>scaleData</code> (centre and scale used to standardise the covariates).
 </td>
 </tr>
 </tbody>
 </table>
 </div>
 <div class="section level3">
+<h3 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
+</h3>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co">## in the same `simInit()` call as fireSense_dataPrepFit, which creates the inputs</span></span>
+<span><span class="va">modules</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"fireSense_dataPrepFit"</span>, <span class="st">"fireSense_IgnitionFit"</span><span class="op">)</span></span>
+<span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  fireSense_IgnitionFit <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>whichProcessesToFit <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ignition"</span>, <span class="st">"escape"</span><span class="op">)</span>, .plots <span class="op">=</span> <span class="st">"png"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co">## after `spades()`</span></span>
+<span><span class="va">sim</span><span class="op">$</span><span class="va">fireSense_IgnitionFitted</span><span class="op">$</span><span class="va">modelList</span><span class="op">$</span><span class="va">model</span><span class="op">$</span><span class="va">Fold1</span></span></code></pre></div>
+</div>
+<div class="section level3">
 <h3 id="links-to-other-modules">Links to other modules<a class="anchor" aria-label="anchor" href="#links-to-other-modules"></a>
 </h3>
-<!-- TODO: add links to other fireSense modules -->
-<p>This model can be used to parameterize the fire ignition component of landscape fire models such as fireSense.</p>
+<ul>
+<li>
+<a href="https://github.com/PredictiveEcology/fireSense_dataPrepFit" class="external-link">fireSense_dataPrepFit</a> creates the inputs.</li>
+<li>
+<a href="https://github.com/PredictiveEcology/fireSense_dataPrepPredict" class="external-link">fireSense_dataPrepPredict</a> and <a href="https://github.com/PredictiveEcology/fireSense_IgnitionPredict" class="external-link">fireSense_IgnitionPredict</a> use the outputs.</li>
+</ul>
 </div>
 <div class="section level3">
 <h3 id="getting-help">Getting help<a class="anchor" aria-label="anchor" href="#getting-help"></a>
