@@ -11,7 +11,7 @@ defineModule(sim, list(
     person("Alex M", "Chubaty", email = "achubaty@for-cast.ca", role = "ctb")
   ),
   childModules = character(),
-  version = list(fireSense_IgnitionFit = "1.0.2"),
+  version = list(fireSense_IgnitionFit = "1.0.2.9000"),
   timeframe = as.POSIXlt(c(NA, NA)),
   timeunit = NA_character_, # e.g., "year",
   citation = list("citation.bib"),
@@ -54,6 +54,8 @@ defineModule(sim, list(
                           "E.g., `list('init' = 123)` will `set.seed(123)`",
                           "at the start of the init event and unset it at the end.",
                           "Defaults to `NULL`, meaning that no seeds will be set.")),
+    defineParameter(".studyAreaName", "character", NA, NA, NA,
+                    "Human-readable name for the study area used."),
     defineParameter(".useCache", "logical", FALSE, NA, NA,
                     desc = paste("Should this entire module be run with caching activated?",
                                  "This is generally intended for data-type modules,",

@@ -1,3 +1,7 @@
+# fireSense_IgnitionFit (development version)
+
+- New parameter `.studyAreaName` (default `NA`), the name PredictiveEcology modules use for the study area. This module does not use it yet.
+
 # fireSense_IgnitionFit 1.0.2
 
 ## Breaking changes
