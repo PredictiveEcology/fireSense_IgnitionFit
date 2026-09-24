@@ -36,7 +36,7 @@ test_that("parameters are the expected names", {
   md <- SpaDES.core::moduleMetadata(module = moduleName, path = modulePath)
   expect_identical(
     sort(md$parameters$paramName),
-    sort(c(".plots", ".runInitialTime", ".runInterval", ".seed", ".useCache",
+    sort(c(".plots", ".runInitialTime", ".runInterval", ".seed", ".studyAreaName", ".useCache",
            "crossValType", "modelAlgorithm", "rescaleVars", "whichProcessesToFit"))
   )
 })
@@ -48,7 +48,7 @@ test_that("parameters have the expected classes and defaults", {
   expect_identical(
     classes[order(names(classes))],
     c(.plots = "character", .runInitialTime = "numeric", .runInterval = "numeric",
-      .seed = "list", .useCache = "logical", crossValType = "character",
+      .seed = "list", .studyAreaName = "character", .useCache = "logical", crossValType = "character",
       modelAlgorithm = "character", rescaleVars = "logical",
       whichProcessesToFit = "character")
   )
